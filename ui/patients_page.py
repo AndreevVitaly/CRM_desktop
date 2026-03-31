@@ -1,0 +1,392 @@
+"""
+Страница списка пациентов
+"""
+
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QFrame, QPushButton, QLineEdit, QComboBox,
+                             QTableWidget, QTableWidgetItem, QHeaderView,
+                             QFileDialog, QMessageBox, QMenu)
+from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QAction
+
+from models.db_models import User, Patient, Facility, DEPARTMENTS
+from ui.styles import get_colors, FONTS, RADIUS
+
+
+class PatientsPage(QWidget):
+    """Страница пациентов"""
+    
+    def __init__(self, user: User):
+        super().__init__()
+        self.user = user
+        self.current_filter = ""
+        self.type_filter = ""
+        self.facility_filter = 0
+        self._init_ui()
+    
+    def _init_ui(self):
+        """Инициализация интерфейса"""
+        colors = get_colors()
+        
+        layout = QVBoxLayout()
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Верхняя панель с фильтрами
+        filter_panel = self._create_filter_panel()
+        layout.addWidget(filter_panel)
+        
+        # Таблица пациентов
+        self.table = self._create_table()
+        layout.addWidget(self.table, 1)
+        
+        # Кнопки действий
+        actions_panel = self._create_actions_panel()
+        layout.addWidget(actions_panel)
+        
+        self.setLayout(layout)
+        self.setStyleSheet(f"background-color: {colors['bg']};")
+        
+        # Загрузка данных
+        self._load_patients()
+    
+    def _create_filter_panel(self) -> QFrame:
+        """Панель фильтров"""
+        colors = get_colors()
+        
+        panel = QFrame()
+        panel.setObjectName("card")
+        panel.setFixedHeight(70)
+        panel.setStyleSheet(f"""
+            QFrame#card {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['lg']}px;
+                padding: 12px;
+            }}
+        """)
+        
+        layout = QHBoxLayout(panel)
+        layout.setSpacing(12)
+        
+        # Поиск
+        search_label = QLabel("🔍")
+        layout.addWidget(search_label)
+        
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Поиск по ФИО, номеру документа...")
+        self.search_input.setFixedWidth(300)
+        self.search_input.textChanged.connect(self._on_search_changed)
+        layout.addWidget(self.search_input)
+        
+        # Тип пациента
+        self.type_combo = QComboBox()
+        self.type_combo.addItem("Все типы", "")
+        self.type_combo.addItem("Взрослые", "adult")
+        self.type_combo.addItem("Дети", "child")
+        self.type_combo.setFixedWidth(150)
+        self.type_combo.currentIndexChanged.connect(self._on_filter_changed)
+        layout.addWidget(self.type_combo)
+        
+        # Место размещения
+        self.facility_combo = QComboBox()
+        self.facility_combo.addItem("Все места", 0)
+        facilities = Facility.get_all()
+        for f in facilities:
+            self.facility_combo.addItem(f.name, f.id)
+        self.facility_combo.setFixedWidth(200)
+        self.facility_combo.currentIndexChanged.connect(self._on_filter_changed)
+        layout.addWidget(self.facility_combo)
+        
+        # Отделение (для LEAD, NUR)
+        if self.user.role == User.ROLE_LEAD:
+            dept_label = QLabel(f"📍 {self.user.department_display}")
+            dept_label.setStyleSheet("font-weight: bold;")
+            layout.addWidget(dept_label)
+        
+        layout.addStretch()
+        
+        # Кнопка сброса
+        reset_btn = QPushButton("🔄 Сброс")
+        reset_btn.setObjectName("secondaryBtn")
+        reset_btn.setFixedHeight(36)
+        reset_btn.clicked.connect(self._reset_filters)
+        layout.addWidget(reset_btn)
+        
+        return panel
+    
+    def _create_table(self) -> QTableWidget:
+        """Таблица пациентов"""
+        colors = get_colors()
+        
+        table = QTableWidget()
+        table.setColumnCount(8)
+        table.setHorizontalHeaderLabels([
+            "ФИО", "Дата рождения", "Пол", "Тип", "Отделение", 
+            "Врач", "Телефон", "Позывной"
+        ])
+        
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setAlternatingRowColors(True)
+        table.verticalHeader().setVisible(False)
+        table.setShowGrid(False)
+        
+        # Контекстное меню
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table.customContextMenuRequested.connect(self._show_context_menu)
+        
+        # Двойной клик для открытия
+        table.doubleClicked.connect(self._open_patient)
+        
+        return table
+    
+    def _create_actions_panel(self) -> QFrame:
+        """Панель действий"""
+        colors = get_colors()
+        
+        panel = QFrame()
+        panel.setFixedHeight(50)
+        panel.setStyleSheet(f"background-color: transparent;")
+        
+        layout = QHBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Кнопка добавления (ADMIN, REG, LEAD)
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
+            add_btn = QPushButton("➕ Добавить пациента")
+            add_btn.setFixedHeight(40)
+            add_btn.clicked.connect(self._add_patient)
+            layout.addWidget(add_btn)
+        
+        layout.addStretch()
+        
+        # Счётчик
+        self.count_label = QLabel("")
+        self.count_label.setObjectName("muted")
+        layout.addWidget(self.count_label)
+        
+        return panel
+    
+    def _load_patients(self):
+        """Загрузка пациентов"""
+        self.table.setRowCount(0)
+        
+        patients = Patient.get_all(
+            user=self.user,
+            include_inactive=False,
+            search_query=self.current_filter,
+            patient_type=self.type_filter,
+            facility_id=self.facility_filter
+        )
+        
+        for patient in patients:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            
+            # ФИО
+            name_item = QTableWidgetItem(patient.full_name)
+            name_item.setData(Qt.ItemDataRole.UserRole, patient.id)
+            self.table.setItem(row, 0, name_item)
+            
+            # Дата рождения
+            self.table.setItem(row, 1, QTableWidgetItem(
+                patient.birth_date.strftime("%d.%m.%Y")
+            ))
+            
+            # Пол
+            gender_dict = {"M": "М", "F": "Ж"}
+            self.table.setItem(row, 2, QTableWidgetItem(gender_dict.get(patient.gender, "")))
+            
+            # Тип
+            type_dict = {"adult": "Взрослый", "child": "Детский"}
+            self.table.setItem(row, 3, QTableWidgetItem(type_dict.get(patient.patient_type, "")))
+            
+            # Отделение
+            self.table.setItem(row, 4, QTableWidgetItem(patient.department_display))
+            
+            # Врач
+            doctor_name = patient.doctor.full_name if patient.doctor else "—"
+            self.table.setItem(row, 5, QTableWidgetItem(doctor_name))
+            
+            # Телефон
+            self.table.setItem(row, 6, QTableWidgetItem(patient.phone or "—"))
+            
+            # Позывной
+            self.table.setItem(row, 7, QTableWidgetItem(patient.callsign or "—"))
+        
+        self.count_label.setText(f"Найдено: {len(patients)}")
+    
+    def _on_search_changed(self, text: str):
+        """Изменение поиска"""
+        self.current_filter = text
+        self._load_patients()
+    
+    def _on_filter_changed(self):
+        """Изменение фильтра"""
+        self.type_filter = self.type_combo.currentData()
+        self.facility_filter = self.facility_combo.currentData()
+        self._load_patients()
+    
+    def _reset_filters(self):
+        """Сброс фильтров"""
+        self.search_input.clear()
+        self.type_combo.setCurrentIndex(0)
+        self.facility_combo.setCurrentIndex(0)
+        self.current_filter = ""
+        self.type_filter = ""
+        self.facility_filter = 0
+        self._load_patients()
+    
+    def _show_context_menu(self, pos):
+        """Контекстное меню"""
+        row = self.table.rowAt(pos.y())
+        if row < 0:
+            return
+        
+        patient_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        patient = Patient.get_by_id(patient_id)
+        if not patient:
+            return
+        
+        menu = QMenu()
+        
+        # Открыть
+        open_action = menu.addAction("📄 Открыть карточку")
+        open_action.triggered.connect(lambda: self._open_patient_by_id(patient_id))
+        
+        # Редактировать (REG, LEAD)
+        if self.user.role in (User.ROLE_REGISTRAR, User.ROLE_LEAD):
+            if self.user.role == User.ROLE_LEAD and patient.department != self.user.department:
+                pass  # LEAD не может редактировать пациентов другого отделения
+            else:
+                edit_action = menu.addAction("✏️ Редактировать")
+                edit_action.triggered.connect(lambda: self._edit_patient(patient_id))
+        
+        # Скрыть/Восстановить (только REG)
+        if self.user.role == User.ROLE_REGISTRAR:
+            if patient.is_active:
+                hide_action = menu.addAction("🙈 Скрыть")
+                hide_action.triggered.connect(lambda: self._hide_patient(patient_id))
+            else:
+                restore_action = menu.addAction("↩️ Восстановить")
+                restore_action.triggered.connect(lambda: self._restore_patient(patient_id))
+        
+        # Справка (ADMIN, REG, LEAD)
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
+            cert_action = menu.addAction("📄 Справка")
+            cert_action.triggered.connect(lambda: self._generate_certificate(patient_id))
+        
+        menu.exec_(self.table.viewport().mapToGlobal(pos))
+    
+    def _get_selected_patient_id(self) -> int:
+        """Получение ID выбранного пациента"""
+        selected = self.table.selectedItems()
+        if not selected:
+            return None
+        return selected[0].data(Qt.ItemDataRole.UserRole)
+    
+    def _open_patient(self, index):
+        """Открытие пациента (двойной клик)"""
+        patient_id = self.table.item(index.row(), 0).data(Qt.ItemDataRole.UserRole)
+        self._open_patient_by_id(patient_id)
+    
+    def _open_patient_by_id(self, patient_id: int):
+        """Открытие карточки пациента"""
+        from ui.patient_detail import PatientDetailDialog
+        dialog = PatientDetailDialog(self.user, patient_id)
+        dialog.exec()
+        self._load_patients()  # Обновить данные
+    
+    def _add_patient(self):
+        """Добавление пациента"""
+        from ui.patient_form import PatientFormDialog
+        dialog = PatientFormDialog(self.user, None)
+        if dialog.exec():
+            self._load_patients()
+    
+    def _edit_patient(self, patient_id: int):
+        """Редактирование пациента"""
+        from ui.patient_form import PatientFormDialog
+        patient = Patient.get_by_id(patient_id)
+        dialog = PatientFormDialog(self.user, patient)
+        if dialog.exec():
+            self._load_patients()
+    
+    def _hide_patient(self, patient_id: int):
+        """Скрытие пациента"""
+        patient = Patient.get_by_id(patient_id)
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            f"Скрыть пациента {patient.full_name}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            patient.delete()
+            self._load_patients()
+    
+    def _restore_patient(self, patient_id: int):
+        """Восстановление пациента"""
+        patient = Patient.get_by_id(patient_id)
+        patient.restore()
+        self._load_patients()
+    
+    def _generate_certificate(self, patient_id: int):
+        """Генерация справки"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox
+        from datetime import datetime
+        
+        patient = Patient.get_by_id(patient_id)
+        
+        if not patient:
+            QMessageBox.warning(self, "Ошибка", "Пациент не найден")
+            return
+        
+        # Генерация текста справки
+        certificate_text = f"""
+СПРАВКА
+о прохождении лечения
+
+Выдана {patient.full_name}
+
+Дата рождения: {patient.birth_date.strftime("%d.%m.%Y")}
+Пол: {"Мужской" if patient.gender == "M" else "Женский"}
+Отделение: {patient.department_display}
+{f"Лечащий врач: {patient.doctor.full_name}" if patient.doctor else ""}
+{f"Место размещения: {patient.facility.name}" if patient.facility else ""}
+
+Дана в том, что пациент действительно проходит лечение в нашем учреждении.
+
+Справка действительна в течение 30 дней с даты выдачи.
+Дата выдачи: {datetime.now().strftime("%d.%m.%Y")}
+        """.strip()
+        
+        # Показ справки
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Справка")
+        dialog.setMinimumSize(500, 400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        text_edit = QTextEdit()
+        text_edit.setPlainText(certificate_text)
+        text_edit.setReadOnly(True)
+        text_edit.setFontPointSize(11)
+        layout.addWidget(text_edit)
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(dialog.accept)
+        layout.addWidget(buttons)
+        
+        dialog.exec()
