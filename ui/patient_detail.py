@@ -2,11 +2,12 @@
 Детальная карточка пациента
 """
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QFrame, QPushButton, QTabWidget, QTableWidget, 
-                             QTableWidgetItem, QHeaderView, QTextEdit, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                             QFrame, QPushButton, QTabWidget, QTableWidget,
+                             QTableWidgetItem, QHeaderView, QTextEdit,
                              QLineEdit, QComboBox, QMessageBox, QDateEdit,
-                             QTimeEdit, QSpinBox, QGroupBox, QGridLayout)
+                             QTimeEdit, QSpinBox, QGroupBox, QGridLayout,
+                             QWidget)
 from PyQt6.QtCore import Qt, QDate, QTime
 from PyQt6.QtGui import QFont
 

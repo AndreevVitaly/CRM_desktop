@@ -8,65 +8,65 @@
 # ============================================================================
 
 COLORS_LIGHT = {
-    # Основные цвета (Modern Gray Scale)
-    "bg": "#F5F7FA",              # Светлый серо-голубой фон
+    # Основные цвета (Minimal Gray Scale)
+    "bg": "#FAFAFA",              # Очень светлый серый фон
     "surface": "#FFFFFF",          # Чистый белый
-    "surface_muted": "#F1F5F9",    # Светлый серый (контрастный)
-    "text": "#0F172A",             # Очень тёмный серый (почти чёрный)
-    "text_muted": "#475569",       # Средний серый (контрастный)
-    "text_secondary": "#64748B",   # Светлый серый
-    
+    "surface_muted": "#F5F5F5",    # Светлый серый
+    "text": "#1A1A1A",             # Тёмный серый (мягкий чёрный)
+    "text_muted": "#737373",       # Средний серый
+    "text_secondary": "#A3A3A3",   # Светлый серый
+
     # Границы и разделители
-    "line": "#CBD5E1",             # Контрастная граница
-    "line_light": "#E2E8F0",       # Светлая граница
-    
-    # Акцентные цвета (Modern Indigo)
-    "accent": "#4F46E5",           # Индиго (основной акцент)
-    "accent_hover": "#4338CA",     # Индиго при наведении
-    "accent_strong": "#3730A3",    # Тёмный индиго
-    "accent_light": "#E0E7FF",     # Светлый индиго фон
-    "accent_soft": "#818CF8",      # Мягкий индиго
-    
-    # Градиенты
-    "gradient_start": "#4F46E5",
-    "gradient_end": "#7C3AED",
-    
-    # Цвета состояний (Modern Palette)
-    "success": "#059669",          # Тёмный изумруд
-    "success_bg": "#D1FAE5",
-    "warning": "#D97706",          # Тёмный янтарь
-    "warning_bg": "#FEF3C7",
-    "danger": "#DC2626",           # Тёмный красный
-    "danger_bg": "#FEE2E2",
-    "info": "#2563EB",             # Тёмный синий
-    "info_bg": "#DBEAFE",
-    
-    # Роли (Modern Vibrant)
-    "role_admin": "#7C3AED",       # Тёмный фиолетовый
-    "role_reg": "#0891B2",         # Тёмный циан
-    "role_lead": "#059669",        # Тёмный изумруд
-    "role_doc": "#2563EB",         # Тёмный синий
-    "role_nur": "#DB2777",         # Тёмный розовый
-    
+    "line": "#E5E5E5",             # Тонкая светлая граница
+    "line_light": "#F0F0F0",       # Едва заметная граница
+
+    # Акцентные цвета (приглушённые)
+    "accent": "#2563EB",           # Спокойный синий
+    "accent_hover": "#1D4ED8",     # Темнее при наведении
+    "accent_strong": "#1E40AF",    # Тёмный синий
+    "accent_light": "#EFF6FF",     # Очень светлый синий фон
+    "accent_soft": "#60A5FA",      # Мягкий синий
+
+    # Градиенты (убраны, используются однотонные цвета)
+    "gradient_start": "#2563EB",
+    "gradient_end": "#2563EB",
+
+    # Цвета состояний (мягкие)
+    "success": "#059669",          # Изумруд
+    "success_bg": "#ECFDF5",
+    "warning": "#D97706",          # Янтарь
+    "warning_bg": "#FFFBEB",
+    "danger": "#DC2626",           # Красный
+    "danger_bg": "#FEF2F2",
+    "info": "#2563EB",             # Синий
+    "info_bg": "#EFF6FF",
+
+    # Роли (приглушённые)
+    "role_admin": "#7C3AED",       # Фиолетовый
+    "role_reg": "#0891B2",         # Циан
+    "role_lead": "#059669",        # Изумруд
+    "role_doc": "#2563EB",         # Синий
+    "role_nur": "#DB2777",         # Розовый
+
     # Таблицы
-    "table_header_bg": "#F1F5F9",
-    "table_row_hover": "#E2E8F0",
-    "table_row_selected": "#C7D2FE",
-    "table_border": "#CBD5E1",
-    
+    "table_header_bg": "#FAFAFA",
+    "table_row_hover": "#F5F5F5",
+    "table_row_selected": "#F0F7FF",
+    "table_border": "#E5E5E5",
+
     # Навигация
-    "nav_bg": "rgba(255, 255, 255, 0.95)",
-    
+    "nav_bg": "#FFFFFF",
+
     # Переключатель темы
-    "switch_bg": "#CBD5E1",
+    "switch_bg": "#E5E5E5",
     "switch_dot": "#FFFFFF",
-    
-    # Тени (Modern Soft Shadows)
-    "shadow_sm": "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
-    "shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)",
-    "shadow_lg": "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)",
-    "shadow_xl": "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-    "shadow_glow": "0 0 20px rgba(99, 102, 241, 0.3)",
+
+    # Тени (едва заметные)
+    "shadow_sm": "0 1px 2px rgba(0, 0, 0, 0.04)",
+    "shadow": "0 2px 4px rgba(0, 0, 0, 0.06)",
+    "shadow_lg": "0 4px 8px rgba(0, 0, 0, 0.08)",
+    "shadow_xl": "0 8px 16px rgba(0, 0, 0, 0.1)",
+    "shadow_glow": "0 0 12px rgba(37, 99, 235, 0.15)",
 }
 
 # ============================================================================
@@ -74,65 +74,65 @@ COLORS_LIGHT = {
 # ============================================================================
 
 COLORS_DARK = {
-    # Основные цвета (Modern Dark)
-    "bg": "#0F172A",              # Глубокий синий (slate 900)
-    "surface": "#1E293B",          # Slate 800
-    "surface_muted": "#334155",    # Slate 700
-    "text": "#F8FAFC",             # Почти белый
-    "text_muted": "#94A3B8",       # Светлый серый
-    "text_secondary": "#64748B",   # Средний серый
-    
+    # Основные цвета (Minimal Dark)
+    "bg": "#0A0A0A",              # Глубокий чёрный
+    "surface": "#171717",          # Тёмный серый
+    "surface_muted": "#262626",    # Серый
+    "text": "#EDEDED",             # Светлый серый
+    "text_muted": "#A3A3A3",       # Средний серый
+    "text_secondary": "#737373",   # Тёмный серый
+
     # Границы
-    "line": "#334155",             # Slate 700
-    "line_light": "#475569",       # Slate 600
-    
-    # Акцентные цвета (Bright Indigo)
-    "accent": "#818CF8",           # Светлый индиго
-    "accent_hover": "#6366F1",     # Индиго
-    "accent_strong": "#4F46E5",    # Тёмный индиго
-    "accent_light": "#312E81",     # Тёмный индиго фон
-    "accent_soft": "#6366F1",      # Индиго
-    
+    "line": "#262626",             # Тонкая граница
+    "line_light": "#333333",       # Светлая граница
+
+    # Акцентные цвета (приглушённые)
+    "accent": "#3B82F6",           # Светлый синий
+    "accent_hover": "#60A5FA",     # Ещё светлее при наведении
+    "accent_strong": "#2563EB",    # Синий
+    "accent_light": "#1E3A5F",     # Тёмный синий фон
+    "accent_soft": "#60A5FA",      # Мягкий синий
+
     # Градиенты
-    "gradient_start": "#818CF8",
-    "gradient_end": "#A78BFA",
-    
-    # Цвета состояний (Neon)
-    "success": "#34D399",          # Светлый изумруд
+    "gradient_start": "#3B82F6",
+    "gradient_end": "#3B82F6",
+
+    # Цвета состояний (мягкие)
+    "success": "#34D399",          # Изумруд
     "success_bg": "#064E3B",
-    "warning": "#FBBF24",          # Светлый янтарь
+    "warning": "#FBBF24",          # Янтарь
     "warning_bg": "#451A03",
-    "danger": "#F87171",           # Светлый красный
+    "danger": "#F87171",           # Красный
     "danger_bg": "#450A0A",
-    "info": "#60A5FA",             # Светлый синий
-    "info_bg": "#1E3A8A",
-    
-    # Роли (Neon Vibrant)
-    "role_admin": "#A78BFA",       # Светлый фиолетовый
-    "role_reg": "#22D3EE",         # Светлый циан
-    "role_lead": "#34D399",        # Светлый изумруд
-    "role_doc": "#60A5FA",         # Светлый синий
-    "role_nur": "#F472B6",         # Светлый розовый
-    
+    "info": "#60A5FA",             # Синий
+    "info_bg": "#1E3A5F",
+
+    # Роли (приглушённые)
+    "role_admin": "#A78BFA",       # Фиолетовый
+    "role_reg": "#22D3EE",         # Циан
+    "role_lead": "#34D399",        # Изумруд
+    "role_doc": "#60A5FA",         # Синий
+    "role_nur": "#F472B6",         # Розовый
+
     # Таблицы
-    "table_header_bg": "#1E293B",
-    "table_row_hover": "#334155",
-    "table_row_selected": "#312E81",
-    "table_border": "#475569",
-    
+    "table_header_bg": "#171717",
+    "table_row_hover": "#262626",
+    "table_row_selected": "#1E3A5F",
+    "table_border": "#262626",
+
     # Навигация
-    "nav_bg": "rgba(15, 23, 42, 0.95)",
-    
+    "nav_bg": "#0A0A0A",
+
     # Переключатель темы
-    "switch_bg": "#475569",
-    "switch_dot": "#F8FAFC",
-    
-    # Тени (Dark Soft)
-    "shadow_sm": "0 1px 2px 0 rgba(0, 0, 0, 0.3)",
-    "shadow": "0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3)",
-    "shadow_lg": "0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3)",
-    "shadow_xl": "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4)",
-    "shadow_glow": "0 0 20px rgba(129, 140, 248, 0.4)",
+    "switch_bg": "#333333",
+    "switch_dot": "#EDEDED",
+
+    # Тени (едва заметные)
+    "shadow_sm": "0 1px 2px rgba(0, 0, 0, 0.3)",
+    "shadow": "0 2px 4px rgba(0, 0, 0, 0.4)",
+    "shadow_lg": "0 4px 8px rgba(0, 0, 0, 0.5)",
+    "shadow_xl": "0 8px 16px rgba(0, 0, 0, 0.6)",
+    "shadow_glow": "0 0 12px rgba(59, 130, 246, 0.2)",
 }
 
 # ============================================================================
@@ -225,26 +225,26 @@ QDialog {{
    ============================================ */
 
 QPushButton {{
-    background: linear-gradient(135deg, {colors['gradient_start']}, {colors['gradient_end']});
+    background-color: {colors['accent']};
     color: white;
     border: none;
-    border-radius: {RADIUS['pill']}px;
+    border-radius: {RADIUS['sm']}px;
     padding: 10px 20px;
-    font-weight: 600;
+    font-weight: 500;
     font-size: {FONTS['size_medium']}pt;
 }}
 
 QPushButton:hover {{
-    background: linear-gradient(135deg, {colors['accent_hover']}, {colors['gradient_end']});
+    background-color: {colors['accent_hover']};
 }}
 
 QPushButton:pressed {{
-    background: {colors['accent_hover']};
+    background-color: {colors['accent_strong']};
     padding: 11px 19px 9px 21px;
 }}
 
 QPushButton:disabled {{
-    background: {colors['line']};
+    background-color: {colors['line']};
     color: {colors['text_muted']};
 }}
 
@@ -254,28 +254,28 @@ QPushButton::menu-indicator {{
 
 /* Вторичная кнопка */
 QPushButton#secondaryBtn {{
-    background: {colors['surface']};
+    background-color: transparent;
     border: 1px solid {colors['line']};
     color: {colors['text']};
 }}
 
 QPushButton#secondaryBtn:hover {{
-    background: {colors['surface_muted']};
+    background-color: {colors['surface_muted']};
     border-color: {colors['accent']};
 }}
 
 /* Опасная кнопка */
 QPushButton#dangerBtn {{
-    background: {colors['danger']};
+    background-color: {colors['danger']};
 }}
 
 QPushButton#dangerBtn:hover {{
-    background: #DC2626;
+    background-color: #DC2626;
 }}
 
 /* Кнопка-призрак (ghost) */
 QPushButton#ghostBtn {{
-    background: transparent;
+    background-color: transparent;
     border: 1px solid {colors['line']};
     color: {colors['text_muted']};
 }}
@@ -287,13 +287,13 @@ QPushButton#ghostBtn:hover {{
 
 /* Акцентная кнопка (outline) */
 QPushButton#accentBtn {{
-    background: transparent;
-    border: 2px solid {colors['accent']};
+    background-color: transparent;
+    border: 1px solid {colors['accent']};
     color: {colors['accent']};
 }}
 
 QPushButton#accentBtn:hover {{
-    background: {colors['accent']};
+    background-color: {colors['accent']};
     color: white;
 }}
 
@@ -304,15 +304,14 @@ QPushButton#accentBtn:hover {{
 QLineEdit, QTextEdit, QPlainTextEdit {{
     background-color: {colors['surface']};
     border: 1px solid {colors['line']};
-    border-radius: {RADIUS['md']}px;
-    padding: 10px 14px;
+    border-radius: {RADIUS['sm']}px;
+    padding: 10px 12px;
     color: {colors['text']};
     selection-background-color: {colors['accent_light']};
 }}
 
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {{
-    border: 2px solid {colors['accent']};
-    padding: 9px 13px;
+    border: 1px solid {colors['accent']};
     outline: none;
 }}
 
@@ -322,7 +321,7 @@ QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled {{
 }}
 
 QPlainTextEdit {{
-    border-radius: {RADIUS['md']}px;
+    border-radius: {RADIUS['sm']}px;
 }}
 
 /* ============================================
@@ -332,8 +331,8 @@ QPlainTextEdit {{
 QComboBox {{
     background-color: {colors['surface']};
     border: 1px solid {colors['line']};
-    border-radius: {RADIUS['md']}px;
-    padding: 10px 14px;
+    border-radius: {RADIUS['sm']}px;
+    padding: 10px 12px;
     min-width: 140px;
     color: {colors['text']};
 }}
@@ -358,7 +357,7 @@ QComboBox::down-arrow {{
 QComboBox QAbstractItemView {{
     background-color: {colors['surface']};
     border: 1px solid {colors['line']};
-    border-radius: {RADIUS['md']}px;
+    border-radius: {RADIUS['sm']}px;
     selection-background-color: {colors['accent_light']};
     selection-color: {colors['text']};
     padding: 4px;
@@ -380,16 +379,15 @@ QComboBox QAbstractItemView::item:hover {{
 
 QTableWidget, QTableView {{
     background-color: {colors['surface']};
-    alternate-background-color: {colors['surface_muted']};
     border: 1px solid {colors['table_border']};
-    border-radius: {RADIUS['lg']}px;
+    border-radius: {RADIUS['md']}px;
     selection-background-color: {colors['table_row_selected']};
     gridline-color: {colors['line_light']};
     color: {colors['text']};
 }}
 
 QTableWidget::item, QTableView::item {{
-    padding: 10px;
+    padding: 12px;
     border-radius: {RADIUS['sm']}px;
 }}
 
@@ -398,25 +396,23 @@ QTableWidget::item:hover, QTableView::item:hover {{
 }}
 
 QHeaderView::section {{
-    background-color: {colors['table_header_bg']};
+    background-color: {colors['surface']};
     color: {colors['text_muted']};
-    padding: 12px;
+    padding: 14px 12px;
     border: none;
-    border-bottom: 2px solid {colors['line']};
-    border-right: 1px solid {colors['line_light']};
+    border-bottom: 1px solid {colors['line']};
     font-weight: 600;
-    text-transform: uppercase;
     font-size: {FONTS['size_xs']}pt;
+    text-transform: uppercase;
     letter-spacing: 0.05em;
 }}
 
 QHeaderView::section:first {{
-    border-top-left-radius: {RADIUS['lg']}px;
+    border-top-left-radius: {RADIUS['md']}px;
 }}
 
 QHeaderView::section:last {{
-    border-top-right-radius: {RADIUS['lg']}px;
-    border-right: none;
+    border-top-right-radius: {RADIUS['md']}px;
 }}
 
 /* ============================================
@@ -474,6 +470,33 @@ QFrame#sidebar {{
     border-right: 1px solid {colors['line']};
 }}
 
+/* Кнопки навигации */
+QPushButton#navButton {{
+    background-color: transparent;
+    border: none;
+    border-radius: {RADIUS['sm']}px;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: {FONTS['size_medium']}pt;
+    font-weight: 500;
+    color: {colors['text']};
+}}
+
+QPushButton#navButton:hover {{
+    background-color: {colors['surface_muted']};
+    color: {colors['accent']};
+}}
+
+QPushButton#navButton#active {{
+    background-color: {colors['accent_light']};
+    color: {colors['accent']};
+    font-weight: 600;
+}}
+
+QPushButton#navButton:disabled {{
+    color: {colors['text_muted']};
+}}
+
 /* ============================================
    КАРТОЧКИ
    ============================================ */
@@ -481,26 +504,25 @@ QFrame#sidebar {{
 QFrame#card {{
     background-color: {colors['surface']};
     border: 1px solid {colors['line']};
-    border-radius: {RADIUS['xl']}px;
-    box-shadow: {colors['shadow']};
+    border-radius: {RADIUS['md']}px;
 }}
 
 QFrame#card.flat {{
-    box-shadow: none;
+    border: none;
     background-color: {colors['surface_muted']};
 }}
 
 QFrame#cardHeader {{
     background-color: transparent;
     border-bottom: 1px solid {colors['line_light']};
-    border-top-left-radius: {RADIUS['xl']}px;
-    border-top-right-radius: {RADIUS['xl']}px;
-    padding: 20px;
+    border-top-left-radius: {RADIUS['md']}px;
+    border-top-right-radius: {RADIUS['md']}px;
+    padding: 16px;
 }}
 
 QFrame#cardContent {{
     background-color: transparent;
-    padding: 20px;
+    padding: 16px;
 }}
 
 /* ============================================
@@ -509,7 +531,7 @@ QFrame#cardContent {{
 
 QTabWidget::pane {{
     border: 1px solid {colors['line']};
-    border-radius: {RADIUS['lg']}px;
+    border-radius: {RADIUS['md']}px;
     background-color: {colors['surface']};
     top: -1px;
 }}
@@ -517,13 +539,13 @@ QTabWidget::pane {{
 QTabBar::tab {{
     background-color: transparent;
     color: {colors['text_muted']};
-    padding: 12px 24px;
+    padding: 10px 20px;
     border: none;
     border-bottom: 2px solid transparent;
     margin-right: 4px;
-    font-weight: 600;
-    border-top-left-radius: {RADIUS['md']}px;
-    border-top-right-radius: {RADIUS['md']}px;
+    font-weight: 500;
+    border-top-left-radius: {RADIUS['sm']}px;
+    border-top-right-radius: {RADIUS['sm']}px;
 }}
 
 QTabBar::tab:hover {{
@@ -543,33 +565,33 @@ QTabBar::tab:selected {{
 
 QCheckBox, QRadioButton {{
     color: {colors['text']};
-    spacing: 10px;
+    spacing: 8px;
 }}
 
 QCheckBox::indicator, QRadioButton::indicator {{
-    width: 20px;
-    height: 20px;
-    border-radius: 6px;
-    border: 2px solid {colors['line']};
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid {colors['line']};
     background-color: {colors['surface']};
 }}
 
 QCheckBox::indicator:hover, QRadioButton::indicator:hover {{
-    border: 2px solid {colors['accent']};
+    border: 1px solid {colors['accent']};
 }}
 
 QCheckBox::indicator:checked {{
     background-color: {colors['accent']};
-    border: 2px solid {colors['accent']};
+    border: 1px solid {colors['accent']};
 }}
 
 QRadioButton::indicator {{
-    border-radius: 10px;
+    border-radius: 9px;
 }}
 
 QRadioButton::indicator:checked {{
     background-color: {colors['accent']};
-    border: 2px solid {colors['accent']};
+    border: 1px solid {colors['accent']};
 }}
 
 /* ============================================
@@ -579,14 +601,14 @@ QRadioButton::indicator:checked {{
 QProgressBar {{
     background-color: {colors['surface_muted']};
     border: none;
-    border-radius: 6px;
-    height: 8px;
+    border-radius: 4px;
+    height: 6px;
     text-align: center;
 }}
 
 QProgressBar::chunk {{
-    background: linear-gradient(90deg, {colors['gradient_start']}, {colors['gradient_end']});
-    border-radius: 6px;
+    background-color: {colors['accent']};
+    border-radius: 4px;
 }}
 
 /* ============================================
@@ -641,19 +663,19 @@ QScrollArea {{
    ============================================ */
 
 QGroupBox {{
-    background-color: {colors['surface']};
+    background-color: transparent;
     border: 1px solid {colors['line']};
-    border-radius: {RADIUS['lg']}px;
-    margin-top: 16px;
-    padding-top: 20px;
+    border-radius: {RADIUS['md']}px;
+    margin-top: 12px;
+    padding-top: 12px;
     font-weight: 600;
 }}
 
 QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    left: 16px;
-    padding: 0 10px;
+    left: 12px;
+    padding: 0 8px;
     color: {colors['text_muted']};
     text-transform: uppercase;
     font-size: {FONTS['size_xs']}pt;
@@ -668,14 +690,13 @@ QGroupBox::title {{
 QDateEdit, QTimeEdit, QDateTimeEdit {{
     background-color: {colors['surface']};
     border: 1px solid {colors['line']};
-    border-radius: {RADIUS['md']}px;
-    padding: 10px 14px;
+    border-radius: {RADIUS['sm']}px;
+    padding: 10px 12px;
     color: {colors['text']};
 }}
 
 QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus {{
-    border: 2px solid {colors['accent']};
-    padding: 9px 13px;
+    border: 1px solid {colors['accent']};
     outline: none;
 }}
 
@@ -794,15 +815,13 @@ QLabel#status_FINISHED {{
 QFrame#kpiCard {{
     background-color: {colors['surface']};
     border: 1px solid {colors['line']};
-    border-radius: {RADIUS['xl']}px;
-    box-shadow: {colors['shadow']};
-    padding: 24px;
-    min-height: 140px;
+    border-radius: {RADIUS['md']}px;
+    padding: 20px;
+    min-height: 120px;
 }}
 
 QFrame#kpiCard:hover {{
     border: 1px solid {colors['accent']};
-    box-shadow: {colors['shadow_lg']};
 }}
 
 /* ============================================
@@ -880,14 +899,13 @@ QFrame#gradientCard QLabel {{
 QLineEdit#searchInput {{
     background-color: {colors['surface']};
     border: 1px solid {colors['line']};
-    border-radius: {RADIUS['pill']}px;
-    padding: 10px 16px 10px 40px;
+    border-radius: {RADIUS['sm']}px;
+    padding: 10px 12px 10px 36px;
     color: {colors['text']};
 }}
 
 QLineEdit#searchInput:focus {{
-    border: 2px solid {colors['accent']};
-    padding: 9px 15px 9px 39px;
+    border: 1px solid {colors['accent']};
 }}
 
 QLineEdit#searchInput::placeholder {{
