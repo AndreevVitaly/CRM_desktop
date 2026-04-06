@@ -53,7 +53,7 @@ class PatientsPage(QWidget):
         
         panel = QFrame()
         panel.setObjectName("card")
-        panel.setFixedHeight(70)
+        panel.setFixedHeight(80)
         panel.setStyleSheet(f"""
             QFrame#card {{
                 background-color: {colors['surface']};
@@ -107,16 +107,16 @@ class PatientsPage(QWidget):
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             add_btn = QPushButton("Добавить пациента")
             add_btn.setObjectName("actionButton")
-            add_btn.setFixedHeight(48)
+            add_btn.setFixedHeight(36)
             add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             add_btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: transparent;
                     border: 2px solid {colors['line']};
                     border-radius: {RADIUS['md']}px;
-                    padding: 10px 20px;
+                    padding: 6px 16px;
                     font-weight: 600;
-                    font-size: {FONTS['size_medium']}pt;
+                    font-size: {FONTS['size_small']}pt;
                     color: {colors['text']};
                 }}
                 QPushButton:hover {{
@@ -137,16 +137,16 @@ class PatientsPage(QWidget):
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             cert_btn = QPushButton("Справка")
             cert_btn.setObjectName("actionButton")
-            cert_btn.setFixedHeight(48)
+            cert_btn.setFixedHeight(36)
             cert_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             cert_btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: transparent;
                     border: 2px solid {colors['line']};
                     border-radius: {RADIUS['md']}px;
-                    padding: 10px 20px;
+                    padding: 6px 16px;
                     font-weight: 600;
-                    font-size: {FONTS['size_medium']}pt;
+                    font-size: {FONTS['size_small']}pt;
                     color: {colors['text']};
                 }}
                 QPushButton:hover {{
@@ -165,8 +165,9 @@ class PatientsPage(QWidget):
 
         # Кнопка сброса
         reset_btn = QPushButton("🔄 Сброс")
-        reset_btn.setObjectName("secondaryBtn")
+        reset_btn.setObjectName("actionButton")
         reset_btn.setFixedHeight(36)
+        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         reset_btn.clicked.connect(self._reset_filters)
         layout.addWidget(reset_btn)
         

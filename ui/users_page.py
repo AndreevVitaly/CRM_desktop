@@ -138,8 +138,31 @@ class UsersPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR):
-            add_btn = QPushButton("➕ Добавить пользователя")
-            add_btn.setFixedHeight(40)
+            add_btn = QPushButton("Добавить пользователя")
+            add_btn.setObjectName("actionButton")
+            add_btn.setFixedHeight(36)
+            add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            add_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    border: 2px solid {colors['line']};
+                    border-radius: {RADIUS['md']}px;
+                    padding: 6px 16px;
+                    font-weight: 600;
+                    font-size: {FONTS['size_small']}pt;
+                    color: {colors['text']};
+                }}
+                QPushButton:hover {{
+                    background-color: {colors['accent_light']};
+                    border: 2px solid {colors['accent']};
+                    color: {colors['accent']};
+                }}
+                QPushButton:pressed {{
+                    background-color: #3B82F6;
+                    border: 2px solid #3B82F6;
+                    color: #FFFFFF;
+                }}
+            """)
             add_btn.clicked.connect(self._add_user)
             layout.addWidget(add_btn)
         

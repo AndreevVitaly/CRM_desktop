@@ -151,7 +151,7 @@ class PlanningPage(QWidget):
         colors = get_colors()
 
         panel = QFrame()
-        panel.setFixedHeight(60)
+        panel.setFixedHeight(50)
         panel.setStyleSheet("background-color: transparent;")
 
         layout = QHBoxLayout(panel)
@@ -159,16 +159,16 @@ class PlanningPage(QWidget):
 
         add_btn = QPushButton("Создать мероприятие")
         add_btn.setObjectName("actionButton")
-        add_btn.setFixedHeight(48)
+        add_btn.setFixedHeight(36)
         add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         add_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
                 border: 2px solid {colors['line']};
                 border-radius: {RADIUS['md']}px;
-                padding: 10px 20px;
+                padding: 6px 16px;
                 font-weight: 600;
-                font-size: {FONTS['size_medium']}pt;
+                font-size: {FONTS['size_small']}pt;
                 color: {colors['text']};
             }}
             QPushButton:hover {{

@@ -336,9 +336,9 @@ QPushButton#actionButton {{
     background-color: transparent;
     border: 2px solid {colors['line']};
     border-radius: {RADIUS['md']}px;
-    padding: 10px 20px;
+    padding: 6px 16px;
     font-weight: 600;
-    font-size: {FONTS['size_medium']}pt;
+    font-size: {FONTS['size_small']}pt;
     color: {colors['text']};
 }}
 
