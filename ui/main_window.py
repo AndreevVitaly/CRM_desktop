@@ -138,14 +138,14 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Основной layout
-        main_layout = QHBoxLayout(central_widget)
+        # Основной layout - вертикальный
+        main_layout = QVBoxLayout(central_widget)
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Боковая панель
-        sidebar = self._create_sidebar()
-        main_layout.addWidget(sidebar)
+        # Верхняя панель (навигация + заголовок + тема + выход)
+        top_bar = self._create_top_bar()
+        main_layout.addWidget(top_bar)
 
         # Основная область контента
         content_area = QWidget()
@@ -154,120 +154,12 @@ class MainWindow(QMainWindow):
         content_layout.setSpacing(0)
         content_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Верхняя панель
-        top_bar = self._create_top_bar()
-        content_layout.addWidget(top_bar)
-
         # Область страниц
         self.stacked_widget = QStackedWidget()
         self.stacked_widget.setStyleSheet(f"background-color: {colors['bg']};")
         content_layout.addWidget(self.stacked_widget)
 
         main_layout.addWidget(content_area, 1)  # Stretch factor 1
-
-    def _create_sidebar(self) -> QFrame:
-        """Создание боковой панели навигации"""
-        colors = get_colors()
-
-        sidebar = QFrame()
-        sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(260)
-        sidebar.setStyleSheet(
-            f"""
-            QFrame#sidebar {{
-                background-color: {colors['nav_bg']};
-                border-right: 1px solid {colors['line']};
-            }}
-        """
-        )
-
-        layout = QVBoxLayout(sidebar)
-        layout.setSpacing(8)
-        layout.setContentsMargins(16, 24, 16, 24)
-
-        # Логотип и название
-        logo_layout = QHBoxLayout()
-        title_label = QLabel("MED_Desktop")
-        title_label.setObjectName("title")
-        title_label.setStyleSheet(
-            f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['accent']};"
-        )
-        logo_layout.addWidget(title_label)
-        logo_layout.addStretch()
-        layout.addLayout(logo_layout)
-
-        layout.addSpacing(24)
-
-        # Информация о пользователе
-        user_info = QFrame()
-        user_info.setObjectName("userInfo")
-        user_info.setStyleSheet(
-            f"""
-            QFrame {{
-                background-color: {colors['surface_muted']};
-                border-radius: {RADIUS['md']}px;
-                padding: 12px;
-            }}
-        """
-        )
-        user_layout = QVBoxLayout(user_info)
-        user_layout.setSpacing(4)
-
-        user_name = QLabel(self.user.full_name)
-        user_name.setObjectName("userName")
-        user_name.setStyleSheet(
-            f"font-weight: 700; color: {colors['text']}; font-size: {FONTS['size_medium']}pt;"
-        )
-        user_layout.addWidget(user_name)
-
-        user_role = QLabel(self.user.role_display)
-        user_role.setObjectName("userRole")
-        user_role.setStyleSheet(
-            f"font-size: {FONTS['size_small']}pt; color: {colors['text_muted']}; font-weight: 500;"
-        )
-        user_layout.addWidget(user_role)
-
-        layout.addWidget(user_info)
-
-        layout.addSpacing(16)
-
-        # Кнопки навигации
-        self.nav_buttons = {}
-
-        nav_items = self._get_nav_items()
-        for nav_id, (text, enabled) in nav_items.items():
-            btn = self._create_nav_button(text, nav_id, enabled)
-            self.nav_buttons[nav_id] = btn
-            layout.addWidget(btn)
-
-        layout.addStretch()
-
-        # Кнопка выхода
-        logout_btn = QPushButton("Выход")
-        logout_btn.setObjectName("logoutBtn")
-        logout_btn.setFixedHeight(48)
-        logout_btn.setStyleSheet(
-            f"""
-            QPushButton#logoutBtn {{
-                background-color: transparent;
-                border: 2px solid {colors['line']};
-                border-radius: {RADIUS['pill']}px;
-                padding: 10px 20px;
-                font-weight: 600;
-                font-size: {FONTS['size_medium']}pt;
-                color: {colors['text_muted']};
-            }}
-            QPushButton#logoutBtn:hover {{
-                background-color: {colors['danger_bg']};
-                border-color: {colors['danger']};
-                color: {colors['danger']};
-            }}
-        """
-        )
-        logout_btn.clicked.connect(self._logout)
-        layout.addWidget(logout_btn)
-
-        return sidebar
 
     def _get_nav_items(self) -> dict:
         """Получение элементов навигации для текущей роли"""
@@ -307,7 +199,7 @@ class MainWindow(QMainWindow):
 
         btn = QPushButton(text)
         btn.setObjectName("navButton")
-        btn.setFixedHeight(48)
+        btn.setFixedHeight(40)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(
             f"""
@@ -315,8 +207,7 @@ class MainWindow(QMainWindow):
                 background-color: transparent;
                 border: 2px solid transparent;
                 border-radius: {RADIUS['md']}px;
-                padding: 12px 16px;
-                text-align: left;
+                padding: 8px 16px;
                 font-size: {FONTS['size_medium']}pt;
                 font-weight: 600;
                 color: {colors['text']};
@@ -327,9 +218,8 @@ class MainWindow(QMainWindow):
                 color: {colors['accent']};
             }}
             QPushButton#navButton#active {{
-                background-color: {colors['accent_light']};
-                border: 2px solid {colors['accent']};
-                color: {colors['accent']};
+                background-color: #3B82F6;
+                color: #FFFFFF;
                 font-weight: 700;
             }}
             QPushButton#navButton:disabled {{
@@ -355,21 +245,39 @@ class MainWindow(QMainWindow):
         top_bar.setFixedHeight(64)
         top_bar.setStyleSheet(
             f"""
-            QFrame {{
-                background-color: {colors['surface']};
+            QFrame#topBar {{
+                background-color: {colors['nav_bg']};
                 border-bottom: 1px solid {colors['line']};
             }}
         """
         )
 
         layout = QHBoxLayout(top_bar)
-        layout.setContentsMargins(20, 8, 20, 8)
+        layout.setContentsMargins(16, 8, 16, 8)
+        layout.setSpacing(8)
 
-        # Заголовок страницы
-        self.page_title = QLabel("Дашборд")
-        self.page_title.setObjectName("header")
-        self.page_title.setStyleSheet(f"font-size: {FONTS['size_header']}pt;")
-        layout.addWidget(self.page_title)
+        # Логотип и название слева
+        logo_layout = QHBoxLayout()
+        title_label = QLabel("MED_Desktop")
+        title_label.setObjectName("title")
+        title_label.setStyleSheet(
+            f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['accent']};"
+        )
+        logo_layout.addWidget(title_label)
+        layout.addLayout(logo_layout)
+
+        layout.addSpacing(24)
+
+        layout.addStretch()
+
+        # Кнопки навигации (в обратном порядке)
+        self.nav_buttons = {}
+        nav_items = list(self._get_nav_items().items())
+        for nav_id, (text, enabled) in nav_items:
+            btn = self._create_nav_button(text, nav_id, enabled)
+            btn.setFixedHeight(40)
+            self.nav_buttons[nav_id] = btn
+            layout.addWidget(btn)
 
         layout.addStretch()
 
@@ -377,6 +285,34 @@ class MainWindow(QMainWindow):
         self.theme_switch = ThemeSwitch(self)
         self.theme_switch.clicked.connect(self._toggle_theme)
         layout.addWidget(self.theme_switch)
+
+        layout.addSpacing(16)
+
+        # Кнопка выхода в общем стиле
+        logout_btn = QPushButton("Выход")
+        logout_btn.setObjectName("logoutBtn")
+        logout_btn.setFixedHeight(40)
+        logout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        logout_btn.setStyleSheet(
+            f"""
+            QPushButton#logoutBtn {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 8px 16px;
+                font-weight: 600;
+                font-size: {FONTS['size_medium']}pt;
+                color: {colors['text_muted']};
+            }}
+            QPushButton#logoutBtn:hover {{
+                background-color: {colors['danger_bg']};
+                border-color: {colors['danger']};
+                color: {colors['danger']};
+            }}
+        """
+        )
+        logout_btn.clicked.connect(self._logout)
+        layout.addWidget(logout_btn)
 
         return top_bar
 
@@ -411,16 +347,6 @@ class MainWindow(QMainWindow):
             widget.deleteLater()
 
         # Создаём новую страницу
-        page_titles = {
-            "dashboard": "Главный экран",
-            "patients": "Пациенты",
-            "users": "Пользователи",
-            "planning": "Планирование",
-            "stats": "Статистика",
-        }
-
-        self.page_title.setText(page_titles.get(page_id, ""))
-
         if page_id == "dashboard":
             page = DashboardPage(self.user)
         elif page_id == "patients":
@@ -483,39 +409,33 @@ class MainWindow(QMainWindow):
         if hasattr(current_page, "update_theme"):
             current_page.update_theme()
 
-        # Обновляем стили боковой панели
-        sidebar = self.findChild(QFrame, "sidebar")
-        if sidebar:
-            sidebar.setStyleSheet(
+        # Обновляем стили верхней панели
+        top_bar = self.findChild(QFrame, "topBar")
+        if top_bar:
+            top_bar.setStyleSheet(
                 f"""
-                QFrame#sidebar {{
+                QFrame#topBar {{
                     background-color: {colors['nav_bg']};
-                    border-right: 1px solid {colors['line']};
+                    border-bottom: 1px solid {colors['line']};
                 }}
             """
             )
-            # Обновляем информацию о пользователе
-            user_info_frame = self.findChild(QFrame, "userInfo")
-            if user_info_frame:
-                user_info_frame.setStyleSheet(
-                    f"""
-                    QFrame {{
-                        background-color: {colors['surface_muted']};
-                        border-radius: {RADIUS['md']}px;
-                        padding: 12px;
-                    }}
-                """
+            # Обновляем логотип
+            title_label = top_bar.findChild(QLabel, "title")
+            if title_label:
+                title_label.setStyleSheet(
+                    f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['accent']};"
                 )
             # Обновляем кнопку выхода
-            logout_btn = self.findChild(QPushButton, "logoutBtn")
+            logout_btn = top_bar.findChild(QPushButton, "logoutBtn")
             if logout_btn:
                 logout_btn.setStyleSheet(
                     f"""
                     QPushButton#logoutBtn {{
                         background-color: transparent;
                         border: 2px solid {colors['line']};
-                        border-radius: {RADIUS['pill']}px;
-                        padding: 10px 20px;
+                        border-radius: {RADIUS['md']}px;
+                        padding: 8px 16px;
                         font-weight: 600;
                         font-size: {FONTS['size_medium']}pt;
                         color: {colors['text_muted']};
@@ -526,38 +446,6 @@ class MainWindow(QMainWindow):
                         color: {colors['danger']};
                     }}
                 """
-                )
-            # Обновляем QLabel в боковой панели
-            for label in sidebar.findChildren(QLabel):
-                if label.objectName() == "title":
-                    label.setStyleSheet(
-                        f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['accent']};"
-                    )
-                elif label.objectName() == "userName":
-                    label.setStyleSheet(
-                        f"font-weight: 700; color: {colors['text']}; font-size: {FONTS['size_medium']}pt;"
-                    )
-                elif label.objectName() == "userRole":
-                    label.setStyleSheet(
-                        f"font-size: {FONTS['size_small']}pt; color: {colors['text_muted']}; font-weight: 500;"
-                    )
-
-        # Обновляем стили верхней панели
-        top_bar = self.findChild(QFrame, "topBar")
-        if top_bar:
-            top_bar.setStyleSheet(
-                f"""
-                QFrame {{
-                    background-color: {colors['surface']};
-                    border-bottom: 1px solid {colors['line']};
-                }}
-            """
-            )
-            # Обновляем заголовок страницы
-            page_title = top_bar.findChild(QLabel)
-            if page_title:
-                page_title.setStyleSheet(
-                    f"font-size: {FONTS['size_header']}pt; color: {colors['text']};"
                 )
 
         # Обновляем стили области контента
@@ -576,8 +464,7 @@ class MainWindow(QMainWindow):
                     background-color: transparent;
                     border: 2px solid transparent;
                     border-radius: {RADIUS['md']}px;
-                    padding: 12px 16px;
-                    text-align: left;
+                    padding: 8px 16px;
                     font-size: {FONTS['size_medium']}pt;
                     font-weight: 600;
                     color: {colors['text']};
@@ -588,9 +475,8 @@ class MainWindow(QMainWindow):
                     color: {colors['accent']};
                 }}
                 QPushButton#navButton#active {{
-                    background-color: {colors['accent_light']};
-                    border: 2px solid {colors['accent']};
-                    color: {colors['accent']};
+                    background-color: #3B82F6;
+                    color: #FFFFFF;
                     font-weight: 700;
                 }}
                 QPushButton#navButton:disabled {{

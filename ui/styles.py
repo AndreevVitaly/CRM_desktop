@@ -488,8 +488,8 @@ QPushButton#navButton:hover {{
 }}
 
 QPushButton#navButton#active {{
-    background-color: {colors['accent_light']};
-    color: {colors['accent']};
+    background-color: #3B82F6;
+    color: #FFFFFF;
     font-weight: 600;
 }}
 
