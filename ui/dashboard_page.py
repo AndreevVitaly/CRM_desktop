@@ -346,8 +346,8 @@ class DashboardPage(QWidget):
         user = self.user
         actions = []
 
-        if user.role == User.ROLE_REGISTRAR:
-            actions.append(("Добавить пользователя", self._add_user))
+        # Кнопки быстрых действий пока не нужны для регистратора
+        # Добавление пользователя доступно в разделе "Пользователи"
 
         return actions
 

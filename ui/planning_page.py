@@ -304,3 +304,31 @@ class PlanningPage(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             event.delete()
             self._load_events()
+
+    def update_styles(self):
+        """Обновление стилей при смене темы"""
+        from PyQt6.QtWidgets import QLabel, QPushButton, QComboBox, QDateEdit, QTableWidget, QFrame, QCheckBox
+        colors = get_colors()
+        self.setStyleSheet(f"background-color: {colors['bg']};")
+
+        for widget in self.findChildren(QLabel):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QPushButton):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QComboBox):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QDateEdit):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QTableWidget):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QFrame):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QCheckBox):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)

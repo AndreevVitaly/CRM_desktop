@@ -322,3 +322,28 @@ class UsersPage(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             user.delete()
             self._load_users()
+
+    def update_styles(self):
+        """Обновление стилей при смене темы"""
+        from PyQt6.QtWidgets import QLabel, QPushButton, QLineEdit, QComboBox, QTableWidget, QFrame
+        colors = get_colors()
+        self.setStyleSheet(f"background-color: {colors['bg']};")
+
+        for widget in self.findChildren(QLabel):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QPushButton):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QLineEdit):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QComboBox):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QTableWidget):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QFrame):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)

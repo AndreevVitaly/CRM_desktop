@@ -425,5 +425,30 @@ class PatientsPage(QWidget):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         buttons.accepted.connect(dialog.accept)
         layout.addWidget(buttons)
-        
+
         dialog.exec()
+
+    def update_styles(self):
+        """Обновление стилей при смене темы"""
+        colors = get_colors()
+        self.setStyleSheet(f"background-color: {colors['bg']};")
+
+        # Обновляем все виджеты на странице
+        for widget in self.findChildren(QLabel):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QPushButton):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QLineEdit):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QComboBox):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QTableWidget):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        for widget in self.findChildren(QFrame):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)

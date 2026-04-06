@@ -444,3 +444,7 @@ class StatsPage(QWidget):
                 }}
             """
             )
+
+    def update_styles(self):
+        """Алиас для update_theme"""
+        self.update_theme()

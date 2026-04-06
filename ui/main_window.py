@@ -80,12 +80,12 @@ class ThemeSwitch(QWidget):
         # Тень под кружком
         shadow_color = QColor(0, 0, 0, 40 if self.current_theme_light else 80)
         painter.setBrush(QBrush(shadow_color))
-        painter.drawEllipse(QPoint(14 + self._offset, 14), 11, 11)
+        painter.drawEllipse(QPoint(int(14 + self._offset), 14), 11, 11)
 
         # Кружок переключателя
         dot_color = QColor("#FFFFFF")
         painter.setBrush(QBrush(dot_color))
-        painter.drawEllipse(QPoint(14 + self._offset, 14), 10, 10)
+        painter.drawEllipse(QPoint(int(14 + self._offset), 14), 10, 10)
 
         # Иконки
         if self.current_theme_light:
@@ -517,29 +517,38 @@ class MainWindow(QMainWindow):
                 current_page_id = nav_id
                 break
 
-        for i in range(self.stacked_widget.count()):
-            widget = self.stacked_widget.widget(i)
-            if widget:
-                # Для dashboard пересоздаём страницу для полного обновления стилей
-                if hasattr(widget, "update_styles"):
-                    # Пропускаем, если пользователь не авторизован
-                    if self.user is None:
-                        continue
-                    # Пересоздаём dashboard страницу
-                    from ui.dashboard_page import DashboardPage
+        # Пересоздаём все страницы для полного обновления стилей
+        if self.user is not None:
+            old_widgets = []
+            while self.stacked_widget.count() > 0:
+                widget = self.stacked_widget.widget(0)
+                self.stacked_widget.removeWidget(widget)
+                old_widgets.append(widget)
 
-                    new_dashboard = DashboardPage(self.user)
-                    self.stacked_widget.removeWidget(widget)
-                    widget.deleteLater()
-                    self.stacked_widget.addWidget(new_dashboard)
-                    self.stacked_widget.setCurrentWidget(new_dashboard)
-                    # Обновляем активную кнопку
-                    for btn_id, btn in self.nav_buttons.items():
-                        btn.setProperty("active", btn_id == current_page_id)
-                        btn.style().unpolish(btn)
-                        btn.style().polish(btn)
-                else:
-                    widget.setStyleSheet(get_main_stylesheet())
+            # Создаём новые страницы
+            pages = {
+                "dashboard": lambda: __import__('ui.dashboard_page', fromlist=['DashboardPage']).DashboardPage(self.user),
+                "patients": lambda: __import__('ui.patients_page', fromlist=['PatientsPage']).PatientsPage(self.user),
+                "users": lambda: __import__('ui.users_page', fromlist=['UsersPage']).UsersPage(self.user),
+                "planning": lambda: __import__('ui.planning_page', fromlist=['PlanningPage']).PlanningPage(self.user),
+                "stats": lambda: __import__('ui.stats_page', fromlist=['StatsPage']).StatsPage(self.user),
+            }
+
+            for nav_id, page_factory in pages.items():
+                page = page_factory()
+                self.stacked_widget.addWidget(page)
+                if nav_id == current_page_id:
+                    self.stacked_widget.setCurrentWidget(page)
+
+            # Удаляем старые страницы
+            for widget in old_widgets:
+                widget.deleteLater()
+
+            # Обновляем активную кнопку
+            for btn_id, btn in self.nav_buttons.items():
+                btn.setProperty("active", btn_id == current_page_id)
+                btn.style().unpolish(btn)
+                btn.style().polish(btn)
 
         # Принудительная перерисовка главного окна
         self.update()
