@@ -4,8 +4,8 @@
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QLineEdit, QPushButton, QFrame, QApplication, QMessageBox)
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, pyqtSignal, QRectF
+from PyQt6.QtGui import QFont, QPainter, QPainterPath, QColor, QLinearGradient, QPen
 
 from models.db_models import User, init_db
 from ui.styles import get_colors, FONTS, RADIUS
@@ -20,22 +20,30 @@ class LoginWindow(QWidget):
         super().__init__()
         self.setWindowTitle("MED_Desktop - Вход")
         self.setFixedSize(420, 520)
+        # Убираем рамку для закруглённых углов
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setStyleSheet(self._get_login_style())
         self._init_ui()
     
     def _init_ui(self):
         """Инициализация интерфейса"""
         colors = get_colors()
-        
+
         # Основной layout
         main_layout = QVBoxLayout()
         main_layout.setSpacing(24)
         main_layout.setContentsMargins(40, 40, 40, 40)
         
         # Логотип / Заголовок
-        logo_label = QLabel("🏥")
+        logo_label = QLabel("MED")
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_label.setStyleSheet("font-size: 48px;")
+        logo_label.setObjectName("logoLabel")
+        logo_label.setStyleSheet(f"""
+            font-size: 48px;
+            font-weight: bold;
+            color: {colors['accent']};
+        """)
         main_layout.addWidget(logo_label)
         
         title_label = QLabel("MED_Desktop")
@@ -80,14 +88,8 @@ class LoginWindow(QWidget):
         
         main_layout.addSpacing(10)
 
-        # Кнопка входа
-        self.login_button = QPushButton("Войти")
-        self.login_button.setFixedHeight(48)
-        self.login_button.clicked.connect(self._do_login)
-        main_layout.addWidget(self.login_button)
-
         # Кнопка регистрации
-        self.register_button = QPushButton("📝 Пройти регистрацию")
+        self.register_button = QPushButton("Пройти регистрацию")
         self.register_button.setObjectName("secondaryBtn")
         self.register_button.setFixedHeight(44)
         self.register_button.clicked.connect(self._open_registration)
@@ -223,3 +225,60 @@ class LoginWindow(QWidget):
         if event.key() == Qt.Key.Key_Escape:
             self.close()
         super().keyPressEvent(event)
+
+    def paintEvent(self, event):
+        """Отрисовка закруглённых углов с градиентной рамкой"""
+        colors = get_colors()
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        rect = QRectF(self.rect())
+        radius = RADIUS['lg']
+
+        # Путь для фона
+        bg_path = QPainterPath()
+        bg_path.addRoundedRect(rect, radius, radius)
+        painter.fillPath(bg_path, QColor(colors['bg']))
+
+        # Градиентная рамка
+        if colors['bg'] == "#0A0A0A":
+            # Тёмная тема: от чёрного к синему (сверху вниз)
+            pen = QPen()
+            pen.setWidth(3)
+            grad = QLinearGradient(rect.topLeft(), rect.bottomRight())
+            grad.setColorAt(0, QColor("#000000"))
+            grad.setColorAt(1, QColor("#2563EB"))
+            pen.setBrush(grad)
+            painter.setPen(pen)
+
+            inner = rect.adjusted(1.5, 1.5, -1.5, -1.5)
+            painter.drawRoundedRect(inner, radius, radius)
+        else:
+            # Светлая тема: от белого к серому (сверху вниз)
+            pen = QPen()
+            pen.setWidth(3)
+            grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+            grad.setColorAt(0, QColor("#FFFFFF"))
+            grad.setColorAt(1, QColor("#A3A3A3"))
+            pen.setBrush(grad)
+            painter.setPen(pen)
+
+            inner = rect.adjusted(1.5, 1.5, -1.5, -1.5)
+            painter.drawRoundedRect(inner, radius, radius)
+
+    def mousePressEvent(self, event):
+        """Начало перетаскивания окна"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._old_pos = event.globalPosition().toPoint()
+
+    def mouseMoveEvent(self, event):
+        """Перетаскивание окна"""
+        if hasattr(self, '_old_pos'):
+            delta = event.globalPosition().toPoint() - self._old_pos
+            self.move(self.pos() + delta)
+            self._old_pos = event.globalPosition().toPoint()
+
+    def mouseReleaseEvent(self, event):
+        """Завершение перетаскивания"""
+        if hasattr(self, '_old_pos'):
+            del self._old_pos

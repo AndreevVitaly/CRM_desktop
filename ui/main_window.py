@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QSpacerItem,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QPoint
+from PyQt6.QtCore import Qt, pyqtSignal, pyqtProperty, QPropertyAnimation, QEasingCurve, QPoint
 from PyQt6.QtGui import QFont, QPainter, QColor, QBrush, QPen
 
 from models.db_models import User
@@ -37,7 +37,7 @@ class ThemeSwitch(QWidget):
         self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    @property
+    @pyqtProperty(float)
     def offset(self):
         return self._offset
 
@@ -522,6 +522,9 @@ class MainWindow(QMainWindow):
             if widget:
                 # Для dashboard пересоздаём страницу для полного обновления стилей
                 if hasattr(widget, "update_styles"):
+                    # Пропускаем, если пользователь не авторизован
+                    if self.user is None:
+                        continue
                     # Пересоздаём dashboard страницу
                     from ui.dashboard_page import DashboardPage
 
@@ -544,14 +547,39 @@ class MainWindow(QMainWindow):
     def _logout(self):
         """Выход из системы"""
         from ui.login_window import LoginWindow
+        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import Qt
 
-        self.close()
+        # Очищаем данные пользователя
+        self.user = None
+
+        # Создаём модальное окно входа поверх главного
         login_window = LoginWindow()
+        login_window.setParent(self)
+        login_window.setWindowModality(Qt.WindowModality.ApplicationModal)
+        login_window.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+        login_window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         login_window.login_successful.connect(self._on_login_success)
+
+        # Сохраняем ссылку
+        self._login_window = login_window
+
+        # Центрируем и показываем
         login_window.show()
+        self._center_login_window()
+
+    def _center_login_window(self):
+        """Центрирование окна авторизации"""
+        if hasattr(self, '_login_window'):
+            login_geo = self._login_window.frameGeometry()
+            main_center = self.geometry().center()
+            login_geo.moveCenter(main_center)
+            self._login_window.move(login_geo.topLeft())
 
     def _on_login_success(self, user: User):
-        """Успешный вход - перезапуск главного окна"""
+        """Успешный вход - обновление пользователя"""
         self.user = user
+        self.setWindowTitle(f"MED_Desktop - {user.full_name}")
+        self._login_window.close()
         self._init_ui()
-        self.show()
+        self._navigate("dashboard")
