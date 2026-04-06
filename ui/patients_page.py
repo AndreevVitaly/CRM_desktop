@@ -2,10 +2,11 @@
 Страница списка пациентов
 """
 
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+from datetime import datetime
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QFrame, QPushButton, QLineEdit, QComboBox,
                              QTableWidget, QTableWidgetItem, QHeaderView,
-                             QFileDialog, QMessageBox, QMenu)
+                             QMessageBox, QMenu)
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QAction
 
@@ -39,11 +40,7 @@ class PatientsPage(QWidget):
         # Таблица пациентов
         self.table = self._create_table()
         layout.addWidget(self.table, 1)
-        
-        # Кнопки действий
-        actions_panel = self._create_actions_panel()
-        layout.addWidget(actions_panel)
-        
+
         self.setLayout(layout)
         self.setStyleSheet(f"background-color: {colors['bg']};")
         
@@ -105,7 +102,67 @@ class PatientsPage(QWidget):
             layout.addWidget(dept_label)
         
         layout.addStretch()
-        
+
+        # Кнопка добавления (ADMIN, REG, LEAD)
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
+            add_btn = QPushButton("Добавить пациента")
+            add_btn.setObjectName("actionButton")
+            add_btn.setFixedHeight(48)
+            add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            add_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    border: 2px solid {colors['line']};
+                    border-radius: {RADIUS['md']}px;
+                    padding: 10px 20px;
+                    font-weight: 600;
+                    font-size: {FONTS['size_medium']}pt;
+                    color: {colors['text']};
+                }}
+                QPushButton:hover {{
+                    background-color: {colors['accent_light']};
+                    border: 2px solid {colors['accent']};
+                    color: {colors['accent']};
+                }}
+                QPushButton:pressed {{
+                    background-color: #3B82F6;
+                    border: 2px solid #3B82F6;
+                    color: #FFFFFF;
+                }}
+            """)
+            add_btn.clicked.connect(self._add_patient)
+            layout.addWidget(add_btn)
+
+        # Кнопка справки (ADMIN, REG, LEAD)
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
+            cert_btn = QPushButton("Справка")
+            cert_btn.setObjectName("actionButton")
+            cert_btn.setFixedHeight(48)
+            cert_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            cert_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    border: 2px solid {colors['line']};
+                    border-radius: {RADIUS['md']}px;
+                    padding: 10px 20px;
+                    font-weight: 600;
+                    font-size: {FONTS['size_medium']}pt;
+                    color: {colors['text']};
+                }}
+                QPushButton:hover {{
+                    background-color: {colors['accent_light']};
+                    border: 2px solid {colors['accent']};
+                    color: {colors['accent']};
+                }}
+                QPushButton:pressed {{
+                    background-color: #3B82F6;
+                    border: 2px solid #3B82F6;
+                    color: #FFFFFF;
+                }}
+            """)
+            cert_btn.clicked.connect(self._generate_certificate_selected)
+            layout.addWidget(cert_btn)
+
         # Кнопка сброса
         reset_btn = QPushButton("🔄 Сброс")
         reset_btn.setObjectName("secondaryBtn")
@@ -151,33 +208,6 @@ class PatientsPage(QWidget):
         table.doubleClicked.connect(self._open_patient)
         
         return table
-    
-    def _create_actions_panel(self) -> QFrame:
-        """Панель действий"""
-        colors = get_colors()
-        
-        panel = QFrame()
-        panel.setFixedHeight(50)
-        panel.setStyleSheet(f"background-color: transparent;")
-        
-        layout = QHBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Кнопка добавления (ADMIN, REG, LEAD)
-        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
-            add_btn = QPushButton("➕ Добавить пациента")
-            add_btn.setFixedHeight(40)
-            add_btn.clicked.connect(self._add_patient)
-            layout.addWidget(add_btn)
-        
-        layout.addStretch()
-        
-        # Счётчик
-        self.count_label = QLabel("")
-        self.count_label.setObjectName("muted")
-        layout.addWidget(self.count_label)
-        
-        return panel
     
     def _load_patients(self):
         """Загрузка пациентов"""
@@ -225,9 +255,7 @@ class PatientsPage(QWidget):
             
             # Позывной
             self.table.setItem(row, 7, QTableWidgetItem(patient.callsign or "—"))
-        
-        self.count_label.setText(f"Найдено: {len(patients)}")
-    
+
     def _on_search_changed(self, text: str):
         """Изменение поиска"""
         self.current_filter = text
@@ -342,6 +370,14 @@ class PatientsPage(QWidget):
         patient.restore()
         self._load_patients()
     
+    def _generate_certificate_selected(self):
+        """Генерация справки для выбранного пациента"""
+        patient_id = self._get_selected_patient_id()
+        if not patient_id:
+            QMessageBox.information(self, "Информация", "Выберите пациента из таблицы")
+            return
+        self._generate_certificate(patient_id)
+
     def _generate_certificate(self, patient_id: int):
         """Генерация справки"""
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox

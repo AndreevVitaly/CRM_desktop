@@ -225,26 +225,30 @@ QDialog {{
    ============================================ */
 
 QPushButton {{
-    background-color: {colors['accent']};
-    color: white;
-    border: none;
-    border-radius: {RADIUS['sm']}px;
+    background-color: transparent;
+    border: 2px solid transparent;
+    border-radius: {RADIUS['md']}px;
     padding: 10px 20px;
-    font-weight: 500;
+    font-weight: 600;
     font-size: {FONTS['size_medium']}pt;
+    color: {colors['text']};
 }}
 
 QPushButton:hover {{
-    background-color: {colors['accent_hover']};
+    background-color: {colors['surface_muted']};
+    border: 2px solid {colors['line']};
+    color: {colors['accent']};
 }}
 
 QPushButton:pressed {{
-    background-color: {colors['accent_strong']};
-    padding: 11px 19px 9px 21px;
+    background-color: #3B82F6;
+    border: 2px solid #3B82F6;
+    color: #FFFFFF;
 }}
 
 QPushButton:disabled {{
-    background-color: {colors['line']};
+    background-color: transparent;
+    border: 2px solid {colors['line']};
     color: {colors['text_muted']};
 }}
 
@@ -255,46 +259,99 @@ QPushButton::menu-indicator {{
 /* Вторичная кнопка */
 QPushButton#secondaryBtn {{
     background-color: transparent;
-    border: 1px solid {colors['line']};
+    border: 2px solid {colors['line']};
     color: {colors['text']};
 }}
 
 QPushButton#secondaryBtn:hover {{
     background-color: {colors['surface_muted']};
-    border-color: {colors['accent']};
+    border: 2px solid {colors['accent']};
+    color: {colors['accent']};
+}}
+
+QPushButton#secondaryBtn:pressed {{
+    background-color: #3B82F6;
+    border: 2px solid #3B82F6;
+    color: #FFFFFF;
 }}
 
 /* Опасная кнопка */
 QPushButton#dangerBtn {{
-    background-color: {colors['danger']};
+    background-color: transparent;
+    border: 2px solid {colors['danger']};
+    color: {colors['danger']};
 }}
 
 QPushButton#dangerBtn:hover {{
-    background-color: #DC2626;
+    background-color: {colors['danger_bg']};
+    border: 2px solid {colors['danger']};
+    color: {colors['danger']};
+}}
+
+QPushButton#dangerBtn:pressed {{
+    background-color: {colors['danger']};
+    color: #FFFFFF;
 }}
 
 /* Кнопка-призрак (ghost) */
 QPushButton#ghostBtn {{
     background-color: transparent;
-    border: 1px solid {colors['line']};
+    border: 2px solid {colors['line']};
     color: {colors['text_muted']};
 }}
 
 QPushButton#ghostBtn:hover {{
-    color: {colors['text']};
-    border-color: {colors['accent']};
+    background-color: {colors['surface_muted']};
+    border: 2px solid {colors['accent']};
+    color: {colors['accent']};
+}}
+
+QPushButton#ghostBtn:pressed {{
+    background-color: #3B82F6;
+    border: 2px solid #3B82F6;
+    color: #FFFFFF;
 }}
 
 /* Акцентная кнопка (outline) */
 QPushButton#accentBtn {{
     background-color: transparent;
-    border: 1px solid {colors['accent']};
+    border: 2px solid {colors['accent']};
     color: {colors['accent']};
 }}
 
 QPushButton#accentBtn:hover {{
-    background-color: {colors['accent']};
-    color: white;
+    background-color: {colors['accent_light']};
+    border: 2px solid {colors['accent']};
+    color: {colors['accent']};
+}}
+
+QPushButton#accentBtn:pressed {{
+    background-color: #3B82F6;
+    border: 2px solid #3B82F6;
+    color: #FFFFFF;
+}}
+
+/* Кнопка действия (actionButton) */
+QPushButton#actionButton {{
+    background-color: transparent;
+    border: 2px solid {colors['line']};
+    border-radius: {RADIUS['md']}px;
+    padding: 10px 20px;
+    font-weight: 600;
+    font-size: {FONTS['size_medium']}pt;
+    color: {colors['text']};
+}}
+
+QPushButton#actionButton:hover {{
+    background-color: {colors['accent_light']};
+    border: 2px solid {colors['accent']};
+    color: {colors['accent']};
+}}
+
+QPushButton#actionButton:pressed {{
+    background-color: #3B82F6;
+    border: 2px solid #3B82F6;
+    color: #FFFFFF;
 }}
 
 /* ============================================
@@ -303,25 +360,32 @@ QPushButton#accentBtn:hover {{
 
 QLineEdit, QTextEdit, QPlainTextEdit {{
     background-color: {colors['surface']};
-    border: 1px solid {colors['line']};
-    border-radius: {RADIUS['sm']}px;
-    padding: 10px 12px;
+    border: 2px solid {colors['line']};
+    border-radius: {RADIUS['md']}px;
+    padding: 10px 14px;
     color: {colors['text']};
+    font-size: {FONTS['size_medium']}pt;
     selection-background-color: {colors['accent_light']};
 }}
 
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {{
-    border: 1px solid {colors['accent']};
+    border: 2px solid {colors['accent']};
     outline: none;
+    background-color: {colors['accent_light']};
+}}
+
+QLineEdit:hover, QTextEdit:hover, QPlainTextEdit:hover {{
+    border: 2px solid {colors['accent']};
 }}
 
 QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled {{
     background-color: {colors['surface_muted']};
     color: {colors['text_muted']};
+    border: 2px solid {colors['line']};
 }}
 
 QPlainTextEdit {{
-    border-radius: {RADIUS['sm']}px;
+    border-radius: {RADIUS['md']}px;
 }}
 
 /* ============================================
@@ -330,15 +394,22 @@ QPlainTextEdit {{
 
 QComboBox {{
     background-color: {colors['surface']};
-    border: 1px solid {colors['line']};
-    border-radius: {RADIUS['sm']}px;
-    padding: 10px 12px;
+    border: 2px solid {colors['line']};
+    border-radius: {RADIUS['md']}px;
+    padding: 10px 14px;
     min-width: 140px;
     color: {colors['text']};
+    font-size: {FONTS['size_medium']}pt;
 }}
 
 QComboBox:hover {{
-    border: 1px solid {colors['accent']};
+    border: 2px solid {colors['accent']};
+}}
+
+QComboBox:focus {{
+    border: 2px solid {colors['accent']};
+    outline: none;
+    background-color: {colors['accent_light']};
 }}
 
 QComboBox::drop-down {{
@@ -356,8 +427,8 @@ QComboBox::down-arrow {{
 
 QComboBox QAbstractItemView {{
     background-color: {colors['surface']};
-    border: 1px solid {colors['line']};
-    border-radius: {RADIUS['sm']}px;
+    border: 2px solid {colors['line']};
+    border-radius: {RADIUS['md']}px;
     selection-background-color: {colors['accent_light']};
     selection-color: {colors['text']};
     padding: 4px;
@@ -367,10 +438,16 @@ QComboBox QAbstractItemView::item {{
     min-height: 32px;
     padding: 6px 10px;
     border-radius: {RADIUS['sm']}px;
+    font-size: {FONTS['size_medium']}pt;
 }}
 
 QComboBox QAbstractItemView::item:hover {{
     background-color: {colors['table_row_hover']};
+}}
+
+QComboBox QAbstractItemView::item:selected {{
+    background-color: {colors['accent_light']};
+    color: {colors['accent']};
 }}
 
 /* ============================================
@@ -473,27 +550,36 @@ QFrame#sidebar {{
 /* Кнопки навигации */
 QPushButton#navButton {{
     background-color: transparent;
-    border: none;
-    border-radius: {RADIUS['sm']}px;
-    padding: 12px 16px;
-    text-align: left;
+    border: 2px solid transparent;
+    border-radius: {RADIUS['md']}px;
+    padding: 10px 20px;
     font-size: {FONTS['size_medium']}pt;
-    font-weight: 500;
+    font-weight: 600;
     color: {colors['text']};
 }}
 
 QPushButton#navButton:hover {{
     background-color: {colors['surface_muted']};
+    border: 2px solid {colors['line']};
     color: {colors['accent']};
 }}
 
 QPushButton#navButton#active {{
     background-color: #3B82F6;
+    border: 2px solid #3B82F6;
     color: #FFFFFF;
-    font-weight: 600;
+    font-weight: 700;
+}}
+
+QPushButton#navButton:pressed {{
+    background-color: #3B82F6;
+    border: 2px solid #3B82F6;
+    color: #FFFFFF;
 }}
 
 QPushButton#navButton:disabled {{
+    background-color: transparent;
+    border: 2px solid {colors['line']};
     color: {colors['text_muted']};
 }}
 
@@ -689,15 +775,21 @@ QGroupBox::title {{
 
 QDateEdit, QTimeEdit, QDateTimeEdit {{
     background-color: {colors['surface']};
-    border: 1px solid {colors['line']};
-    border-radius: {RADIUS['sm']}px;
-    padding: 10px 12px;
+    border: 2px solid {colors['line']};
+    border-radius: {RADIUS['md']}px;
+    padding: 10px 14px;
     color: {colors['text']};
+    font-size: {FONTS['size_medium']}pt;
+}}
+
+QDateEdit:hover, QTimeEdit:hover, QDateTimeEdit:hover {{
+    border: 2px solid {colors['accent']};
 }}
 
 QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus {{
-    border: 1px solid {colors['accent']};
+    border: 2px solid {colors['accent']};
     outline: none;
+    background-color: {colors['accent_light']};
 }}
 
 QDateEdit::drop-down, QTimeEdit::drop-down, QDateTimeEdit::drop-down {{

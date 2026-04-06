@@ -149,25 +149,48 @@ class PlanningPage(QWidget):
     def _create_actions_panel(self) -> QFrame:
         """Панель действий"""
         colors = get_colors()
-        
+
         panel = QFrame()
-        panel.setFixedHeight(50)
+        panel.setFixedHeight(60)
         panel.setStyleSheet("background-color: transparent;")
-        
+
         layout = QHBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
-        
-        add_btn = QPushButton("➕ Добавить мероприятие")
-        add_btn.setFixedHeight(40)
+
+        add_btn = QPushButton("Создать мероприятие")
+        add_btn.setObjectName("actionButton")
+        add_btn.setFixedHeight(48)
+        add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 10px 20px;
+                font-weight: 600;
+                font-size: {FONTS['size_medium']}pt;
+                color: {colors['text']};
+            }}
+            QPushButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton:pressed {{
+                background-color: #3B82F6;
+                border: 2px solid #3B82F6;
+                color: #FFFFFF;
+            }}
+        """)
         add_btn.clicked.connect(self._add_event)
         layout.addWidget(add_btn)
-        
+
         layout.addStretch()
-        
+
         self.count_label = QLabel("")
         self.count_label.setObjectName("muted")
         layout.addWidget(self.count_label)
-        
+
         return panel
     
     def _load_events(self):

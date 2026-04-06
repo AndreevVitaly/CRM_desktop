@@ -219,10 +219,18 @@ class MainWindow(QMainWindow):
             }}
             QPushButton#navButton#active {{
                 background-color: #3B82F6;
+                border: 2px solid #3B82F6;
                 color: #FFFFFF;
                 font-weight: 700;
             }}
+            QPushButton#navButton:pressed {{
+                background-color: #3B82F6;
+                border: 2px solid #3B82F6;
+                color: #FFFFFF;
+            }}
             QPushButton#navButton:disabled {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
                 color: {colors['text_muted']};
             }}
         """
@@ -306,8 +314,12 @@ class MainWindow(QMainWindow):
             }}
             QPushButton#logoutBtn:hover {{
                 background-color: {colors['danger_bg']};
-                border-color: {colors['danger']};
+                border: 2px solid {colors['danger']};
                 color: {colors['danger']};
+            }}
+            QPushButton#logoutBtn:pressed {{
+                background-color: {colors['danger']};
+                color: #FFFFFF;
             }}
         """
         )
@@ -442,8 +454,12 @@ class MainWindow(QMainWindow):
                     }}
                     QPushButton#logoutBtn:hover {{
                         background-color: {colors['danger_bg']};
-                        border-color: {colors['danger']};
+                        border: 2px solid {colors['danger']};
                         color: {colors['danger']};
+                    }}
+                    QPushButton#logoutBtn:pressed {{
+                        background-color: {colors['danger']};
+                        color: #FFFFFF;
                     }}
                 """
                 )
@@ -476,10 +492,18 @@ class MainWindow(QMainWindow):
                 }}
                 QPushButton#navButton#active {{
                     background-color: #3B82F6;
+                    border: 2px solid #3B82F6;
                     color: #FFFFFF;
                     font-weight: 700;
                 }}
+                QPushButton#navButton:pressed {{
+                    background-color: #3B82F6;
+                    border: 2px solid #3B82F6;
+                    color: #FFFFFF;
+                }}
                 QPushButton#navButton:disabled {{
+                    background-color: transparent;
+                    border: 2px solid {colors['line']};
                     color: {colors['text_muted']};
                 }}
             """

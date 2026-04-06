@@ -112,47 +112,62 @@ class LoginWindow(QWidget):
             }}
             QLineEdit {{
                 background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
+                border: 2px solid {colors['line']};
                 border-radius: {RADIUS['md']}px;
                 padding: 12px 16px;
                 font-size: {FONTS['size_medium']}pt;
                 color: {colors['text']};
             }}
+            QLineEdit:hover {{
+                border: 2px solid {colors['accent']};
+            }}
             QLineEdit:focus {{
                 border: 2px solid {colors['accent']};
                 padding: 11px 15px;
                 outline: none;
+                background-color: {colors['accent_light']};
             }}
             QLineEdit::placeholder {{
                 color: {colors['text_muted']};
             }}
             QPushButton {{
-                background: linear-gradient(135deg, {colors['gradient_start']}, {colors['gradient_end']});
-                color: white;
-                border: none;
-                border-radius: {RADIUS['pill']}px;
+                background-color: transparent;
+                border: 2px solid {colors['accent']};
+                border-radius: {RADIUS['md']}px;
                 padding: 12px 24px;
                 font-weight: 600;
                 font-size: {FONTS['size_medium']}pt;
+                color: {colors['accent']};
             }}
             QPushButton:hover {{
-                background: linear-gradient(135deg, {colors['accent_hover']}, {colors['gradient_end']});
+                background-color: {colors['accent_light']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
             }}
             QPushButton:pressed {{
-                background: {colors['accent_hover']};
+                background-color: #3B82F6;
+                border: 2px solid #3B82F6;
+                color: #FFFFFF;
             }}
             QPushButton:disabled {{
-                background: {colors['line']};
+                background-color: transparent;
+                border: 2px solid {colors['line']};
                 color: {colors['text_muted']};
             }}
             QPushButton#secondaryBtn {{
-                background: {colors['surface']};
-                border: 1px solid {colors['line']};
+                background-color: transparent;
+                border: 2px solid {colors['line']};
                 color: {colors['text']};
             }}
             QPushButton#secondaryBtn:hover {{
-                background: {colors['surface_muted']};
-                border-color: {colors['accent']};
+                background-color: {colors['surface_muted']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#secondaryBtn:pressed {{
+                background-color: #3B82F6;
+                border: 2px solid #3B82F6;
+                color: #FFFFFF;
             }}
         """
     

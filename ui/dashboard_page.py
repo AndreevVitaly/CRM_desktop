@@ -2,7 +2,6 @@
 Страница дашборда
 """
 
-from datetime import datetime
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QFrame, QGridLayout, QScrollArea, QPushButton)
 from PyQt6.QtCore import Qt, QEvent
@@ -161,12 +160,6 @@ class DashboardPage(QWidget):
             kpi_layout.addWidget(card, row, col)
         
         layout.addLayout(kpi_layout)
-        
-        # Быстрые действия
-        actions_label = QLabel("Быстрые действия")
-        actions_label.setObjectName("sectionTitle")
-        actions_label.setStyleSheet(f"font-size: {FONTS['size_title']}pt; font-weight: 700; color: {colors['text']}; margin: 10px 0;")
-        layout.addWidget(actions_label)
 
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(12)
@@ -180,15 +173,6 @@ class DashboardPage(QWidget):
         actions_layout.addStretch()
         layout.addLayout(actions_layout)
 
-        # Мероприятия сегодня
-        events_label = QLabel("Мероприятия сегодня")
-        events_label.setObjectName("sectionTitle")
-        events_label.setStyleSheet(f"font-size: {FONTS['size_title']}pt; font-weight: 700; color: {colors['text']}; margin: 10px 0;")
-        layout.addWidget(events_label)
-        
-        events_widget = self._create_events_list()
-        layout.addWidget(events_widget)
-        
         layout.addStretch()
         
         self.setLayout(layout)
@@ -315,10 +299,10 @@ class DashboardPage(QWidget):
         for btn in self.findChildren(QPushButton, "actionButton"):
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {colors['surface']};
+                    background-color: transparent;
                     border: 2px solid {colors['line']};
                     border-radius: {RADIUS['md']}px;
-                    padding: 8px 20px;
+                    padding: 10px 20px;
                     font-weight: 600;
                     font-size: {FONTS['size_medium']}pt;
                     color: {colors['text']};
@@ -327,6 +311,11 @@ class DashboardPage(QWidget):
                     background-color: {colors['accent_light']};
                     border: 2px solid {colors['accent']};
                     color: {colors['accent']};
+                }}
+                QPushButton:pressed {{
+                    background-color: #3B82F6;
+                    border: 2px solid #3B82F6;
+                    color: #FFFFFF;
                 }}
             """)
 
@@ -357,16 +346,8 @@ class DashboardPage(QWidget):
         user = self.user
         actions = []
 
-        if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR):
-            actions.append(("Добавить пациента", self._add_patient))
-
         if user.role == User.ROLE_REGISTRAR:
             actions.append(("Добавить пользователя", self._add_user))
-
-        if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
-            actions.append(("Справка", self._generate_certificate))
-
-        actions.append(("Создать мероприятие", self._add_event))
 
         return actions
 
@@ -380,10 +361,10 @@ class DashboardPage(QWidget):
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {colors['surface']};
+                background-color: transparent;
                 border: 2px solid {colors['line']};
                 border-radius: {RADIUS['md']}px;
-                padding: 8px 20px;
+                padding: 10px 20px;
                 font-weight: 600;
                 font-size: {FONTS['size_medium']}pt;
                 color: {colors['text']};
@@ -393,151 +374,17 @@ class DashboardPage(QWidget):
                 border: 2px solid {colors['accent']};
                 color: {colors['accent']};
             }}
+            QPushButton:pressed {{
+                background-color: #3B82F6;
+                border: 2px solid #3B82F6;
+                color: #FFFFFF;
+            }}
         """)
         return btn
-    
-    def _create_events_list(self) -> QFrame:
-        """Создание списка мероприятий"""
-        colors = get_colors()
-        
-        card = QFrame()
-        card.setObjectName("card")
-        card.setStyleSheet(f"""
-            QFrame#card {{
-                background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
-                border-radius: {RADIUS['lg']}px;
-            }}
-        """)
-        
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(16, 16, 16, 16)
-        
-        events = Event.get_all(user=self.user, include_completed=False)
-        today_events = [e for e in events if e.event_date == Event().event_date]
-        
-        if today_events:
-            for event in today_events[:5]:
-                event_widget = self._create_event_item(event)
-                layout.addWidget(event_widget)
-        else:
-            no_events = QLabel("Нет мероприятий на сегодня")
-            no_events.setObjectName("muted")
-            no_events.setStyleSheet(f"padding: 20px; color: {colors['text_muted']};")
-            layout.addWidget(no_events)
-        
-        return card
-    
-    def _create_event_item(self, event) -> QFrame:
-        """Создание элемента мероприятия"""
-        colors = get_colors()
-        
-        item = QFrame()
-        item.setStyleSheet(f"""
-            QFrame {{
-                background-color: {colors['surface_muted']};
-                border-radius: {RADIUS['md']}px;
-                padding: 12px;
-                margin-bottom: 8px;
-            }}
-        """)
-        
-        layout = QVBoxLayout(item)
-        layout.setSpacing(4)
-        
-        title = QLabel(f"📌 {event.title}")
-        title.setStyleSheet("font-weight: bold;")
-        layout.addWidget(title)
-        
-        details = QLabel(f"{event.event_type_display} • {event.department_display}")
-        details.setObjectName("muted")
-        layout.addWidget(details)
-        
-        if event.responsible:
-            responsible = QLabel(f"Ответственный: {event.responsible.full_name}")
-            responsible.setObjectName("muted")
-            layout.addWidget(responsible)
-        
-        return item
-    
-    def _add_patient(self):
-        """Добавить пациента"""
-        from ui.patient_form import PatientFormDialog
-        dialog = PatientFormDialog(self.user, None)
-        if dialog.exec():
-            pass  # Пациент сохранён
-    
+
     def _add_user(self):
         """Добавить пользователя"""
         from ui.user_form import UserFormDialog
         dialog = UserFormDialog(self.user, None)
-        if dialog.exec():
-            pass
-    
-    def _generate_certificate(self):
-        """Сгенерировать справку"""
-        from PyQt6.QtWidgets import QMessageBox, QInputDialog
-        
-        # Диалог выбора пациента по ID
-        patient_id, ok = QInputDialog.getInt(
-            self,
-            "Генерация справки",
-            "Введите ID пациента для генерации справки:"
-        )
-        
-        if not ok or not patient_id:
-            return
-        
-        from models.db_models import Patient
-        patient = Patient.get_by_id(patient_id)
-        
-        if not patient:
-            QMessageBox.warning(self, "Ошибка", f"Пациент с ID {patient_id} не найден")
-            return
-        
-        # Генерация текста справки
-        certificate_text = f"""
-СПРАВКА
-о прохождении лечения
-
-Выдана {patient.full_name}
-
-Дата рождения: {patient.birth_date.strftime("%d.%m.%Y")}
-Пол: {"Мужской" if patient.gender == "M" else "Женский"}
-Отделение: {patient.department_display}
-{f"Лечащий врач: {patient.doctor.full_name}" if patient.doctor else ""}
-
-Дана в том, что пациент действительно проходит лечение в нашем учреждении.
-
-Справка действительна в течение 30 дней с даты выдачи.
-Дата выдачи: {datetime.now().strftime("%d.%m.%Y")}
-        """.strip()
-        
-        # Показ справки
-        from PyQt6.QtWidgets import QTextEdit, QDialog, QDialogButtonBox, QVBoxLayout
-        from PyQt6.QtCore import Qt
-        
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Справка")
-        dialog.setMinimumSize(500, 400)
-        
-        layout = QVBoxLayout(dialog)
-        
-        text_edit = QTextEdit()
-        text_edit.setPlainText(certificate_text)
-        text_edit.setReadOnly(True)
-        text_edit.setFontPointSize(11)
-        layout.addWidget(text_edit)
-        
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
-        buttons.accepted.connect(dialog.accept)
-        layout.addWidget(buttons)
-        
-        dialog.exec()
-    
-    def _add_event(self):
-        """Добавить мероприятие"""
-        from ui.event_form import EventFormDialog
-        dialog = EventFormDialog(self.user, None)
         if dialog.exec():
             pass
