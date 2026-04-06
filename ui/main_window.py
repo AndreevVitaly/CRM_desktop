@@ -330,6 +330,9 @@ class MainWindow(QMainWindow):
 
     def _navigate(self, page_id: str):
         """Навигация к странице"""
+        if self.user is None:
+            return
+
         # Обновляем активную кнопку
         for btn_id, btn in self.nav_buttons.items():
             if btn_id == page_id:
