@@ -9,58 +9,49 @@
 
 COLORS_LIGHT = {
     # Основные цвета (Minimal Gray Scale)
-    "bg": "#FAFAFA",              # Очень светлый серый фон
-    "surface": "#FFFFFF",          # Чистый белый
-    "surface_muted": "#F5F5F5",    # Светлый серый
-    "text": "#1A1A1A",             # Тёмный серый (мягкий чёрный)
-    "text_muted": "#737373",       # Средний серый
-    "text_secondary": "#A3A3A3",   # Светлый серый
-
+    "bg": "#FAFAFA",  # Очень светлый серый фон
+    "surface": "#FFFFFF",  # Чистый белый
+    "surface_muted": "#F5F5F5",  # Светлый серый
+    "text": "#1A1A1A",  # Тёмный серый (мягкий чёрный)
+    "text_muted": "#737373",  # Средний серый
+    "text_secondary": "#A3A3A3",  # Светлый серый
     # Границы и разделители
-    "line": "#E5E5E5",             # Тонкая светлая граница
-    "line_light": "#F0F0F0",       # Едва заметная граница
-
+    "line": "#E5E5E5",  # Тонкая светлая граница
+    "line_light": "#F0F0F0",  # Едва заметная граница
     # Акцентные цвета (приглушённые)
-    "accent": "#2563EB",           # Спокойный синий
-    "accent_hover": "#1D4ED8",     # Темнее при наведении
-    "accent_strong": "#1E40AF",    # Тёмный синий
-    "accent_light": "#EFF6FF",     # Очень светлый синий фон
-    "accent_soft": "#60A5FA",      # Мягкий синий
-
+    "accent": "#2563EB",  # Спокойный синий
+    "accent_hover": "#1D4ED8",  # Темнее при наведении
+    "accent_strong": "#1E40AF",  # Тёмный синий
+    "accent_light": "#EFF6FF",  # Очень светлый синий фон
+    "accent_soft": "#60A5FA",  # Мягкий синий
     # Градиенты (убраны, используются однотонные цвета)
     "gradient_start": "#2563EB",
     "gradient_end": "#2563EB",
-
     # Цвета состояний (мягкие)
-    "success": "#059669",          # Изумруд
+    "success": "#059669",  # Изумруд
     "success_bg": "#ECFDF5",
-    "warning": "#D97706",          # Янтарь
+    "warning": "#D97706",  # Янтарь
     "warning_bg": "#FFFBEB",
-    "danger": "#DC2626",           # Красный
+    "danger": "#DC2626",  # Красный
     "danger_bg": "#FEF2F2",
-    "info": "#2563EB",             # Синий
+    "info": "#2563EB",  # Синий
     "info_bg": "#EFF6FF",
-
     # Роли (приглушённые)
-    "role_admin": "#7C3AED",       # Фиолетовый
-    "role_reg": "#0891B2",         # Циан
-    "role_lead": "#059669",        # Изумруд
-    "role_doc": "#2563EB",         # Синий
-    "role_nur": "#DB2777",         # Розовый
-
+    "role_admin": "#7C3AED",  # Фиолетовый
+    "role_reg": "#0891B2",  # Циан
+    "role_lead": "#059669",  # Изумруд
+    "role_doc": "#2563EB",  # Синий
+    "role_nur": "#DB2777",  # Розовый
     # Таблицы
     "table_header_bg": "#FAFAFA",
     "table_row_hover": "#F5F5F5",
     "table_row_selected": "#F0F7FF",
     "table_border": "#E5E5E5",
-
     # Навигация
     "nav_bg": "#FFFFFF",
-
     # Переключатель темы
     "switch_bg": "#E5E5E5",
     "switch_dot": "#FFFFFF",
-
     # Тени (едва заметные)
     "shadow_sm": "0 1px 2px rgba(0, 0, 0, 0.04)",
     "shadow": "0 2px 4px rgba(0, 0, 0, 0.06)",
@@ -75,58 +66,49 @@ COLORS_LIGHT = {
 
 COLORS_DARK = {
     # Основные цвета (Minimal Dark)
-    "bg": "#0A0A0A",              # Глубокий чёрный
-    "surface": "#171717",          # Тёмный серый
-    "surface_muted": "#262626",    # Серый
-    "text": "#EDEDED",             # Светлый серый
-    "text_muted": "#A3A3A3",       # Средний серый
-    "text_secondary": "#737373",   # Тёмный серый
-
+    "bg": "#0A0A0A",  # Глубокий чёрный
+    "surface": "#171717",  # Тёмный серый
+    "surface_muted": "#262626",  # Серый
+    "text": "#EDEDED",  # Светлый серый
+    "text_muted": "#A3A3A3",  # Средний серый
+    "text_secondary": "#737373",  # Тёмный серый
     # Границы
-    "line": "#262626",             # Тонкая граница
-    "line_light": "#333333",       # Светлая граница
-
+    "line": "#262626",  # Тонкая граница
+    "line_light": "#333333",  # Светлая граница
     # Акцентные цвета (приглушённые)
-    "accent": "#3B82F6",           # Светлый синий
-    "accent_hover": "#60A5FA",     # Ещё светлее при наведении
-    "accent_strong": "#2563EB",    # Синий
-    "accent_light": "#1E3A5F",     # Тёмный синий фон
-    "accent_soft": "#60A5FA",      # Мягкий синий
-
+    "accent": "#3B82F6",  # Светлый синий
+    "accent_hover": "#60A5FA",  # Ещё светлее при наведении
+    "accent_strong": "#2563EB",  # Синий
+    "accent_light": "#1E3A5F",  # Тёмный синий фон
+    "accent_soft": "#60A5FA",  # Мягкий синий
     # Градиенты
     "gradient_start": "#3B82F6",
     "gradient_end": "#3B82F6",
-
     # Цвета состояний (мягкие)
-    "success": "#34D399",          # Изумруд
+    "success": "#34D399",  # Изумруд
     "success_bg": "#064E3B",
-    "warning": "#FBBF24",          # Янтарь
+    "warning": "#FBBF24",  # Янтарь
     "warning_bg": "#451A03",
-    "danger": "#F87171",           # Красный
+    "danger": "#F87171",  # Красный
     "danger_bg": "#450A0A",
-    "info": "#60A5FA",             # Синий
+    "info": "#60A5FA",  # Синий
     "info_bg": "#1E3A5F",
-
     # Роли (приглушённые)
-    "role_admin": "#A78BFA",       # Фиолетовый
-    "role_reg": "#22D3EE",         # Циан
-    "role_lead": "#34D399",        # Изумруд
-    "role_doc": "#60A5FA",         # Синий
-    "role_nur": "#F472B6",         # Розовый
-
+    "role_admin": "#A78BFA",  # Фиолетовый
+    "role_reg": "#22D3EE",  # Циан
+    "role_lead": "#34D399",  # Изумруд
+    "role_doc": "#60A5FA",  # Синий
+    "role_nur": "#F472B6",  # Розовый
     # Таблицы
     "table_header_bg": "#171717",
     "table_row_hover": "#262626",
     "table_row_selected": "#1E3A5F",
     "table_border": "#262626",
-
     # Навигация
     "nav_bg": "#0A0A0A",
-
     # Переключатель темы
     "switch_bg": "#333333",
     "switch_dot": "#EDEDED",
-
     # Тени (едва заметные)
     "shadow_sm": "0 1px 2px rgba(0, 0, 0, 0.3)",
     "shadow": "0 2px 4px rgba(0, 0, 0, 0.4)",
@@ -168,6 +150,7 @@ RADIUS = {
 
 current_theme = "light"
 
+
 def get_colors() -> dict:
     """Получить цвета текущей темы"""
     global current_theme
@@ -190,6 +173,7 @@ def toggle_theme() -> str:
 # ============================================================================
 # QSS СТИЛИ (Qt Style Sheets)
 # ============================================================================
+
 
 def get_main_stylesheet() -> str:
     """Современный stylesheet для приложения"""
@@ -461,11 +445,18 @@ QTableWidget, QTableView {{
     selection-background-color: {colors['table_row_selected']};
     gridline-color: {colors['line_light']};
     color: {colors['text']};
+    outline: none;
 }}
 
 QTableWidget::item, QTableView::item {{
     padding: 12px;
     border-radius: {RADIUS['sm']}px;
+}}
+
+QTableWidget::item:selected, QTableView::item:selected {{
+    background-color: {colors['table_row_selected']};
+    border: none;
+    outline: none;
 }}
 
 QTableWidget::item:hover, QTableView::item:hover {{
