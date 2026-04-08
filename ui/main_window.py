@@ -15,7 +15,14 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QSpacerItem,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, pyqtProperty, QPropertyAnimation, QEasingCurve, QPoint
+from PyQt6.QtCore import (
+    Qt,
+    pyqtSignal,
+    pyqtProperty,
+    QPropertyAnimation,
+    QEasingCurve,
+    QPoint,
+)
 from PyQt6.QtGui import QFont, QPainter, QColor, QBrush, QPen
 
 from models.db_models import User
@@ -156,7 +163,9 @@ class MainWindow(QMainWindow):
 
         # Область страниц
         self.stacked_widget = QStackedWidget()
-        self.stacked_widget.setStyleSheet(f"background-color: {colors['bg']};")
+        self.stacked_widget.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
         content_layout.addWidget(self.stacked_widget)
 
         main_layout.addWidget(content_area, 1)  # Stretch factor 1
@@ -470,10 +479,14 @@ class MainWindow(QMainWindow):
         # Обновляем стили области контента
         content_area = self.findChild(QWidget, "contentArea")
         if content_area:
-            content_area.setStyleSheet(f"background-color: {colors['bg']};")
+            content_area.setStyleSheet(
+                f"background-color: {colors['bg']}; color: {colors['text']};"
+            )
 
         # Обновляем стили stacked widget
-        self.stacked_widget.setStyleSheet(f"background-color: {colors['bg']};")
+        self.stacked_widget.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
 
         # Обновляем стили навигационных кнопок
         for btn in self.nav_buttons.values():
@@ -530,11 +543,21 @@ class MainWindow(QMainWindow):
 
             # Создаём новые страницы
             pages = {
-                "dashboard": lambda: __import__('ui.dashboard_page', fromlist=['DashboardPage']).DashboardPage(self.user),
-                "patients": lambda: __import__('ui.patients_page', fromlist=['PatientsPage']).PatientsPage(self.user),
-                "users": lambda: __import__('ui.users_page', fromlist=['UsersPage']).UsersPage(self.user),
-                "planning": lambda: __import__('ui.planning_page', fromlist=['PlanningPage']).PlanningPage(self.user),
-                "stats": lambda: __import__('ui.stats_page', fromlist=['StatsPage']).StatsPage(self.user),
+                "dashboard": lambda: __import__(
+                    "ui.dashboard_page", fromlist=["DashboardPage"]
+                ).DashboardPage(self.user),
+                "patients": lambda: __import__(
+                    "ui.patients_page", fromlist=["PatientsPage"]
+                ).PatientsPage(self.user),
+                "users": lambda: __import__(
+                    "ui.users_page", fromlist=["UsersPage"]
+                ).UsersPage(self.user),
+                "planning": lambda: __import__(
+                    "ui.planning_page", fromlist=["PlanningPage"]
+                ).PlanningPage(self.user),
+                "stats": lambda: __import__(
+                    "ui.stats_page", fromlist=["StatsPage"]
+                ).StatsPage(self.user),
             }
 
             for nav_id, page_factory in pages.items():
@@ -569,7 +592,9 @@ class MainWindow(QMainWindow):
         login_window = LoginWindow()
         login_window.setParent(self)
         login_window.setWindowModality(Qt.WindowModality.ApplicationModal)
-        login_window.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+        login_window.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog
+        )
         login_window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         login_window.login_successful.connect(self._on_login_success)
 
@@ -582,7 +607,7 @@ class MainWindow(QMainWindow):
 
     def _center_login_window(self):
         """Центрирование окна авторизации"""
-        if hasattr(self, '_login_window'):
+        if hasattr(self, "_login_window"):
             login_geo = self._login_window.frameGeometry()
             main_center = self.geometry().center()
             login_geo.moveCenter(main_center)

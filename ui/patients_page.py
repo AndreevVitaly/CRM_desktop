@@ -53,7 +53,9 @@ class PatientsPage(QWidget):
         layout.addWidget(self.table, 1)
 
         self.setLayout(layout)
-        self.setStyleSheet(f"background-color: {colors['bg']};")
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
 
         # Загрузка данных
         self._load_patients()
@@ -471,7 +473,9 @@ class PatientsPage(QWidget):
     def update_styles(self):
         """Обновление стилей при смене темы"""
         colors = get_colors()
-        self.setStyleSheet(f"background-color: {colors['bg']};")
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
 
         # Обновляем все виджеты на странице
         for widget in self.findChildren(QLabel):

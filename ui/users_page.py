@@ -55,7 +55,9 @@ class UsersPage(QWidget):
         layout.addWidget(actions_panel)
 
         self.setLayout(layout)
-        self.setStyleSheet(f"background-color: {colors['bg']};")
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
 
         self._load_users()
 
@@ -65,7 +67,7 @@ class UsersPage(QWidget):
 
         panel = QFrame()
         panel.setObjectName("card")
-        panel.setFixedHeight(70)
+        panel.setFixedHeight(80)
         panel.setStyleSheet(
             f"""
             QFrame#card {{
@@ -84,6 +86,7 @@ class UsersPage(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("🔍 Поиск по ФИО...")
         self.search_input.setFixedWidth(250)
+        self.search_input.setFixedHeight(40)
         self.search_input.textChanged.connect(self._load_users)
         layout.addWidget(self.search_input)
 
@@ -96,6 +99,7 @@ class UsersPage(QWidget):
         self.role_combo.addItem("Врач", User.ROLE_DOCTOR)
         self.role_combo.addItem("Медсестра", User.ROLE_NURSE)
         self.role_combo.setFixedWidth(180)
+        self.role_combo.setFixedHeight(40)
         self.role_combo.currentIndexChanged.connect(self._load_users)
         layout.addWidget(self.role_combo)
 
@@ -105,6 +109,7 @@ class UsersPage(QWidget):
         for value, label in DEPARTMENTS:
             self.dept_combo.addItem(label, value)
         self.dept_combo.setFixedWidth(180)
+        self.dept_combo.setFixedHeight(40)
         self.dept_combo.currentIndexChanged.connect(self._load_users)
         layout.addWidget(self.dept_combo)
 
@@ -381,7 +386,9 @@ class UsersPage(QWidget):
         )
 
         colors = get_colors()
-        self.setStyleSheet(f"background-color: {colors['bg']};")
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
 
         for widget in self.findChildren(QLabel):
             widget.style().unpolish(widget)

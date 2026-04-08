@@ -56,7 +56,9 @@ class PlanningPage(QWidget):
         layout.addWidget(actions_panel)
 
         self.setLayout(layout)
-        self.setStyleSheet(f"background-color: {colors['bg']};")
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
 
         self._load_events()
 
@@ -66,7 +68,7 @@ class PlanningPage(QWidget):
 
         panel = QFrame()
         panel.setObjectName("card")
-        panel.setFixedHeight(70)
+        panel.setFixedHeight(80)
         panel.setStyleSheet(
             f"""
             QFrame#card {{
@@ -91,6 +93,7 @@ class PlanningPage(QWidget):
         self.date_input.setDisplayFormat("dd.MM.yyyy")
         self.date_input.setCalendarPopup(True)
         self.date_input.setFixedWidth(120)
+        self.date_input.setFixedHeight(40)
         self.date_input.dateChanged.connect(self._load_events)
         layout.addWidget(self.date_input)
 
@@ -100,6 +103,7 @@ class PlanningPage(QWidget):
         for value, label in EVENT_TYPES:
             self.type_combo.addItem(label, value)
         self.type_combo.setFixedWidth(150)
+        self.type_combo.setFixedHeight(40)
         self.type_combo.currentIndexChanged.connect(self._load_events)
         layout.addWidget(self.type_combo)
 
@@ -118,6 +122,7 @@ class PlanningPage(QWidget):
                 self.dept_combo.addItem(label, value)
 
         self.dept_combo.setFixedWidth(180)
+        self.dept_combo.setFixedHeight(40)
         self.dept_combo.currentIndexChanged.connect(self._load_events)
         layout.addWidget(self.dept_combo)
 
@@ -345,7 +350,9 @@ class PlanningPage(QWidget):
         )
 
         colors = get_colors()
-        self.setStyleSheet(f"background-color: {colors['bg']};")
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
 
         for widget in self.findChildren(QLabel):
             widget.style().unpolish(widget)

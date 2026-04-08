@@ -81,7 +81,9 @@ class StatsPage(QWidget):
         layout.addStretch()
 
         self.setLayout(layout)
-        self.setStyleSheet(f"background-color: {colors['bg']};")
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
 
         self._load_stats()
 
@@ -369,7 +371,9 @@ class StatsPage(QWidget):
         colors = get_colors()
 
         # Обновляем фон страницы
-        self.setStyleSheet(f"background-color: {colors['bg']};")
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
 
         # Обновляем фильтр-панель
         filter_panel = self.findChild(QFrame)

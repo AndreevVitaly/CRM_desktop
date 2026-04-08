@@ -2,9 +2,18 @@
 Диалог регистрации нового пользователя
 """
 
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                             QLineEdit, QPushButton, QFormLayout, QComboBox,
-                             QMessageBox, QFrame)
+from PyQt6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QFormLayout,
+    QComboBox,
+    QMessageBox,
+    QFrame,
+)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
@@ -32,7 +41,9 @@ class RegistrationDialog(QDialog):
         # Заголовок
         title_label = QLabel("📝 Регистрация")
         title_label.setObjectName("title")
-        title_label.setStyleSheet(f"font-size: {FONTS['size_title']}pt; font-weight: bold;")
+        title_label.setStyleSheet(
+            f"font-size: {FONTS['size_title']}pt; font-weight: bold;"
+        )
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
 
@@ -132,7 +143,9 @@ class RegistrationDialog(QDialog):
         layout.addLayout(buttons_layout)
 
         self.setLayout(layout)
-        self.setStyleSheet(f"background-color: {colors['bg']};")
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']}; QGroupBox {{ color: {colors['text']}; }}"
+        )
 
     def _on_role_changed(self, index):
         """Изменение роли - показ/скрытие отделения"""
@@ -151,7 +164,9 @@ class RegistrationDialog(QDialog):
         password = self.password_input.text()
         password_confirm = self.password_confirm_input.text()
         role = self.role_combo.currentData()
-        department = self.dept_combo.currentData() if self.dept_combo.isVisible() else None
+        department = (
+            self.dept_combo.currentData() if self.dept_combo.isVisible() else None
+        )
 
         # Валидация
         errors = []
@@ -182,9 +197,10 @@ class RegistrationDialog(QDialog):
         # Создание пользователя
         try:
             from models.db_models import db, init_db
+
             # Убеждаемся, что БД инициализирована
-            init_db('medcrm.db')
-            
+            init_db("medcrm.db")
+
             user = User(
                 username=username,
                 first_name=first_name,
@@ -194,11 +210,11 @@ class RegistrationDialog(QDialog):
                 role=role,
                 department=department,
                 password_hash=hash_password(password),
-                is_active=True
+                is_active=True,
             )
-            
+
             user.save()
-            
+
             # Проверяем, что пользователь сохранён
             saved_user = User.get_by_username(username)
             if saved_user:
@@ -207,13 +223,14 @@ class RegistrationDialog(QDialog):
                 QMessageBox.critical(
                     self,
                     "Ошибка",
-                    "Пользователь создан, но не найден в базе. Попробуйте ещё раз."
+                    "Пользователь создан, но не найден в базе. Попробуйте ещё раз.",
                 )
         except Exception as e:
             import traceback
+
             error_details = traceback.format_exc()
             QMessageBox.critical(
                 self,
                 "Ошибка",
-                f"Не удалось создать пользователя: {str(e)}\n\n{error_details}"
+                f"Не удалось создать пользователя: {str(e)}\n\n{error_details}",
             )
