@@ -318,7 +318,7 @@ class UsersPage(QWidget):
                 delete_action = menu.addAction("🗑️ Удалить")
                 delete_action.triggered.connect(lambda: self._delete_user(user_id))
 
-        menu.exec_(self.table.viewport().mapToGlobal(pos))
+        menu.exec(self.table.viewport().mapToGlobal(pos))
 
     def _add_user(self):
         """Добавление пользователя"""
