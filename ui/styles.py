@@ -45,7 +45,7 @@ COLORS_LIGHT = {
     # Таблицы
     "table_header_bg": "#FAFAFA",
     "table_row_hover": "#F5F5F5",
-    "table_row_selected": "#F0F7FF",
+    "table_row_selected": "#DBEAFE",
     "table_border": "#E5E5E5",
     # Навигация
     "nav_bg": "#FFFFFF",
@@ -102,7 +102,7 @@ COLORS_DARK = {
     # Таблицы
     "table_header_bg": "#171717",
     "table_row_hover": "#262626",
-    "table_row_selected": "#1E3A5F",
+    "table_row_selected": "#2B5797",
     "table_border": "#262626",
     # Навигация
     "nav_bg": "#0A0A0A",
@@ -443,6 +443,7 @@ QTableWidget, QTableView {{
     border: 1px solid {colors['table_border']};
     border-radius: {RADIUS['md']}px;
     selection-background-color: {colors['table_row_selected']};
+    selection-color: {colors['text']};
     gridline-color: {colors['line_light']};
     color: {colors['text']};
     outline: none;
@@ -455,7 +456,8 @@ QTableWidget::item, QTableView::item {{
 
 QTableWidget::item:selected, QTableView::item:selected {{
     background-color: {colors['table_row_selected']};
-    border: none;
+    color: {colors['text']};
+    border: 1px solid {colors['accent']};
     outline: none;
 }}
 
