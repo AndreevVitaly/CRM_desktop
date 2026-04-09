@@ -1,1 +1,1 @@
-# MED_Desktop package
+# LUX package

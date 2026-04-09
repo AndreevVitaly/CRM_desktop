@@ -2,8 +2,17 @@
 Экран входа в приложение
 """
 
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QLineEdit, QPushButton, QFrame, QApplication, QMessageBox)
+from PyQt6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QFrame,
+    QApplication,
+    QMessageBox,
+)
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF
 from PyQt6.QtGui import QFont, QPainter, QPainterPath, QColor, QLinearGradient, QPen
 
@@ -13,19 +22,19 @@ from ui.styles import get_colors, FONTS, RADIUS
 
 class LoginWindow(QWidget):
     """Окно входа"""
-    
+
     login_successful = pyqtSignal(object)  # Сигнал с объектом пользователя
-    
+
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("MED_Desktop - Вход")
+        self.setWindowTitle("LUX - Вход")
         self.setFixedSize(420, 520)
         # Убираем рамку для закруглённых углов
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setStyleSheet(self._get_login_style())
         self._init_ui()
-    
+
     def _init_ui(self):
         """Инициализация интерфейса"""
         colors = get_colors()
@@ -34,58 +43,53 @@ class LoginWindow(QWidget):
         main_layout = QVBoxLayout()
         main_layout.setSpacing(24)
         main_layout.setContentsMargins(40, 40, 40, 40)
-        
-        # Логотип / Заголовок
-        logo_label = QLabel("MED")
-        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_label.setObjectName("logoLabel")
-        logo_label.setStyleSheet(f"""
-            font-size: 48px;
-            font-weight: bold;
-            color: {colors['accent']};
-        """)
-        main_layout.addWidget(logo_label)
-        
-        title_label = QLabel("MED_Desktop")
+
+        # Заголовок
+        title_label = QLabel("LUX")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setObjectName("title")
-        title_label.setStyleSheet(f"""
+        title_label.setStyleSheet(
+            f"""
             font-size: {FONTS['size_xlarge']}pt;
             font-weight: bold;
             color: {colors['accent']};
-        """)
+        """
+        )
         main_layout.addWidget(title_label)
-        
-        subtitle_label = QLabel("Система управления больницей")
+
+        subtitle_label = QLabel("Ясность процессов. Свет решений.")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle_label.setObjectName("muted")
+        subtitle_label.setStyleSheet(
+            f"font-size: {FONTS['size_xs']}pt; color: {colors['text_muted']};"
+        )
         main_layout.addWidget(subtitle_label)
-        
+
         main_layout.addSpacing(20)
-        
+
         # Поле логина
         login_label = QLabel("Логин")
         login_label.setStyleSheet("font-weight: bold;")
         main_layout.addWidget(login_label)
-        
+
         self.login_input = QLineEdit()
         self.login_input.setPlaceholderText("Введите логин")
         self.login_input.setFixedHeight(44)
         self.login_input.returnPressed.connect(self._do_login)
         main_layout.addWidget(self.login_input)
-        
+
         # Поле пароля
         password_label = QLabel("Пароль")
         password_label.setStyleSheet("font-weight: bold;")
         main_layout.addWidget(password_label)
-        
+
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Введите пароль")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_input.setFixedHeight(44)
         self.password_input.returnPressed.connect(self._do_login)
         main_layout.addWidget(self.password_input)
-        
+
         main_layout.addSpacing(10)
 
         # Кнопка регистрации
@@ -103,7 +107,7 @@ class LoginWindow(QWidget):
         main_layout.addWidget(self.error_label)
 
         self.setLayout(main_layout)
-    
+
     def _get_login_style(self) -> str:
         """Стили для окна входа (Modern Design)"""
         colors = get_colors()
@@ -172,7 +176,7 @@ class LoginWindow(QWidget):
                 color: #FFFFFF;
             }}
         """
-    
+
     def _do_login(self):
         """Попытка входа"""
         username = self.login_input.text().strip()
@@ -204,19 +208,20 @@ class LoginWindow(QWidget):
     def _open_registration(self):
         """Открытие диалога регистрации"""
         from ui.registration_dialog import RegistrationDialog
+
         # Создаём диалог без родителя, чтобы он не закрывал окно входа
         dialog = RegistrationDialog(None)
         dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
         dialog_result = dialog.exec()
-        
+
         # После успешной регистрации показываем сообщение
         if dialog_result:
             QMessageBox.information(
                 self,
                 "Регистрация успешна",
-                "Ваша учётная запись создана. Теперь вы можете войти."
+                "Ваша учётная запись создана. Теперь вы можете войти.",
             )
-        
+
         # Возвращаем фокус на поле логина
         self.login_input.setFocus()
 
@@ -233,15 +238,15 @@ class LoginWindow(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         rect = QRectF(self.rect())
-        radius = RADIUS['lg']
+        radius = RADIUS["lg"]
 
         # Путь для фона
         bg_path = QPainterPath()
         bg_path.addRoundedRect(rect, radius, radius)
-        painter.fillPath(bg_path, QColor(colors['bg']))
+        painter.fillPath(bg_path, QColor(colors["bg"]))
 
         # Градиентная рамка
-        if colors['bg'] == "#0A0A0A":
+        if colors["bg"] == "#0A0A0A":
             # Тёмная тема: от чёрного к синему (сверху вниз)
             pen = QPen()
             pen.setWidth(3)
@@ -273,12 +278,12 @@ class LoginWindow(QWidget):
 
     def mouseMoveEvent(self, event):
         """Перетаскивание окна"""
-        if hasattr(self, '_old_pos'):
+        if hasattr(self, "_old_pos"):
             delta = event.globalPosition().toPoint() - self._old_pos
             self.move(self.pos() + delta)
             self._old_pos = event.globalPosition().toPoint()
 
     def mouseReleaseEvent(self, event):
         """Завершение перетаскивания"""
-        if hasattr(self, '_old_pos'):
+        if hasattr(self, "_old_pos"):
             del self._old_pos

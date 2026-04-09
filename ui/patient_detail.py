@@ -80,6 +80,7 @@ class PatientDetailDialog(QDialog):
 
         if self.user.role in (User.ROLE_REGISTRAR, User.ROLE_LEAD):
             edit_btn = QPushButton("Редактировать")
+            edit_btn.setObjectName("secondaryBtn")
             edit_btn.setFixedHeight(40)
             edit_btn.clicked.connect(self._edit_patient)
             buttons_layout.addWidget(edit_btn)

@@ -1,5 +1,5 @@
 """
-MED_Desktop - Десктопная CRM для больницы
+LUX - Десктопная CRM для работы с отделениями
 Главный файл запуска
 """
 
@@ -16,30 +16,32 @@ from ui.styles import get_main_stylesheet
 
 def main():
     """Точка входа в приложение"""
-    
+
     # Инициализация БД
     init_db("medcrm.db")
-    
+
     # Создание приложения
     app = QApplication(sys.argv)
-    app.setApplicationName("MED_Desktop")
+    app.setApplicationName("LUX")
     app.setOrganizationName("Hospital CRM")
-    
+
     # Установка шрифта
     font = QFont("Segoe UI", 10)
     app.setFont(font)
-    
+
     # Применение стилей
     app.setStyleSheet(get_main_stylesheet())
-    
+
     # Настройка тёмной темы для тёмных элементов
     app.setStyle("Fusion")
-    
+
     # Окно входа
     login_window = LoginWindow()
-    login_window.login_successful.connect(lambda user: on_login_success(user, login_window))
+    login_window.login_successful.connect(
+        lambda user: on_login_success(user, login_window)
+    )
     login_window.show()
-    
+
     sys.exit(app.exec())
 
 

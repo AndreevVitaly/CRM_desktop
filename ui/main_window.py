@@ -129,7 +129,7 @@ class MainWindow(QMainWindow):
         self.user = user
         self.current_theme_light = True
 
-        self.setWindowTitle(f"MED_Desktop - {user.full_name}")
+        self.setWindowTitle(f"LUX - {user.full_name}")
         self.setMinimumSize(1200, 800)
         self.setStyleSheet(get_main_stylesheet())
 
@@ -320,12 +320,21 @@ class MainWindow(QMainWindow):
         self._update_logo(logo_path, colors)
         logo_layout.addWidget(self.logo_label)
 
-        title_label = QLabel("MED_Desktop")
+        title_label = QLabel("LUX")
         title_label.setObjectName("title")
         title_label.setStyleSheet(
             f"font-size: {FONTS['size_xlarge']}pt; font-weight: 700; color: {colors['accent']};"
         )
         logo_layout.addWidget(title_label)
+
+        # Подзаголовок
+        subtitle_label = QLabel("Ясность процессов. Свет решений.")
+        subtitle_label.setObjectName("muted")
+        subtitle_label.setStyleSheet(
+            f"font-size: {FONTS['size_xs']}pt; color: {colors['text_muted']};"
+        )
+        logo_layout.addWidget(subtitle_label)
+
         layout.addLayout(logo_layout)
 
         layout.addSpacing(24)
@@ -638,8 +647,24 @@ class MainWindow(QMainWindow):
         from PyQt6.QtWidgets import QApplication
         from PyQt6.QtCore import Qt
 
-        # Очищаем данные пользователя
-        self.user = None
+        # Удаляем все страницы из stacked_widget
+        old_widgets = []
+        while self.stacked_widget.count() > 0:
+            widget = self.stacked_widget.widget(0)
+            self.stacked_widget.removeWidget(widget)
+            old_widgets.append(widget)
+        for widget in old_widgets:
+            widget.deleteLater()
+
+        # Отключаем все кнопки навигации
+        for btn in self.nav_buttons.values():
+            btn.setEnabled(False)
+            btn.setProperty("active", False)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+        # Сбрасываем заголовок
+        self.setWindowTitle("LUX - Вход")
 
         # Создаём модальное окно входа поверх главного
         login_window = LoginWindow()
@@ -669,7 +694,16 @@ class MainWindow(QMainWindow):
     def _on_login_success(self, user: User):
         """Успешный вход - обновление пользователя"""
         self.user = user
-        self.setWindowTitle(f"MED_Desktop - {user.full_name}")
+        self.setWindowTitle(f"LUX - {user.full_name}")
         self._login_window.close()
-        self._init_ui()
+
+        # Включаем кнопки навигации согласно роли
+        nav_items = self._get_nav_items()
+        for nav_id, btn in self.nav_buttons.items():
+            enabled = nav_items.get(nav_id, ("", False))[1]
+            btn.setEnabled(enabled)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+        # Загружаем главную страницу
         self._navigate("dashboard")
