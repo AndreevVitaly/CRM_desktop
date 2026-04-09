@@ -11,9 +11,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QFrame,
     QStackedWidget,
-    QScrollArea,
-    QSizePolicy,
-    QSpacerItem,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -23,7 +20,8 @@ from PyQt6.QtCore import (
     QEasingCurve,
     QPoint,
 )
-from PyQt6.QtGui import QFont, QPainter, QColor, QBrush, QPen
+from PyQt6.QtGui import QFont, QPainter, QColor, QBrush, QPen, QPixmap, QPainterPath
+import os
 
 from models.db_models import User
 from ui.styles import get_colors, FONTS, RADIUS, get_main_stylesheet
@@ -136,6 +134,42 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(get_main_stylesheet())
 
         self._init_ui()
+
+    def _update_logo(self, logo_path: str, colors: dict):
+        """Обновление логотипа (PNG) со скруглёнными углами"""
+        if not logo_path or not os.path.exists(logo_path):
+            return
+        try:
+            pixmap = QPixmap(logo_path)
+            if pixmap.isNull():
+                return
+
+            w, h = pixmap.width(), pixmap.height()
+            rounded = QPixmap(w, h)
+            rounded.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(rounded)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            radius = 14
+            path_mask = QPainterPath()
+            path_mask.addRoundedRect(0, 0, w, h, radius, radius)
+            painter.setClipPath(path_mask)
+            painter.drawPixmap(0, 0, pixmap)
+            painter.end()
+
+            self.logo_label.setPixmap(rounded)
+            self.logo_label.setFixedSize(rounded.size())
+            self.logo_label.update()
+        except Exception:
+            pass
+
+    def _get_logo_path(self) -> str:
+        """Путь к логотипу"""
+        assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+        logo = "logo_light.png"
+        path = os.path.join(assets_dir, logo)
+        if os.path.exists(path):
+            return path
+        return ""
 
     def _init_ui(self):
         """Инициализация интерфейса"""
@@ -260,7 +294,7 @@ class MainWindow(QMainWindow):
 
         top_bar = QFrame()
         top_bar.setObjectName("topBar")
-        top_bar.setFixedHeight(72)
+        top_bar.setFixedHeight(88)
         top_bar.setStyleSheet(
             f"""
             QFrame#topBar {{
@@ -276,10 +310,20 @@ class MainWindow(QMainWindow):
 
         # Логотип и название слева
         logo_layout = QHBoxLayout()
+        logo_layout.setSpacing(12)
+
+        # Логотип
+        logo_path = self._get_logo_path()
+        self.logo_label = QLabel()
+        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.logo_label.setProperty("logoLabel", True)
+        self._update_logo(logo_path, colors)
+        logo_layout.addWidget(self.logo_label)
+
         title_label = QLabel("MED_Desktop")
         title_label.setObjectName("title")
         title_label.setStyleSheet(
-            f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['accent']};"
+            f"font-size: {FONTS['size_xlarge']}pt; font-weight: 700; color: {colors['accent']};"
         )
         logo_layout.addWidget(title_label)
         layout.addLayout(logo_layout)
@@ -400,11 +444,17 @@ class MainWindow(QMainWindow):
         from PyQt6.QtWidgets import QPushButton, QLabel, QApplication
         from PyQt6.QtGui import QPalette, QColor
 
-        self.current_theme_light = toggle_theme()
+        new_theme = toggle_theme()
+        self.current_theme_light = new_theme == "light"
         colors = get_colors()
 
         # Обновляем переключатель
         self.theme_switch.toggle()
+
+        # Обновляем логотип (после смены темы)
+        if hasattr(self, "logo_label"):
+            logo_path = self._get_logo_path()
+            self._update_logo(logo_path, colors)
 
         # Обновляем стили приложения
         app = QApplication.instance()
@@ -449,8 +499,10 @@ class MainWindow(QMainWindow):
             title_label = top_bar.findChild(QLabel, "title")
             if title_label:
                 title_label.setStyleSheet(
-                    f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['accent']};"
+                    f"font-size: {FONTS['size_xlarge']}pt; font-weight: 700; color: {colors['accent']};"
                 )
+            if hasattr(self, "logo_label"):
+                self._update_logo(self._get_logo_path(), colors)
             # Обновляем кнопку выхода
             logout_btn = top_bar.findChild(QPushButton, "logoutBtn")
             if logout_btn:

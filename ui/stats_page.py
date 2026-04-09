@@ -9,19 +9,19 @@ from PyQt6.QtWidgets import (
     QLabel,
     QFrame,
     QComboBox,
-    QDateEdit,
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
     QGridLayout,
     QScrollArea,
+    QCheckBox,
 )
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QFont
 
 from models.db_models import User, Patient, Encounter, DEPARTMENTS
 from ui.styles import get_colors, FONTS, RADIUS
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 class StatsPage(QWidget):
@@ -110,7 +110,7 @@ class StatsPage(QWidget):
 
         # Месяц
         month_label = QLabel("Месяц:")
-        month_label.setStyleSheet("font-weight: bold;")
+        month_label.setStyleSheet("font-weight: bold; background-color: transparent;")
         layout.addWidget(month_label)
 
         self.month_combo = QComboBox()
@@ -151,7 +151,9 @@ class StatsPage(QWidget):
 
         # Отделение
         dept_label = QLabel("Отделение:")
-        dept_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        dept_label.setStyleSheet(
+            "font-weight: bold; font-size: 11pt; background-color: transparent;"
+        )
         layout.addWidget(dept_label)
 
         self.dept_combo = QComboBox()
@@ -284,6 +286,7 @@ class StatsPage(QWidget):
 
         title_label = QLabel(title)
         title_label.setObjectName("muted")
+        title_label.setStyleSheet("background-color: transparent;")
         top_layout.addWidget(title_label)
         top_layout.addStretch()
 
@@ -292,6 +295,7 @@ class StatsPage(QWidget):
         value_label = QLabel(value)
         value_label.setStyleSheet(
             f"""
+            background-color: transparent;
             font-size: 32px;
             font-weight: bold;
             color: {colors['accent']};
@@ -302,6 +306,7 @@ class StatsPage(QWidget):
         if subtitle:
             subtitle_label = QLabel(subtitle)
             subtitle_label.setObjectName("muted")
+            subtitle_label.setStyleSheet("background-color: transparent;")
             layout.addWidget(subtitle_label)
 
         return card
@@ -418,6 +423,7 @@ class StatsPage(QWidget):
                 if child.styleSheet() and "font-size: 32px" in child.styleSheet():
                     child.setStyleSheet(
                         f"""
+                        background-color: transparent;
                         font-size: 32px;
                         font-weight: bold;
                         color: {colors['accent']};

@@ -87,7 +87,7 @@ class PlanningPage(QWidget):
 
         # Год
         year_label = QLabel("Год:")
-        year_label.setStyleSheet("font-weight: bold;")
+        year_label.setStyleSheet("font-weight: bold; background-color: transparent;")
         layout.addWidget(year_label)
 
         self.year_combo = QComboBox()
@@ -134,6 +134,7 @@ class PlanningPage(QWidget):
         # Показать выполненные
         self.show_completed_check = QCheckBox("Показать выполненные")
         self.show_completed_check.setChecked(True)
+        self.show_completed_check.setStyleSheet("background-color: transparent;")
         self.show_completed_check.stateChanged.connect(self._load_events)
         layout.addWidget(self.show_completed_check)
 

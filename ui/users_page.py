@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor
 
 from models.db_models import User, DEPARTMENTS
 from ui.styles import get_colors, FONTS, RADIUS

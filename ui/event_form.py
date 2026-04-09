@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtCore import Qt, QDate, QTime
+from datetime import datetime, time
 
 from models.db_models import User, Event, DEPARTMENTS, EVENT_TYPES
 from ui.styles import get_colors, FONTS, RADIUS
@@ -216,8 +217,6 @@ class EventFormDialog(QDialog):
 
         time_val = self.time_input.time().toPyTime()
         if time_val.hour != 0 or time_val.minute != 0:
-            from datetime import datetime
-
             self.event.event_time = datetime.combine(self.event.event_date, time_val)
         else:
             self.event.event_time = None

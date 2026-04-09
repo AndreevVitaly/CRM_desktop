@@ -2,7 +2,6 @@
 Страница списка пациентов
 """
 
-from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -18,7 +17,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QMenu,
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
 from models.db_models import User, Patient, Facility, DEPARTMENTS
