@@ -21,7 +21,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
 from models.db_models import User, Patient, Facility, DEPARTMENTS
-from ui.styles import get_colors, FONTS, RADIUS
+from ui.styles import get_colors, FONTS, RADIUS, get_main_stylesheet
 
 
 class PatientsPage(QWidget):
@@ -52,9 +52,7 @@ class PatientsPage(QWidget):
         layout.addWidget(self.table, 1)
 
         self.setLayout(layout)
-        self.setStyleSheet(
-            f"background-color: {colors['bg']}; color: {colors['text']};"
-        )
+        self.setStyleSheet(get_main_stylesheet())
 
         # Загрузка данных
         self._load_patients()
@@ -82,6 +80,7 @@ class PatientsPage(QWidget):
 
         # Поиск
         self.search_input = QLineEdit()
+        self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText("Поиск по ФИО, номеру документа...")
         self.search_input.setFixedWidth(300)
         self.search_input.textChanged.connect(self._on_search_changed)
@@ -89,6 +88,7 @@ class PatientsPage(QWidget):
 
         # Тип пациента
         self.type_combo = QComboBox()
+        self.type_combo.setObjectName("filterCombo")
         self.type_combo.addItem("Все типы", "")
         self.type_combo.addItem("Взрослые", "adult")
         self.type_combo.addItem("Дети", "child")
@@ -108,7 +108,7 @@ class PatientsPage(QWidget):
 
         # Отделение (для LEAD, NUR)
         if self.user.role == User.ROLE_LEAD:
-            dept_label = QLabel(f"📍 {self.user.department_display}")
+            dept_label = QLabel(self.user.department_display)
             dept_label.setStyleSheet("font-weight: bold;")
             layout.addWidget(dept_label)
 
@@ -319,7 +319,7 @@ class PatientsPage(QWidget):
         menu = QMenu()
 
         # Открыть
-        open_action = menu.addAction("📄 Открыть карточку")
+        open_action = menu.addAction("Открыть карточку")
         open_action.triggered.connect(lambda: self._open_patient_by_id(patient_id))
 
         # Редактировать (REG, LEAD)
@@ -330,23 +330,23 @@ class PatientsPage(QWidget):
             ):
                 pass  # LEAD не может редактировать пациентов другого отделения
             else:
-                edit_action = menu.addAction("✏️ Редактировать")
+                edit_action = menu.addAction("Редактировать")
                 edit_action.triggered.connect(lambda: self._edit_patient(patient_id))
 
         # Скрыть/Восстановить (только REG)
         if self.user.role == User.ROLE_REGISTRAR:
             if patient.is_active:
-                hide_action = menu.addAction("🙈 Скрыть")
+                hide_action = menu.addAction("Скрыть")
                 hide_action.triggered.connect(lambda: self._hide_patient(patient_id))
             else:
-                restore_action = menu.addAction("↩️ Восстановить")
+                restore_action = menu.addAction("Восстановить")
                 restore_action.triggered.connect(
                     lambda: self._restore_patient(patient_id)
                 )
 
         # Справка (ADMIN, REG, LEAD)
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
-            cert_action = menu.addAction("📄 Справка")
+            cert_action = menu.addAction("Справка")
             cert_action.triggered.connect(
                 lambda: self._generate_certificate(patient_id)
             )
@@ -448,30 +448,28 @@ class PatientsPage(QWidget):
         """.strip()
 
         # Показ справки
-        dialog = QDialog(self)
+        dialog = QDialog()
         dialog.setWindowTitle("Справка")
         dialog.setMinimumSize(500, 400)
+        dialog.setModal(True)
 
-        layout = QVBoxLayout(dialog)
+        dialog_layout = QVBoxLayout(dialog)
 
         text_edit = QTextEdit()
         text_edit.setPlainText(certificate_text)
         text_edit.setReadOnly(True)
         text_edit.setFontPointSize(11)
-        layout.addWidget(text_edit)
+        dialog_layout.addWidget(text_edit)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         buttons.accepted.connect(dialog.accept)
-        layout.addWidget(buttons)
+        dialog_layout.addWidget(buttons)
 
         dialog.exec()
 
     def update_styles(self):
         """Обновление стилей при смене темы"""
-        colors = get_colors()
-        self.setStyleSheet(
-            f"background-color: {colors['bg']}; color: {colors['text']};"
-        )
+        self.setStyleSheet(get_main_stylesheet())
 
         # Обновляем все виджеты на странице
         for widget in self.findChildren(QLabel):

@@ -67,10 +67,10 @@ class PatientDetailDialog(QDialog):
 
         # Вкладки
         tabs = QTabWidget()
-        tabs.addTab(self._create_info_tab(), "📋 Информация")
-        tabs.addTab(self._create_encounters_tab(), "📝 Визиты")
-        tabs.addTab(self._create_plan_tab(), "✅ План лечения")
-        tabs.addTab(self._create_log_tab(), "📜 Журнал")
+        tabs.addTab(self._create_info_tab(), "Информация")
+        tabs.addTab(self._create_encounters_tab(), "Визиты")
+        tabs.addTab(self._create_plan_tab(), "План лечения")
+        tabs.addTab(self._create_log_tab(), "Журнал")
 
         layout.addWidget(tabs, 1)
 
@@ -79,7 +79,7 @@ class PatientDetailDialog(QDialog):
         buttons_layout.addStretch()
 
         if self.user.role in (User.ROLE_REGISTRAR, User.ROLE_LEAD):
-            edit_btn = QPushButton("✏️ Редактировать")
+            edit_btn = QPushButton("Редактировать")
             edit_btn.setFixedHeight(40)
             edit_btn.clicked.connect(self._edit_patient)
             buttons_layout.addWidget(edit_btn)
@@ -117,11 +117,6 @@ class PatientDetailDialog(QDialog):
 
         layout = QHBoxLayout(header)
 
-        # Аватар (заглушка)
-        avatar = QLabel("👤")
-        avatar.setStyleSheet("font-size: 48px;")
-        layout.addWidget(avatar)
-
         # Информация
         info_layout = QVBoxLayout()
 
@@ -144,7 +139,7 @@ class PatientDetailDialog(QDialog):
         layout.addStretch()
 
         # Статус
-        status_label = QLabel("✅ Активен" if self.patient.is_active else "⏸️ Скрыт")
+        status_label = QLabel("Активен" if self.patient.is_active else "Скрыт")
         status_label.setStyleSheet(
             f"""
             font-weight: bold;
@@ -230,7 +225,7 @@ class PatientDetailDialog(QDialog):
         # Место размещения
         if self.patient.facility:
             facility_label = QLabel(
-                f"📍 {self.patient.facility.name} ({self.patient.facility.type_display})"
+                f"{self.patient.facility.name} ({self.patient.facility.type_display})"
             )
             facility_label.setStyleSheet("font-weight: bold;")
             layout.addWidget(facility_label, row, 0, 1, 2)
@@ -258,7 +253,7 @@ class PatientDetailDialog(QDialog):
             User.ROLE_DOCTOR,
             User.ROLE_NURSE,
         ):
-            add_btn = QPushButton("➕ Добавить визит")
+            add_btn = QPushButton("Добавить визит")
             add_btn.setFixedHeight(36)
             add_btn.clicked.connect(self._add_encounter)
             layout.addWidget(add_btn)
@@ -321,9 +316,13 @@ class PatientDetailDialog(QDialog):
 
             notes_count = len(Note.get_by_encounter(encounter.id))
             rx_count = len(Prescription.get_by_encounter(encounter.id))
-            notes_info = f"📝 {notes_count}" if notes_count else ""
+            notes_info = f"Заметки: {notes_count}" if notes_count else ""
             if rx_count:
-                notes_info += f" 💊 {rx_count}" if notes_info else f"💊 {rx_count}"
+                notes_info += (
+                    f", Назначения: {rx_count}"
+                    if notes_info
+                    else f"Назначения: {rx_count}"
+                )
             self.encounters_table.setItem(row, 4, QTableWidgetItem(notes_info or "—"))
 
     def _create_plan_tab(self) -> QWidget:
@@ -337,7 +336,7 @@ class PatientDetailDialog(QDialog):
 
         # Кнопка добавления пункта
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_DOCTOR):
-            add_btn = QPushButton("➕ Добавить пункт плана")
+            add_btn = QPushButton("Добавить пункт плана")
             add_btn.setFixedHeight(36)
             add_btn.clicked.connect(self._add_plan_item)
             layout.addWidget(add_btn)
@@ -372,7 +371,7 @@ class PatientDetailDialog(QDialog):
         buttons_layout.addWidget(toggle_btn)
 
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_DOCTOR):
-            delete_btn = QPushButton("🗑️ Удалить")
+            delete_btn = QPushButton("Удалить")
             delete_btn.setObjectName("dangerBtn")
             delete_btn.setFixedHeight(36)
             delete_btn.clicked.connect(self._delete_plan_item)
@@ -521,7 +520,7 @@ class PatientDetailDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
 
         # Заголовок
-        title = QLabel(f"📋 Визит пациента")
+        title = QLabel(f"Визит пациента")
         title.setStyleSheet(f"font-size: {FONTS['size_title']}pt; font-weight: bold;")
         layout.addWidget(title)
 
@@ -560,7 +559,7 @@ class PatientDetailDialog(QDialog):
         layout.addWidget(info_frame)
 
         # Заметки
-        notes_label = QLabel("📝 Заметки:")
+        notes_label = QLabel("Заметки:")
         notes_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         layout.addWidget(notes_label)
 
@@ -602,7 +601,7 @@ class PatientDetailDialog(QDialog):
             layout.addWidget(no_notes)
 
         # Назначения
-        rx_label = QLabel("💊 Назначения:")
+        rx_label = QLabel("Назначения:")
         rx_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         layout.addWidget(rx_label)
 

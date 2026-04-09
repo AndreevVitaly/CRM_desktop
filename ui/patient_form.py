@@ -85,7 +85,8 @@ class PatientFormDialog(QDialog):
         buttons_layout = QHBoxLayout()
         buttons_layout.addStretch()
 
-        save_btn = QPushButton("💾 Сохранить")
+        save_btn = QPushButton("Сохранить")
+        save_btn.setObjectName("secondaryBtn")
         save_btn.setFixedHeight(40)
         save_btn.clicked.connect(self._save)
         buttons_layout.addWidget(save_btn)
@@ -109,9 +110,14 @@ class PatientFormDialog(QDialog):
 
     def _create_personal_group(self) -> QGroupBox:
         """Группа личных данных"""
-        group = QGroupBox("📋 Личные данные")
+        group = QGroupBox("Личные данные")
         layout = QFormLayout()
         layout.setSpacing(10)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.setFormAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         # ФИО
         self.last_name_input = QLineEdit()
@@ -162,9 +168,14 @@ class PatientFormDialog(QDialog):
 
     def _create_contact_group(self) -> QGroupBox:
         """Группа контактов"""
-        group = QGroupBox("📞 Контакты")
+        group = QGroupBox("Контакты")
         layout = QFormLayout()
         layout.setSpacing(10)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.setFormAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.phone_input = QLineEdit()
         self.phone_input.setPlaceholderText("+7 (___) ___-__-__")
@@ -187,9 +198,14 @@ class PatientFormDialog(QDialog):
 
     def _create_document_group(self) -> QGroupBox:
         """Группа документов"""
-        group = QGroupBox("📄 Документы")
+        group = QGroupBox("Документы")
         layout = QFormLayout()
         layout.setSpacing(10)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.setFormAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.document_id_input = QLineEdit()
         self.document_id_input.setPlaceholderText("Личный номер")
@@ -212,9 +228,14 @@ class PatientFormDialog(QDialog):
 
     def _create_facility_group(self) -> QGroupBox:
         """Группа размещения"""
-        group = QGroupBox("🏥 Место размещения")
+        group = QGroupBox("Место размещения")
         layout = QFormLayout()
         layout.setSpacing(10)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.setFormAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.facility_combo = QComboBox()
         self.facility_combo.addItem("Не выбрано", 0)

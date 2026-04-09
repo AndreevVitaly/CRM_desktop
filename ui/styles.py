@@ -985,8 +985,9 @@ QLineEdit#searchInput {{
     background-color: {colors['surface']};
     border: 1px solid {colors['line']};
     border-radius: {RADIUS['sm']}px;
-    padding: 10px 12px 10px 36px;
+    padding: 10px 14px;
     color: {colors['text']};
+    font-size: {FONTS['size_medium']}pt;
 }}
 
 QLineEdit#searchInput:focus {{
