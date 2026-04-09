@@ -444,14 +444,14 @@ QTableWidget, QTableView {{
     border-radius: {RADIUS['md']}px;
     selection-background-color: {colors['table_row_selected']};
     selection-color: {colors['text']};
-    gridline-color: {colors['line_light']};
+    gridline-color: {colors['line']};
     color: {colors['text']};
     outline: none;
 }}
 
 QTableWidget::item, QTableView::item {{
     padding: 12px;
-    border-radius: {RADIUS['sm']}px;
+    border-bottom: 1px solid {colors['line_light']};
 }}
 
 QTableWidget::item:selected, QTableView::item:selected {{

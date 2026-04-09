@@ -208,7 +208,8 @@ class MainWindow(QMainWindow):
 
         btn = QPushButton(text)
         btn.setObjectName("navButton")
-        btn.setFixedHeight(40)
+        btn.setFixedHeight(48)
+        btn.setMinimumWidth(120)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(
             f"""
@@ -216,7 +217,7 @@ class MainWindow(QMainWindow):
                 background-color: transparent;
                 border: 2px solid transparent;
                 border-radius: {RADIUS['md']}px;
-                padding: 8px 16px;
+                padding: 10px 20px;
                 font-size: {FONTS['size_medium']}pt;
                 font-weight: 600;
                 color: {colors['text']};
@@ -259,7 +260,7 @@ class MainWindow(QMainWindow):
 
         top_bar = QFrame()
         top_bar.setObjectName("topBar")
-        top_bar.setFixedHeight(64)
+        top_bar.setFixedHeight(72)
         top_bar.setStyleSheet(
             f"""
             QFrame#topBar {{
@@ -292,7 +293,7 @@ class MainWindow(QMainWindow):
         nav_items = list(self._get_nav_items().items())
         for nav_id, (text, enabled) in nav_items:
             btn = self._create_nav_button(text, nav_id, enabled)
-            btn.setFixedHeight(40)
+            btn.setFixedHeight(48)
             self.nav_buttons[nav_id] = btn
             layout.addWidget(btn)
 
@@ -496,7 +497,7 @@ class MainWindow(QMainWindow):
                     background-color: transparent;
                     border: 2px solid transparent;
                     border-radius: {RADIUS['md']}px;
-                    padding: 8px 16px;
+                    padding: 10px 20px;
                     font-size: {FONTS['size_medium']}pt;
                     font-weight: 600;
                     color: {colors['text']};

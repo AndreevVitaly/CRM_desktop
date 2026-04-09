@@ -82,9 +82,6 @@ class PatientsPage(QWidget):
         layout.setSpacing(12)
 
         # Поиск
-        search_label = QLabel("🔍")
-        layout.addWidget(search_label)
-
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Поиск по ФИО, номеру документа...")
         self.search_input.setFixedWidth(300)
@@ -224,9 +221,9 @@ class PatientsPage(QWidget):
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.setAlternatingRowColors(True)
+        table.setAlternatingRowColors(False)
         table.verticalHeader().setVisible(False)
-        table.setShowGrid(False)
+        table.setShowGrid(True)
 
         # Контекстное меню
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)

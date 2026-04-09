@@ -93,7 +93,7 @@ class StatsPage(QWidget):
 
         panel = QFrame()
         panel.setObjectName("card")
-        panel.setFixedHeight(70)
+        panel.setFixedHeight(80)
         panel.setStyleSheet(
             f"""
             QFrame#card {{
@@ -131,21 +131,27 @@ class StatsPage(QWidget):
         for i, m in enumerate(months):
             self.month_combo.addItem(m, i + 1)
         self.month_combo.setCurrentIndex(self.selected_month - 1)
-        self.month_combo.setFixedWidth(150)
+        self.month_combo.setFixedWidth(160)
+        self.month_combo.setFixedHeight(42)
+        self.month_combo.setStyleSheet(f"font-size: {FONTS['size_medium']}pt;")
         self.month_combo.currentIndexChanged.connect(self._load_stats)
         layout.addWidget(self.month_combo)
 
         # Год
-        self.year_input = QDateEdit()
-        self.year_input.setDate(QDate(self.selected_year, 1, 1))
-        self.year_input.setDisplayFormat("yyyy")
-        self.year_input.setFixedWidth(100)
-        self.year_input.dateChanged.connect(self._on_year_changed)
-        layout.addWidget(self.year_input)
+        self.year_combo = QComboBox()
+        current_year = QDate.currentDate().year()
+        for y in range(current_year - 5, current_year + 6):
+            self.year_combo.addItem(str(y), y)
+        self.year_combo.setCurrentText(str(self.selected_year))
+        self.year_combo.setFixedWidth(110)
+        self.year_combo.setFixedHeight(42)
+        self.year_combo.setStyleSheet(f"font-size: {FONTS['size_medium']}pt;")
+        self.year_combo.currentIndexChanged.connect(self._on_year_changed)
+        layout.addWidget(self.year_combo)
 
         # Отделение
         dept_label = QLabel("Отделение:")
-        dept_label.setStyleSheet("font-weight: bold;")
+        dept_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
         layout.addWidget(dept_label)
 
         self.dept_combo = QComboBox()
@@ -159,7 +165,9 @@ class StatsPage(QWidget):
             for value, label in DEPARTMENTS:
                 self.dept_combo.addItem(label, value)
 
-        self.dept_combo.setFixedWidth(180)
+        self.dept_combo.setFixedWidth(200)
+        self.dept_combo.setFixedHeight(42)
+        self.dept_combo.setStyleSheet(f"font-size: {FONTS['size_medium']}pt;")
         self.dept_combo.currentIndexChanged.connect(self._load_stats)
         layout.addWidget(self.dept_combo)
 
@@ -167,9 +175,9 @@ class StatsPage(QWidget):
 
         return panel
 
-    def _on_year_changed(self, date):
+    def _on_year_changed(self):
         """Изменение года"""
-        self.selected_year = date.year()
+        self.selected_year = self.year_combo.currentData()
         self._load_stats()
 
     def _get_kpi_data(self) -> list:
@@ -313,8 +321,8 @@ class StatsPage(QWidget):
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.verticalHeader().setVisible(False)
-        table.setShowGrid(False)
-        table.setAlternatingRowColors(True)
+        table.setShowGrid(True)
+        table.setAlternatingRowColors(False)
 
         return table
 
@@ -425,12 +433,12 @@ class StatsPage(QWidget):
                     border: 1px solid {colors['table_border']};
                     border-radius: {RADIUS['md']}px;
                     selection-background-color: {colors['table_row_selected']};
-                    gridline-color: {colors['line_light']};
+                    gridline-color: {colors['line']};
                     color: {colors['text']};
                 }}
                 QTableWidget::item {{
                     padding: 12px;
-                    border-radius: {RADIUS['sm']}px;
+                    border-bottom: 1px solid {colors['line_light']};
                 }}
                 QTableWidget::item:hover {{
                     background-color: {colors['table_row_hover']};
@@ -447,6 +455,20 @@ class StatsPage(QWidget):
                     letter-spacing: 0.05em;
                 }}
             """
+            )
+
+        # Обновляем шрифты фильтров
+        if hasattr(self, "month_combo"):
+            self.month_combo.setStyleSheet(
+                f"font-size: {FONTS['size_medium']}pt; color: {colors['text']};"
+            )
+        if hasattr(self, "dept_combo"):
+            self.dept_combo.setStyleSheet(
+                f"font-size: {FONTS['size_medium']}pt; color: {colors['text']};"
+            )
+        if hasattr(self, "year_combo"):
+            self.year_combo.setStyleSheet(
+                f"font-size: {FONTS['size_medium']}pt; color: {colors['text']};"
             )
 
     def update_styles(self):

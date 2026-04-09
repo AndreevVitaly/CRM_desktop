@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont
 
 from models.db_models import User, DEPARTMENTS
 from ui.styles import get_colors, FONTS, RADIUS
@@ -84,7 +84,7 @@ class UsersPage(QWidget):
 
         # Поиск
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("🔍 Поиск по ФИО...")
+        self.search_input.setPlaceholderText("Поиск по ФИО...")
         self.search_input.setFixedWidth(250)
         self.search_input.setFixedHeight(40)
         self.search_input.textChanged.connect(self._load_users)
@@ -138,9 +138,9 @@ class UsersPage(QWidget):
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.setAlternatingRowColors(True)
+        table.setAlternatingRowColors(False)
         table.verticalHeader().setVisible(False)
-        table.setShowGrid(False)
+        table.setShowGrid(True)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._show_context_menu)
 
@@ -243,12 +243,7 @@ class UsersPage(QWidget):
 
             # Роль
             role_item = QTableWidgetItem(u.role_display)
-            role_label = QLabel(f"● {u.role_display}")
-            role_label.setStyleSheet(
-                f"color: {self._get_role_color(u.role)}; font-weight: bold;"
-            )
-            role_label.setStyleSheet(f"color: {self._get_role_color(u.role)};")
-            self.table.setCellWidget(row, 2, role_label)
+            self.table.setItem(row, 2, role_item)
 
             # Отделение
             dept_item = QTableWidgetItem(u.department_display or "—")
