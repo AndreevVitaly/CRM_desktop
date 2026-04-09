@@ -25,10 +25,11 @@ from ui.styles import get_colors, FONTS, RADIUS
 class EventFormDialog(QDialog):
     """Диалог формы мероприятия"""
 
-    def __init__(self, user: User, event: Event = None):
+    def __init__(self, user: User, event: Event = None, default_year: int = 0):
         super().__init__()
         self.user = user
         self.event = event
+        self.default_year = default_year
         self.is_edit = event is not None and event.id is not None
 
         title = "Редактирование мероприятия" if self.is_edit else "Новое мероприятие"
@@ -64,6 +65,22 @@ class EventFormDialog(QDialog):
         for value, label in EVENT_TYPES:
             self.type_combo.addItem(label, value)
         form_layout.addRow("Тип*", self.type_combo)
+
+        # Год
+        self.year_combo = QComboBox()
+        current_year = (
+            self.default_year if self.default_year else QDate.currentDate().year()
+        )
+        for y in range(current_year - 5, current_year + 6):
+            self.year_combo.addItem(str(y), y)
+        self.year_combo.setCurrentText(str(current_year))
+        form_layout.addRow("Год*", self.year_combo)
+
+        # Заголовок с годом
+        if self.is_edit and self.event and self.event.year:
+            self.setWindowTitle(f"{self.windowTitle()} ({self.event.year})")
+        elif self.default_year:
+            self.setWindowTitle(f"{self.windowTitle()} ({self.default_year})")
 
         # Дата
         self.date_input = QDateEdit()
@@ -152,6 +169,11 @@ class EventFormDialog(QDialog):
         if index >= 0:
             self.type_combo.setCurrentIndex(index)
 
+        if self.event.year:
+            year_index = self.year_combo.findData(self.event.year)
+            if year_index >= 0:
+                self.year_combo.setCurrentIndex(year_index)
+
         self.date_input.setDate(
             QDate(
                 self.event.event_date.year,
@@ -189,6 +211,7 @@ class EventFormDialog(QDialog):
         self.event.title = self.title_input.text().strip()
         self.event.description = self.desc_input.toPlainText().strip()
         self.event.event_type = self.type_combo.currentData()
+        self.event.year = self.year_combo.currentData()
         self.event.event_date = self.date_input.date().toPyDate()
 
         time_val = self.time_input.time().toPyTime()

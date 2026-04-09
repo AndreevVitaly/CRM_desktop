@@ -63,28 +63,30 @@ INTERACTION_ACTIONS = [
 # БАЗА ДАННЫХ
 # ============================================================================
 
+
 class Database:
     _instance = None
     _connection = None
-    
+
     def __new__(cls, db_path: str = "medcrm.db"):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.db_path = db_path
         return cls._instance
-    
+
     def connect(self) -> sqlite3.Connection:
         if self._connection is None:
             self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
             self._connection.row_factory = sqlite3.Row
             self._create_tables()
         return self._connection
-    
+
     def _create_tables(self):
         cursor = self._connection.cursor()
-        
+
         # Таблица пользователей
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
@@ -98,20 +100,24 @@ class Database:
                 is_active BOOLEAN DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
-        
+        """
+        )
+
         # Таблица мест размещения
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS facilities (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 type TEXT,
                 address TEXT
             )
-        """)
-        
+        """
+        )
+
         # Таблица пациентов
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS patients (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 first_name TEXT NOT NULL,
@@ -136,10 +142,12 @@ class Database:
                 FOREIGN KEY (doctor_id) REFERENCES users(id),
                 FOREIGN KEY (facility_id) REFERENCES facilities(id)
             )
-        """)
-        
+        """
+        )
+
         # Таблица визитов (Encounters)
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS encounters (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 patient_id INTEGER NOT NULL,
@@ -152,10 +160,12 @@ class Database:
                 FOREIGN KEY (patient_id) REFERENCES patients(id),
                 FOREIGN KEY (doctor_id) REFERENCES users(id)
             )
-        """)
-        
+        """
+        )
+
         # Таблица заметок
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 encounter_id INTEGER NOT NULL,
@@ -165,10 +175,12 @@ class Database:
                 FOREIGN KEY (encounter_id) REFERENCES encounters(id),
                 FOREIGN KEY (author_id) REFERENCES users(id)
             )
-        """)
-        
+        """
+        )
+
         # Таблица диагнозов
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS diagnoses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 encounter_id INTEGER NOT NULL,
@@ -176,10 +188,12 @@ class Database:
                 description TEXT NOT NULL,
                 FOREIGN KEY (encounter_id) REFERENCES encounters(id)
             )
-        """)
-        
+        """
+        )
+
         # Таблица назначений
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS prescriptions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 encounter_id INTEGER NOT NULL,
@@ -191,10 +205,12 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (encounter_id) REFERENCES encounters(id)
             )
-        """)
-        
+        """
+        )
+
         # Таблица вложений
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS attachments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 encounter_id INTEGER NOT NULL,
@@ -203,10 +219,12 @@ class Database:
                 uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (encounter_id) REFERENCES encounters(id)
             )
-        """)
-        
+        """
+        )
+
         # Таблица пунктов плана лечения
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS treatment_plan_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 patient_id INTEGER NOT NULL,
@@ -218,10 +236,12 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (patient_id) REFERENCES patients(id)
             )
-        """)
-        
+        """
+        )
+
         # Таблица взаимодействий
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS patient_interactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 patient_id INTEGER NOT NULL,
@@ -232,10 +252,12 @@ class Database:
                 FOREIGN KEY (patient_id) REFERENCES patients(id),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
-        """)
-        
+        """
+        )
+
         # Таблица мероприятий
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
@@ -246,33 +268,49 @@ class Database:
                 department TEXT,
                 responsible_id INTEGER,
                 is_completed BOOLEAN DEFAULT 0,
+                year INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_by_id INTEGER,
                 FOREIGN KEY (responsible_id) REFERENCES users(id),
                 FOREIGN KEY (created_by_id) REFERENCES users(id)
             )
-        """)
-        
+        """
+        )
+
+        # Миграция: добавляем колонку year, если её нет
+        try:
+            cursor.execute("ALTER TABLE events ADD COLUMN year INTEGER")
+        except Exception:
+            pass  # Колонка уже существует
+
+        # Заполняем year из event_date для старых записей
+        cursor.execute(
+            """
+            UPDATE events SET year = CAST(strftime('%Y', event_date) AS INTEGER)
+            WHERE year IS NULL
+        """
+        )
+
         self._connection.commit()
-    
+
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         conn = self.connect()
         cursor = conn.cursor()
         cursor.execute(query, params)
         return cursor
-    
+
     def commit(self):
         if self._connection:
             self._connection.commit()
-    
+
     def fetchone(self, query: str, params: tuple = ()) -> Optional[sqlite3.Row]:
         cursor = self.execute(query, params)
         return cursor.fetchone()
-    
+
     def fetchall(self, query: str, params: tuple = ()) -> List[sqlite3.Row]:
         cursor = self.execute(query, params)
         return cursor.fetchall()
-    
+
     def lastrowid(self) -> int:
         if self._connection:
             return self._connection.cursor().lastrowid
@@ -287,18 +325,23 @@ db = Database()
 # УТИЛИТЫ
 # ============================================================================
 
+
 def hash_password(password: str) -> str:
     """Хеширование пароля с солью"""
     salt = os.urandom(16).hex()
-    password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
+    password_hash = hashlib.pbkdf2_hmac(
+        "sha256", password.encode(), salt.encode(), 100000
+    ).hex()
     return f"{salt}${password_hash}"
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     """Проверка пароля"""
     try:
-        salt, stored_hash = password_hash.split('$')
-        new_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
+        salt, stored_hash = password_hash.split("$")
+        new_hash = hashlib.pbkdf2_hmac(
+            "sha256", password.encode(), salt.encode(), 100000
+        ).hex()
         return new_hash == stored_hash
     except:
         return False
@@ -322,6 +365,7 @@ def is_child(birth_date: date) -> bool:
 # МОДЕЛИ
 # ============================================================================
 
+
 @dataclass
 class User:
     id: Optional[int] = None
@@ -335,7 +379,7 @@ class User:
     department: Optional[str] = None
     is_active: bool = True
     created_at: Optional[datetime] = None
-    
+
     # Роли
     ROLE_ADMIN = "ADMIN"
     ROLE_REGISTRAR = "REG"
@@ -344,7 +388,7 @@ class User:
     ROLE_NURSE = "NUR"
     ROLE_PHARMACIST = "PHARM"
     ROLE_LAB = "LAB"
-    
+
     @property
     def full_name(self) -> str:
         parts = [self.last_name, self.first_name, self.middle_name]
@@ -375,34 +419,47 @@ class User:
 
     def save(self):
         """Сохранение пользователя в БД"""
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT OR REPLACE INTO users
             (id, username, first_name, last_name, middle_name, email, password_hash, role, department, is_active)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.id, self.username, self.first_name, self.last_name, self.middle_name, self.email,
-              self.password_hash, self.role, self.department, self.is_active))
+        """,
+            (
+                self.id,
+                self.username,
+                self.first_name,
+                self.last_name,
+                self.middle_name,
+                self.email,
+                self.password_hash,
+                self.role,
+                self.department,
+                self.is_active,
+            ),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def get_by_username(cls, username: str) -> Optional['User']:
+    def get_by_username(cls, username: str) -> Optional["User"]:
         """Получение пользователя по логину"""
         row = db.fetchone("SELECT * FROM users WHERE username = ?", (username,))
         if row:
             return cls(**dict(row))
         return None
-    
+
     @classmethod
-    def get_by_id(cls, user_id: int) -> Optional['User']:
+    def get_by_id(cls, user_id: int) -> Optional["User"]:
         """Получение пользователя по ID"""
         row = db.fetchone("SELECT * FROM users WHERE id = ?", (user_id,))
         if row:
             return cls(**dict(row))
         return None
-    
+
     @classmethod
-    def get_all(cls, include_inactive: bool = False) -> List['User']:
+    def get_all(cls, include_inactive: bool = False) -> List["User"]:
         """Получение всех пользователей"""
         query = "SELECT * FROM users"
         if not include_inactive:
@@ -410,30 +467,33 @@ class User:
         query += " ORDER BY last_name, first_name"
         rows = db.fetchall(query)
         return [cls(**dict(row)) for row in rows]
-    
+
     @classmethod
-    def get_by_role(cls, role: str) -> List['User']:
+    def get_by_role(cls, role: str) -> List["User"]:
         """Получение пользователей по роли"""
-        rows = db.fetchall("SELECT * FROM users WHERE role = ? AND is_active = 1 ORDER BY last_name", (role,))
+        rows = db.fetchall(
+            "SELECT * FROM users WHERE role = ? AND is_active = 1 ORDER BY last_name",
+            (role,),
+        )
         return [cls(**dict(row)) for row in rows]
-    
+
     @classmethod
-    def get_doctors_by_department(cls, department: str) -> List['User']:
+    def get_doctors_by_department(cls, department: str) -> List["User"]:
         """Получение врачей по отделению"""
         rows = db.fetchall(
             "SELECT * FROM users WHERE role = 'DOC' AND department = ? AND is_active = 1 ORDER BY last_name",
-            (department,)
+            (department,),
         )
         return [cls(**dict(row)) for row in rows]
-    
+
     @classmethod
-    def authenticate(cls, username: str, password: str) -> Optional['User']:
+    def authenticate(cls, username: str, password: str) -> Optional["User"]:
         """Аутентификация пользователя"""
         user = cls.get_by_username(username)
         if user and verify_password(password, user.password_hash):
             return user
         return None
-    
+
     def delete(self):
         """Удаление пользователя"""
         if self.id:
@@ -447,33 +507,36 @@ class Facility:
     name: str = ""
     type: str = "hospital"
     address: str = ""
-    
+
     @property
     def type_display(self) -> str:
         type_dict = dict(FACILITY_TYPES)
         return type_dict.get(self.type, self.type)
-    
+
     def save(self):
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT OR REPLACE INTO facilities (id, name, type, address)
             VALUES (?, ?, ?, ?)
-        """, (self.id, self.name, self.type, self.address))
+        """,
+            (self.id, self.name, self.type, self.address),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def get_all(cls) -> List['Facility']:
+    def get_all(cls) -> List["Facility"]:
         rows = db.fetchall("SELECT * FROM facilities ORDER BY name")
         return [cls(**dict(row)) for row in rows]
-    
+
     @classmethod
-    def get_by_id(cls, facility_id: int) -> Optional['Facility']:
+    def get_by_id(cls, facility_id: int) -> Optional["Facility"]:
         row = db.fetchone("SELECT * FROM facilities WHERE id = ?", (facility_id,))
         if row:
             return cls(**dict(row))
         return None
-    
+
     def delete(self):
         if self.id:
             db.execute("DELETE FROM facilities WHERE id = ?", (self.id,))
@@ -502,108 +565,146 @@ class Patient:
     emergency_contact: str = ""
     is_active: bool = True
     created_at: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.birth_date is None:
             self.birth_date = date.today()
-    
+
     @property
     def full_name(self) -> str:
         parts = [self.last_name, self.first_name, self.middle_name]
         return " ".join(p for p in parts if p)
-    
+
     @property
     def age(self) -> int:
         return calculate_age(self.birth_date)
-    
+
     @property
     def is_child(self) -> bool:
         return is_child(self.birth_date)
-    
+
     @property
     def department_display(self) -> str:
         dept_dict = dict(DEPARTMENTS)
         return dept_dict.get(self.department, self.department)
-    
+
     @property
     def doctor(self) -> Optional[User]:
         if self.doctor_id:
             return User.get_by_id(self.doctor_id)
         return None
-    
+
     @property
     def facility(self) -> Optional[Facility]:
         if self.facility_id:
             return Facility.get_by_id(self.facility_id)
         return None
-    
+
     def save(self):
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT OR REPLACE INTO patients 
             (id, first_name, last_name, middle_name, birth_date, gender, patient_type,
              department, doctor_id, facility_id, phone, email, document_id, insurance_number,
              employer, callsign, address, emergency_contact, is_active)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.id, self.first_name, self.last_name, self.middle_name, 
-              self.birth_date.isoformat(), self.gender, self.patient_type,
-              self.department, self.doctor_id, self.facility_id, self.phone, self.email,
-              self.document_id, self.insurance_number, self.employer, self.callsign,
-              self.address, self.emergency_contact, self.is_active))
+        """,
+            (
+                self.id,
+                self.first_name,
+                self.last_name,
+                self.middle_name,
+                self.birth_date.isoformat(),
+                self.gender,
+                self.patient_type,
+                self.department,
+                self.doctor_id,
+                self.facility_id,
+                self.phone,
+                self.email,
+                self.document_id,
+                self.insurance_number,
+                self.employer,
+                self.callsign,
+                self.address,
+                self.emergency_contact,
+                self.is_active,
+            ),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def _from_row(cls, row: dict) -> 'Patient':
+    def _from_row(cls, row: dict) -> "Patient":
         """Создание объекта из строки БД с конвертацией дат"""
         data = dict(row)
-        if data.get('birth_date') and isinstance(data['birth_date'], str):
+        if data.get("birth_date") and isinstance(data["birth_date"], str):
             try:
-                data['birth_date'] = datetime.strptime(data['birth_date'], '%Y-%m-%d').date()
+                data["birth_date"] = datetime.strptime(
+                    data["birth_date"], "%Y-%m-%d"
+                ).date()
             except ValueError:
-                data['birth_date'] = datetime.strptime(data['birth_date'][:10], '%Y-%m-%d').date()
-        if data.get('created_at') and isinstance(data['created_at'], str):
-            for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
+                data["birth_date"] = datetime.strptime(
+                    data["birth_date"][:10], "%Y-%m-%d"
+                ).date()
+        if data.get("created_at") and isinstance(data["created_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
                 try:
-                    data['created_at'] = datetime.strptime(data['created_at'], fmt)
+                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
                     break
                 except ValueError:
                     continue
         return cls(**data)
 
     @classmethod
-    def get_by_id(cls, patient_id: int) -> Optional['Patient']:
+    def get_by_id(cls, patient_id: int) -> Optional["Patient"]:
         row = db.fetchone("SELECT * FROM patients WHERE id = ?", (patient_id,))
         if row:
             return cls._from_row(row)
         return None
-    
+
     @classmethod
-    def get_all(cls, user: Optional[User] = None, include_inactive: bool = False,
-                search_query: str = "", patient_type: str = "", facility_id: int = 0) -> List['Patient']:
+    def get_all(
+        cls,
+        user: Optional[User] = None,
+        include_inactive: bool = False,
+        search_query: str = "",
+        patient_type: str = "",
+        facility_id: int = 0,
+    ) -> List["Patient"]:
         """Получение пациентов с фильтрацией по ролям"""
         query = "SELECT * FROM patients WHERE 1=1"
         params = []
-        
+
         # Фильтр по активности
         if not include_inactive:
             query += " AND is_active = 1"
-        
+
         # Поиск
         if search_query:
-            query += " AND (last_name LIKE ? OR first_name LIKE ? OR document_id LIKE ?)"
-            params.extend([f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"])
-        
+            query += (
+                " AND (last_name LIKE ? OR first_name LIKE ? OR document_id LIKE ?)"
+            )
+            params.extend(
+                [f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"]
+            )
+
         # Тип пациента
         if patient_type:
             query += " AND patient_type = ?"
             params.append(patient_type)
-        
+
         # Место размещения
         if facility_id:
             query += " AND facility_id = ?"
             params.append(facility_id)
-        
+
         # Ограничение по ролям
         if user:
             if user.role == User.ROLE_LEAD:
@@ -615,23 +716,23 @@ class Patient:
             elif user.role == User.ROLE_NURSE:
                 query += " AND department = ?"
                 params.append(user.department)
-        
+
         query += " ORDER BY last_name, first_name"
         rows = db.fetchall(query, tuple(params))
         return [cls._from_row(row) for row in rows]
-    
+
     def delete(self):
         """Мягкое удаление (скрытие)"""
         if self.id:
             db.execute("UPDATE patients SET is_active = 0 WHERE id = ?", (self.id,))
             db.commit()
-    
+
     def restore(self):
         """Восстановление"""
         if self.id:
             db.execute("UPDATE patients SET is_active = 1 WHERE id = ?", (self.id,))
             db.commit()
-    
+
     def hard_delete(self):
         """Полное удаление"""
         if self.id:
@@ -649,15 +750,15 @@ class Encounter:
     reason: str = ""
     status: str = "PLANNED"
     treatment_plan_item_id: Optional[int] = None
-    
+
     STATUS_PLANNED = "PLANNED"
     STATUS_INPROGRESS = "INPROGRESS"
     STATUS_FINISHED = "FINISHED"
-    
+
     def __post_init__(self):
         if self.started_at is None:
             self.started_at = datetime.now()
-    
+
     @property
     def status_display(self) -> str:
         statuses = {
@@ -666,60 +767,84 @@ class Encounter:
             self.STATUS_FINISHED: "Завершен",
         }
         return statuses.get(self.status, self.status)
-    
+
     @property
     def doctor(self) -> Optional[User]:
         return User.get_by_id(self.doctor_id)
-    
+
     @property
     def patient(self) -> Optional[Patient]:
         return Patient.get_by_id(self.patient_id)
-    
+
     def save(self):
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT OR REPLACE INTO encounters
             (id, patient_id, doctor_id, started_at, finished_at, reason, status, treatment_plan_item_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.id, self.patient_id, self.doctor_id,
-              self.started_at.isoformat() if self.started_at else None,
-              self.finished_at.isoformat() if self.finished_at else None,
-              self.reason, self.status, self.treatment_plan_item_id))
+        """,
+            (
+                self.id,
+                self.patient_id,
+                self.doctor_id,
+                self.started_at.isoformat() if self.started_at else None,
+                self.finished_at.isoformat() if self.finished_at else None,
+                self.reason,
+                self.status,
+                self.treatment_plan_item_id,
+            ),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
 
     @classmethod
-    def _from_row(cls, row: dict) -> 'Encounter':
+    def _from_row(cls, row: dict) -> "Encounter":
         """Создание объекта из строки БД с конвертацией дат"""
         data = dict(row)
-        if data.get('started_at') and isinstance(data['started_at'], str):
+        if data.get("started_at") and isinstance(data["started_at"], str):
             # Пробуем разные форматы
-            for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
                 try:
-                    data['started_at'] = datetime.strptime(data['started_at'], fmt)
+                    data["started_at"] = datetime.strptime(data["started_at"], fmt)
                     break
                 except ValueError:
                     continue
-        if data.get('finished_at') and isinstance(data['finished_at'], str):
-            for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
+        if data.get("finished_at") and isinstance(data["finished_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
                 try:
-                    data['finished_at'] = datetime.strptime(data['finished_at'], fmt)
+                    data["finished_at"] = datetime.strptime(data["finished_at"], fmt)
                     break
                 except ValueError:
                     continue
         return cls(**data)
 
     @classmethod
-    def get_by_patient(cls, patient_id: int) -> List['Encounter']:
+    def get_by_patient(cls, patient_id: int) -> List["Encounter"]:
         rows = db.fetchall(
             "SELECT * FROM encounters WHERE patient_id = ? ORDER BY started_at DESC",
-            (patient_id,)
+            (patient_id,),
         )
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    def get_all(cls, user: Optional[User] = None, include_inactive: bool = False,
-                start_date: datetime = None, end_date: datetime = None) -> List['Encounter']:
+    def get_all(
+        cls,
+        user: Optional[User] = None,
+        include_inactive: bool = False,
+        start_date: datetime = None,
+        end_date: datetime = None,
+    ) -> List["Encounter"]:
         """Получение всех визитов с фильтрацией"""
         query = "SELECT * FROM encounters WHERE 1=1"
         params = []
@@ -759,18 +884,18 @@ class Encounter:
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    def get_by_id(cls, encounter_id: int) -> Optional['Encounter']:
+    def get_by_id(cls, encounter_id: int) -> Optional["Encounter"]:
         row = db.fetchone("SELECT * FROM encounters WHERE id = ?", (encounter_id,))
         if row:
             return cls._from_row(row)
         return None
-    
+
     def close(self):
         """Закрытие визита"""
         self.finished_at = datetime.now()
         self.status = self.STATUS_FINISHED
         self.save()
-    
+
     def delete(self):
         if self.id:
             db.execute("DELETE FROM encounters WHERE id = ?", (self.id,))
@@ -784,50 +909,63 @@ class Note:
     author_id: int = 0
     text: str = ""
     created_at: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = datetime.now()
-    
+
     @property
     def author(self) -> Optional[User]:
         return User.get_by_id(self.author_id)
-    
+
     @property
     def encounter(self) -> Optional[Encounter]:
         return Encounter.get_by_id(self.encounter_id)
-    
+
     def save(self):
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT OR REPLACE INTO notes (id, encounter_id, author_id, text, created_at)
             VALUES (?, ?, ?, ?, ?)
-        """, (self.id, self.encounter_id, self.author_id, self.text,
-              self.created_at.isoformat() if self.created_at else None))
+        """,
+            (
+                self.id,
+                self.encounter_id,
+                self.author_id,
+                self.text,
+                self.created_at.isoformat() if self.created_at else None,
+            ),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def _from_row(cls, row: dict) -> 'Note':
+    def _from_row(cls, row: dict) -> "Note":
         """Создание объекта из строки БД с конвертацией дат"""
         data = dict(row)
-        if data.get('created_at') and isinstance(data['created_at'], str):
-            for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
+        if data.get("created_at") and isinstance(data["created_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
                 try:
-                    data['created_at'] = datetime.strptime(data['created_at'], fmt)
+                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
                     break
                 except ValueError:
                     continue
         return cls(**data)
 
     @classmethod
-    def get_by_encounter(cls, encounter_id: int) -> List['Note']:
+    def get_by_encounter(cls, encounter_id: int) -> List["Note"]:
         rows = db.fetchall(
             "SELECT * FROM notes WHERE encounter_id = ? ORDER BY created_at DESC",
-            (encounter_id,)
+            (encounter_id,),
         )
         return [cls._from_row(row) for row in rows]
-    
+
     def delete(self):
         if self.id:
             db.execute("DELETE FROM notes WHERE id = ?", (self.id,))
@@ -840,28 +978,31 @@ class Diagnosis:
     encounter_id: int = 0
     code: str = ""
     description: str = ""
-    
+
     @property
     def encounter(self) -> Optional[Encounter]:
         return Encounter.get_by_id(self.encounter_id)
-    
+
     def save(self):
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT OR REPLACE INTO diagnoses (id, encounter_id, code, description)
             VALUES (?, ?, ?, ?)
-        """, (self.id, self.encounter_id, self.code, self.description))
+        """,
+            (self.id, self.encounter_id, self.code, self.description),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def get_by_encounter(cls, encounter_id: int) -> List['Diagnosis']:
+    def get_by_encounter(cls, encounter_id: int) -> List["Diagnosis"]:
         rows = db.fetchall(
             "SELECT * FROM diagnoses WHERE encounter_id = ? ORDER BY id",
-            (encounter_id,)
+            (encounter_id,),
         )
         return [cls(**dict(row)) for row in rows]
-    
+
     def delete(self):
         if self.id:
             db.execute("DELETE FROM diagnoses WHERE id = ?", (self.id,))
@@ -878,35 +1019,45 @@ class Prescription:
     duration_days: int = 1
     notes: str = ""
     created_at: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = datetime.now()
-    
+
     @property
     def encounter(self) -> Optional[Encounter]:
         return Encounter.get_by_id(self.encounter_id)
-    
+
     def save(self):
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT OR REPLACE INTO prescriptions 
             (id, encounter_id, medication, dosage, frequency, duration_days, notes, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.id, self.encounter_id, self.medication, self.dosage, self.frequency,
-              self.duration_days, self.notes,
-              self.created_at.isoformat() if self.created_at else None))
+        """,
+            (
+                self.id,
+                self.encounter_id,
+                self.medication,
+                self.dosage,
+                self.frequency,
+                self.duration_days,
+                self.notes,
+                self.created_at.isoformat() if self.created_at else None,
+            ),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def get_by_encounter(cls, encounter_id: int) -> List['Prescription']:
+    def get_by_encounter(cls, encounter_id: int) -> List["Prescription"]:
         rows = db.fetchall(
             "SELECT * FROM prescriptions WHERE encounter_id = ? ORDER BY created_at DESC",
-            (encounter_id,)
+            (encounter_id,),
         )
         return [cls(**dict(row)) for row in rows]
-    
+
     def delete(self):
         if self.id:
             db.execute("DELETE FROM prescriptions WHERE id = ?", (self.id,))
@@ -920,33 +1071,41 @@ class Attachment:
     file_path: str = ""
     title: str = ""
     uploaded_at: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.uploaded_at is None:
             self.uploaded_at = datetime.now()
-    
+
     @property
     def encounter(self) -> Optional[Encounter]:
         return Encounter.get_by_id(self.encounter_id)
-    
+
     def save(self):
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT OR REPLACE INTO attachments (id, encounter_id, file_path, title, uploaded_at)
             VALUES (?, ?, ?, ?, ?)
-        """, (self.id, self.encounter_id, self.file_path, self.title,
-              self.uploaded_at.isoformat() if self.uploaded_at else None))
+        """,
+            (
+                self.id,
+                self.encounter_id,
+                self.file_path,
+                self.title,
+                self.uploaded_at.isoformat() if self.uploaded_at else None,
+            ),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def get_by_encounter(cls, encounter_id: int) -> List['Attachment']:
+    def get_by_encounter(cls, encounter_id: int) -> List["Attachment"]:
         rows = db.fetchall(
             "SELECT * FROM attachments WHERE encounter_id = ? ORDER BY uploaded_at DESC",
-            (encounter_id,)
+            (encounter_id,),
         )
         return [cls(**dict(row)) for row in rows]
-    
+
     def delete(self):
         if self.id:
             db.execute("DELETE FROM attachments WHERE id = ?", (self.id,))
@@ -963,71 +1122,93 @@ class TreatmentPlanItem:
     is_completed: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     def __post_init__(self):
         now = datetime.now()
         if self.created_at is None:
             self.created_at = now
         if self.updated_at is None:
             self.updated_at = now
-    
+
     @property
     def patient(self) -> Optional[Patient]:
         return Patient.get_by_id(self.patient_id)
-    
+
     def save(self):
         self.updated_at = datetime.now()
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT OR REPLACE INTO treatment_plan_items 
             (id, patient_id, order_num, event, due_date, is_completed, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.id, self.patient_id, self.order_num, self.event,
-              self.due_date.isoformat() if self.due_date else None,
-              self.is_completed,
-              self.created_at.isoformat() if self.created_at else None,
-              self.updated_at.isoformat() if self.updated_at else None))
+        """,
+            (
+                self.id,
+                self.patient_id,
+                self.order_num,
+                self.event,
+                self.due_date.isoformat() if self.due_date else None,
+                self.is_completed,
+                self.created_at.isoformat() if self.created_at else None,
+                self.updated_at.isoformat() if self.updated_at else None,
+            ),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def _from_row(cls, row: dict) -> 'TreatmentPlanItem':
+    def _from_row(cls, row: dict) -> "TreatmentPlanItem":
         """Создание объекта из строки БД с конвертацией дат"""
         data = dict(row)
-        if data.get('due_date') and isinstance(data['due_date'], str):
+        if data.get("due_date") and isinstance(data["due_date"], str):
             try:
-                data['due_date'] = datetime.strptime(data['due_date'], '%Y-%m-%d').date()
+                data["due_date"] = datetime.strptime(
+                    data["due_date"], "%Y-%m-%d"
+                ).date()
             except ValueError:
-                data['due_date'] = datetime.strptime(data['due_date'][:10], '%Y-%m-%d').date()
-        if data.get('created_at') and isinstance(data['created_at'], str):
-            for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
+                data["due_date"] = datetime.strptime(
+                    data["due_date"][:10], "%Y-%m-%d"
+                ).date()
+        if data.get("created_at") and isinstance(data["created_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
                 try:
-                    data['created_at'] = datetime.strptime(data['created_at'], fmt)
+                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
                     break
                 except ValueError:
                     continue
-        if data.get('updated_at') and isinstance(data['updated_at'], str):
-            for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
+        if data.get("updated_at") and isinstance(data["updated_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
                 try:
-                    data['updated_at'] = datetime.strptime(data['updated_at'], fmt)
+                    data["updated_at"] = datetime.strptime(data["updated_at"], fmt)
                     break
                 except ValueError:
                     continue
         return cls(**data)
 
     @classmethod
-    def get_by_patient(cls, patient_id: int) -> List['TreatmentPlanItem']:
+    def get_by_patient(cls, patient_id: int) -> List["TreatmentPlanItem"]:
         rows = db.fetchall(
             "SELECT * FROM treatment_plan_items WHERE patient_id = ? ORDER BY order_num, created_at",
-            (patient_id,)
+            (patient_id,),
         )
         return [cls._from_row(row) for row in rows]
-    
+
     def toggle(self):
         """Переключение статуса выполнения"""
         self.is_completed = not self.is_completed
         self.save()
-    
+
     def delete(self):
         if self.id:
             db.execute("DELETE FROM treatment_plan_items WHERE id = ?", (self.id,))
@@ -1042,39 +1223,47 @@ class PatientInteraction:
     action: str = ""
     description: str = ""
     created_at: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = datetime.now()
-    
+
     @property
     def patient(self) -> Optional[Patient]:
         return Patient.get_by_id(self.patient_id)
-    
+
     @property
     def user(self) -> Optional[User]:
         return User.get_by_id(self.user_id) if self.user_id else None
-    
+
     @property
     def action_display(self) -> str:
         action_dict = dict(INTERACTION_ACTIONS)
         return action_dict.get(self.action, self.action)
-    
+
     def save(self):
-        cursor = db.execute("""
+        cursor = db.execute(
+            """
             INSERT INTO patient_interactions (patient_id, user_id, action, description, created_at)
             VALUES (?, ?, ?, ?, ?)
-        """, (self.patient_id, self.user_id, self.action, self.description,
-              self.created_at.isoformat() if self.created_at else None))
+        """,
+            (
+                self.patient_id,
+                self.user_id,
+                self.action,
+                self.description,
+                self.created_at.isoformat() if self.created_at else None,
+            ),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def get_by_patient(cls, patient_id: int) -> List['PatientInteraction']:
+    def get_by_patient(cls, patient_id: int) -> List["PatientInteraction"]:
         rows = db.fetchall(
             "SELECT * FROM patient_interactions WHERE patient_id = ? ORDER BY created_at DESC LIMIT 50",
-            (patient_id,)
+            (patient_id,),
         )
         return [cls(**dict(row)) for row in rows]
 
@@ -1090,81 +1279,116 @@ class Event:
     department: str = ""
     responsible_id: Optional[int] = None
     is_completed: bool = False
+    year: int = 0
     created_at: Optional[datetime] = None
     created_by_id: Optional[int] = None
-    
+
     def __post_init__(self):
         if self.event_date is None:
             self.event_date = date.today()
+        if self.year == 0 or self.year is None:
+            self.year = self.event_date.year
         if self.created_at is None:
             self.created_at = datetime.now()
-    
+
     @property
     def event_type_display(self) -> str:
         type_dict = dict(EVENT_TYPES)
         return type_dict.get(self.event_type, self.event_type)
-    
+
     @property
     def department_display(self) -> str:
         if not self.department:
             return "Общее"
         dept_dict = dict(DEPARTMENTS)
         return dept_dict.get(self.department, self.department)
-    
+
     @property
     def responsible(self) -> Optional[User]:
         return User.get_by_id(self.responsible_id) if self.responsible_id else None
-    
+
     @property
     def created_by(self) -> Optional[User]:
         return User.get_by_id(self.created_by_id) if self.created_by_id else None
-    
+
     def save(self, user: Optional[User] = None):
         if user and self.created_by_id is None:
             self.created_by_id = user.id
-        cursor = db.execute("""
-            INSERT OR REPLACE INTO events 
+        cursor = db.execute(
+            """
+            INSERT OR REPLACE INTO events
             (id, title, description, event_type, event_date, event_time, department,
-             responsible_id, is_completed, created_by_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.id, self.title, self.description, self.event_type,
-              self.event_date.isoformat() if self.event_date else None,
-              self.event_time.isoformat() if self.event_time else None,
-              self.department, self.responsible_id, self.is_completed, self.created_by_id))
+             responsible_id, is_completed, year, created_by_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                self.id,
+                self.title,
+                self.description,
+                self.event_type,
+                self.event_date.isoformat() if self.event_date else None,
+                self.event_time.isoformat() if self.event_time else None,
+                self.department,
+                self.responsible_id,
+                self.is_completed,
+                self.year,
+                self.created_by_id,
+            ),
+        )
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
-    
+
     @classmethod
-    def _from_row(cls, row: dict) -> 'Event':
+    def _from_row(cls, row: dict) -> "Event":
         """Создание объекта из строки БД с конвертацией дат"""
         data = dict(row)
-        if data.get('event_date') and isinstance(data['event_date'], str):
+        if data.get("event_date") and isinstance(data["event_date"], str):
             try:
-                data['event_date'] = datetime.strptime(data['event_date'], '%Y-%m-%d').date()
+                data["event_date"] = datetime.strptime(
+                    data["event_date"], "%Y-%m-%d"
+                ).date()
             except ValueError:
-                data['event_date'] = datetime.strptime(data['event_date'][:10], '%Y-%m-%d').date()
-        if data.get('event_time') and isinstance(data['event_time'], str):
-            for fmt in ['%H:%M:%S.%f', '%H:%M:%S']:
+                data["event_date"] = datetime.strptime(
+                    data["event_date"][:10], "%Y-%m-%d"
+                ).date()
+        if data.get("event_time") and isinstance(data["event_time"], str):
+            for fmt in ["%H:%M:%S.%f", "%H:%M:%S"]:
                 try:
-                    data['event_time'] = datetime.strptime(data['event_time'], fmt).time()
+                    data["event_time"] = datetime.strptime(
+                        data["event_time"], fmt
+                    ).time()
                     break
                 except ValueError:
                     continue
-        if data.get('created_at') and isinstance(data['created_at'], str):
-            for fmt in ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S']:
+        if data.get("created_at") and isinstance(data["created_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
                 try:
-                    data['created_at'] = datetime.strptime(data['created_at'], fmt)
+                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
                     break
                 except ValueError:
                     continue
         return cls(**data)
 
     @classmethod
-    def get_all(cls, user: Optional[User] = None, department: str = "",
-                include_completed: bool = True) -> List['Event']:
+    def get_all(
+        cls,
+        user: Optional[User] = None,
+        department: str = "",
+        include_completed: bool = True,
+        year: int = 0,
+    ) -> List["Event"]:
         query = "SELECT * FROM events WHERE 1=1"
         params = []
+
+        if year:
+            query += " AND year = ?"
+            params.append(year)
 
         if not include_completed:
             query += " AND is_completed = 0"
@@ -1187,17 +1411,17 @@ class Event:
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    def get_by_id(cls, event_id: int) -> Optional['Event']:
+    def get_by_id(cls, event_id: int) -> Optional["Event"]:
         row = db.fetchone("SELECT * FROM events WHERE id = ?", (event_id,))
         if row:
             return cls._from_row(row)
         return None
-    
+
     def toggle(self):
         """Переключение статуса выполнения"""
         self.is_completed = not self.is_completed
         self.save()
-    
+
     def delete(self):
         if self.id:
             db.execute("DELETE FROM events WHERE id = ?", (self.id,))
@@ -1208,32 +1432,89 @@ class Event:
 # ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ
 # ============================================================================
 
+
 def init_db(db_path: str = "medcrm.db"):
     """Инициализация БД и создание тестовых данных"""
     global db
     db = Database(db_path)
     db.connect()
-    
+
     # Проверка наличия пользователей
-    users_count = db.fetchone("SELECT COUNT(*) as cnt FROM users")['cnt']
+    users_count = db.fetchone("SELECT COUNT(*) as cnt FROM users")["cnt"]
     if users_count == 0:
         create_test_data()
 
 
 def create_test_data():
     """Создание тестовых данных"""
-    
+
     # Создаём пользователей
     users_data = [
-        ("admin", "Админ", "Админов", "admin@hospital.ru", User.ROLE_ADMIN, None, "admin123"),
-        ("reg1", "Регистратор", "Регистраторов", "reg@hospital.ru", User.ROLE_REGISTRAR, None, "reg123"),
-        ("lead1", "Начальник", "Отделенков", "lead@hospital.ru", User.ROLE_LEAD, "cardiology", "lead123"),
-        ("doc1", "Доктор", "Врачев", "doc@hospital.ru", User.ROLE_DOCTOR, "cardiology", "doc123"),
-        ("doc2", "Иван", "Петров", "doc2@hospital.ru", User.ROLE_DOCTOR, "therapy", "doc123"),
-        ("nur1", "Медсестра", "Сестринкина", "nur@hospital.ru", User.ROLE_NURSE, "cardiology", "nur123"),
-        ("nur2", "Анна", "Иванова", "nur2@hospital.ru", User.ROLE_NURSE, "therapy", "nur123"),
+        (
+            "admin",
+            "Админ",
+            "Админов",
+            "admin@hospital.ru",
+            User.ROLE_ADMIN,
+            None,
+            "admin123",
+        ),
+        (
+            "reg1",
+            "Регистратор",
+            "Регистраторов",
+            "reg@hospital.ru",
+            User.ROLE_REGISTRAR,
+            None,
+            "reg123",
+        ),
+        (
+            "lead1",
+            "Начальник",
+            "Отделенков",
+            "lead@hospital.ru",
+            User.ROLE_LEAD,
+            "cardiology",
+            "lead123",
+        ),
+        (
+            "doc1",
+            "Доктор",
+            "Врачев",
+            "doc@hospital.ru",
+            User.ROLE_DOCTOR,
+            "cardiology",
+            "doc123",
+        ),
+        (
+            "doc2",
+            "Иван",
+            "Петров",
+            "doc2@hospital.ru",
+            User.ROLE_DOCTOR,
+            "therapy",
+            "doc123",
+        ),
+        (
+            "nur1",
+            "Медсестра",
+            "Сестринкина",
+            "nur@hospital.ru",
+            User.ROLE_NURSE,
+            "cardiology",
+            "nur123",
+        ),
+        (
+            "nur2",
+            "Анна",
+            "Иванова",
+            "nur2@hospital.ru",
+            User.ROLE_NURSE,
+            "therapy",
+            "nur123",
+        ),
     ]
-    
+
     for username, first_name, last_name, email, role, dept, password in users_data:
         user = User(
             username=username,
@@ -1243,10 +1524,10 @@ def create_test_data():
             role=role,
             department=dept,
             password_hash=hash_password(password),
-            is_active=True
+            is_active=True,
         )
         user.save()
-    
+
     # Создаём места размещения
     facilities_data = [
         ("Городская больница №1", "hospital", "ул. Ленина, 1"),
@@ -1254,34 +1535,106 @@ def create_test_data():
         ("Санаторий 'Здоровье'", "sanatorium", "пос. Лесной"),
         ("Дневной стационар", "daycare", "ул. Больничная, 5"),
     ]
-    
+
     for name, ftype, address in facilities_data:
         facility = Facility(name=name, type=ftype, address=address)
         facility.save()
-    
+
     # Создаём тестовых пациентов
     patients_data = [
-        ("Иван", "Иванов", "Иванович", "1980-05-15", "M", "adult", "cardiology", 3, 1, "+79001234567"),
-        ("Петр", "Петров", "Петрович", "1975-08-20", "M", "adult", "cardiology", 3, 1, "+79001234568"),
-        ("Анна", "Сидорова", "Анновна", "1990-03-10", "F", "adult", "therapy", 4, 2, "+79001234569"),
-        ("Мария", "Смирнова", "", "2015-12-01", "F", "child", "cardiology", 3, None, "+79001234570"),
-        ("Алексей", "Кузнецов", "Алексеевич", "1960-01-25", "M", "adult", "neurology", None, 3, "+79001234571"),
-        ("Ольга", "Попова", "Сергеевна", "1985-07-30", "F", "adult", "psychiatry", None, 4, "+79001234572"),
+        (
+            "Иван",
+            "Иванов",
+            "Иванович",
+            "1980-05-15",
+            "M",
+            "adult",
+            "cardiology",
+            3,
+            1,
+            "+79001234567",
+        ),
+        (
+            "Петр",
+            "Петров",
+            "Петрович",
+            "1975-08-20",
+            "M",
+            "adult",
+            "cardiology",
+            3,
+            1,
+            "+79001234568",
+        ),
+        (
+            "Анна",
+            "Сидорова",
+            "Анновна",
+            "1990-03-10",
+            "F",
+            "adult",
+            "therapy",
+            4,
+            2,
+            "+79001234569",
+        ),
+        (
+            "Мария",
+            "Смирнова",
+            "",
+            "2015-12-01",
+            "F",
+            "child",
+            "cardiology",
+            3,
+            None,
+            "+79001234570",
+        ),
+        (
+            "Алексей",
+            "Кузнецов",
+            "Алексеевич",
+            "1960-01-25",
+            "M",
+            "adult",
+            "neurology",
+            None,
+            3,
+            "+79001234571",
+        ),
+        (
+            "Ольга",
+            "Попова",
+            "Сергеевна",
+            "1985-07-30",
+            "F",
+            "adult",
+            "psychiatry",
+            None,
+            4,
+            "+79001234572",
+        ),
     ]
-    
+
     for fn, ln, mn, bd, gender, ptype, dept, doc_id, fac_id, phone in patients_data:
         patient = Patient(
-            first_name=fn, last_name=ln, middle_name=mn,
+            first_name=fn,
+            last_name=ln,
+            middle_name=mn,
             birth_date=datetime.strptime(bd, "%Y-%m-%d").date(),
-            gender=gender, patient_type=ptype, department=dept,
-            doctor_id=doc_id, facility_id=fac_id, phone=phone
+            gender=gender,
+            patient_type=ptype,
+            department=dept,
+            doctor_id=doc_id,
+            facility_id=fac_id,
+            phone=phone,
         )
         patient.save()
-    
+
     # Создаём визиты
     patients = Patient.get_all()
     doctors = User.get_by_role(User.ROLE_DOCTOR)
-    
+
     if patients and doctors:
         for i, patient in enumerate(patients[:3]):
             doctor = doctors[i % len(doctors)]
@@ -1290,19 +1643,21 @@ def create_test_data():
                 doctor_id=doctor.id,
                 started_at=datetime.now(),
                 reason="Плановый осмотр",
-                status=Encounter.STATUS_INPROGRESS if i == 0 else Encounter.STATUS_FINISHED
+                status=(
+                    Encounter.STATUS_INPROGRESS if i == 0 else Encounter.STATUS_FINISHED
+                ),
             )
             encounter.save()
-            
+
             # Добавляем заметку
             if encounter.id:
                 note = Note(
                     encounter_id=encounter.id,
                     author_id=doctor.id,
-                    text="Жалоб нет. Состояние удовлетворительное."
+                    text="Жалоб нет. Состояние удовлетворительное.",
                 )
                 note.save()
-                
+
                 # Добавляем назначение
                 if i == 0:
                     rx = Prescription(
@@ -1311,10 +1666,10 @@ def create_test_data():
                         dosage="100мг",
                         frequency="1 раз в день",
                         duration_days=10,
-                        notes="После еды"
+                        notes="После еды",
                     )
                     rx.save()
-    
+
     # Создаём пункты плана лечения
     if patients:
         for patient in patients[:2]:
@@ -1322,28 +1677,40 @@ def create_test_data():
                 patient_id=patient.id,
                 event="ЭКГ мониторинг",
                 due_date=date.today(),
-                is_completed=False
+                is_completed=False,
             )
             plan_item.save()
-            
+
             plan_item2 = TreatmentPlanItem(
                 patient_id=patient.id,
                 event="Консультация кардиолога",
                 due_date=date.today(),
-                is_completed=True
+                is_completed=True,
             )
             plan_item2.save()
-    
+
     # Создаём мероприятия
     events_data = [
-        ("Совещание отделения", "Обсуждение текущих вопросов", "meeting", "cardiology", 3),
+        (
+            "Совещание отделения",
+            "Обсуждение текущих вопросов",
+            "meeting",
+            "cardiology",
+            3,
+        ),
         ("Обучение персонала", "Курсы повышения квалификации", "training", None, None),
-        ("Проверка документации", "Ежеквартальная проверка", "inspection", "therapy", 4),
+        (
+            "Проверка документации",
+            "Ежеквартальная проверка",
+            "inspection",
+            "therapy",
+            4,
+        ),
     ]
-    
+
     admin = User.get_by_username("admin")
     admin_id = admin.id if admin else None
-    
+
     for title, desc, etype, dept, resp_id in events_data:
         event = Event(
             title=title,
@@ -1352,6 +1719,6 @@ def create_test_data():
             event_date=date.today(),
             department=dept,
             responsible_id=resp_id,
-            created_by_id=admin_id
+            created_by_id=admin_id,
         )
         event.save()

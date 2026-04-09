@@ -18,10 +18,11 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt
 
 from models.db_models import User, Event, DEPARTMENTS, EVENT_TYPES
 from ui.styles import get_colors, FONTS, RADIUS
+from datetime import date
 
 
 class PlanningPage(QWidget):
@@ -33,6 +34,7 @@ class PlanningPage(QWidget):
         self.dept_filter = ""
         self.type_filter = ""
         self.show_completed = True
+        self.selected_year = date.today().year
         self._init_ui()
 
     def _init_ui(self):
@@ -83,27 +85,30 @@ class PlanningPage(QWidget):
         layout = QHBoxLayout(panel)
         layout.setSpacing(12)
 
-        # Дата
-        date_label = QLabel("📅 Дата:")
-        date_label.setStyleSheet("font-weight: bold;")
-        layout.addWidget(date_label)
+        # Год
+        year_label = QLabel("Год:")
+        year_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(year_label)
 
-        self.date_input = QDateEdit()
-        self.date_input.setDate(QDate.currentDate())
-        self.date_input.setDisplayFormat("dd.MM.yyyy")
-        self.date_input.setCalendarPopup(True)
-        self.date_input.setFixedWidth(120)
-        self.date_input.setFixedHeight(40)
-        self.date_input.dateChanged.connect(self._load_events)
-        layout.addWidget(self.date_input)
+        self.year_combo = QComboBox()
+        current_year = date.today().year
+        for y in range(current_year - 5, current_year + 6):
+            self.year_combo.addItem(str(y), y)
+        self.year_combo.setCurrentText(str(self.selected_year))
+        self.year_combo.setFixedWidth(110)
+        self.year_combo.setFixedHeight(42)
+        self.year_combo.setStyleSheet(f"font-size: {FONTS['size_medium']}pt;")
+        self.year_combo.currentIndexChanged.connect(self._on_year_changed)
+        layout.addWidget(self.year_combo)
 
         # Тип мероприятия
         self.type_combo = QComboBox()
         self.type_combo.addItem("Все типы", "")
         for value, label in EVENT_TYPES:
             self.type_combo.addItem(label, value)
-        self.type_combo.setFixedWidth(150)
-        self.type_combo.setFixedHeight(40)
+        self.type_combo.setFixedWidth(160)
+        self.type_combo.setFixedHeight(42)
+        self.type_combo.setStyleSheet(f"font-size: {FONTS['size_medium']}pt;")
         self.type_combo.currentIndexChanged.connect(self._load_events)
         layout.addWidget(self.type_combo)
 
@@ -141,25 +146,24 @@ class PlanningPage(QWidget):
         colors = get_colors()
 
         table = QTableWidget()
-        table.setColumnCount(6)
+        table.setColumnCount(5)
         table.setHorizontalHeaderLabels(
-            ["Дата", "Время", "Название", "Тип", "Отделение", "Ответственный"]
+            ["Дата", "Название", "Тип", "Отделение", "Ответственный"]
         )
 
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
 
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.setAlternatingRowColors(True)
+        table.setAlternatingRowColors(False)
         table.verticalHeader().setVisible(False)
-        table.setShowGrid(False)
+        table.setShowGrid(True)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._show_context_menu)
 
@@ -221,22 +225,19 @@ class PlanningPage(QWidget):
         dept = self.dept_combo.currentData() or ""
         event_type = self.type_combo.currentData() or ""
         show_completed = self.show_completed_check.isChecked()
+        year = self.year_combo.currentData()
 
         events = Event.get_all(
-            user=self.user, department=dept, include_completed=show_completed
-        )
-
-        # Фильтрация по дате
-        selected_date = self.date_input.date().toPyDate()
-        filtered_events = (
-            [e for e in events if e.event_date == selected_date]
-            if selected_date
-            else events
+            user=self.user,
+            department=dept,
+            include_completed=show_completed,
+            year=year,
         )
 
         # Фильтрация по типу
+        filtered_events = events
         if event_type:
-            filtered_events = [e for e in filtered_events if e.event_type == event_type]
+            filtered_events = [e for e in events if e.event_type == event_type]
 
         for event in filtered_events:
             row = self.table.rowCount()
@@ -246,30 +247,29 @@ class PlanningPage(QWidget):
             date_str = event.event_date.strftime("%d.%m.%Y")
             self.table.setItem(row, 0, QTableWidgetItem(date_str))
 
-            # Время
-            time_str = event.event_time.strftime("%H:%M") if event.event_time else "—"
-            self.table.setItem(row, 1, QTableWidgetItem(time_str))
-
             # Название
             name_item = QTableWidgetItem(event.title)
             if event.is_completed:
                 name_item.setForeground(Qt.GlobalColor.gray)
-            self.table.setItem(row, 2, name_item)
+            name_item.setData(Qt.ItemDataRole.UserRole, event.id)
+            self.table.setItem(row, 1, name_item)
 
             # Тип
-            self.table.setItem(row, 3, QTableWidgetItem(event.event_type_display))
+            self.table.setItem(row, 2, QTableWidgetItem(event.event_type_display))
 
             # Отделение
-            self.table.setItem(row, 4, QTableWidgetItem(event.department_display))
+            self.table.setItem(row, 3, QTableWidgetItem(event.department_display))
 
             # Ответственный
             responsible = event.responsible.full_name if event.responsible else "—"
-            self.table.setItem(row, 5, QTableWidgetItem(responsible))
-
-            # Сохраняем ID в первой ячейке
-            name_item.setData(Qt.ItemDataRole.UserRole, event.id)
+            self.table.setItem(row, 4, QTableWidgetItem(responsible))
 
         self.count_label.setText(f"Найдено: {len(filtered_events)}")
+
+    def _on_year_changed(self):
+        """Изменение года"""
+        self.selected_year = self.year_combo.currentData()
+        self._load_events()
 
     def _show_context_menu(self, pos):
         """Контекстное меню"""
@@ -277,7 +277,7 @@ class PlanningPage(QWidget):
         if row < 0:
             return
 
-        item = self.table.item(row, 2)
+        item = self.table.item(row, 1)  # Колонка "Название"
         if not item:
             return
 
@@ -311,7 +311,7 @@ class PlanningPage(QWidget):
         """Добавление мероприятия"""
         from ui.event_form import EventFormDialog
 
-        dialog = EventFormDialog(self.user, None)
+        dialog = EventFormDialog(self.user, None, default_year=self.selected_year)
         if dialog.exec():
             self._load_events()
 
@@ -343,7 +343,6 @@ class PlanningPage(QWidget):
             QLabel,
             QPushButton,
             QComboBox,
-            QDateEdit,
             QTableWidget,
             QFrame,
             QCheckBox,
@@ -361,9 +360,6 @@ class PlanningPage(QWidget):
             widget.style().unpolish(widget)
             widget.style().polish(widget)
         for widget in self.findChildren(QComboBox):
-            widget.style().unpolish(widget)
-            widget.style().polish(widget)
-        for widget in self.findChildren(QDateEdit):
             widget.style().unpolish(widget)
             widget.style().polish(widget)
         for widget in self.findChildren(QTableWidget):
