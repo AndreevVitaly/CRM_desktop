@@ -141,18 +141,21 @@ class PatientFormDialog(QDialog):
 
         # Пол
         self.gender_combo = QComboBox()
+        self.gender_combo.setFrame(False)
         for value, label in GENDER_CHOICES:
             self.gender_combo.addItem(label, value)
         layout.addRow("Пол*", self.gender_combo)
 
         # Тип пациента
         self.type_combo = QComboBox()
+        self.type_combo.setFrame(False)
         for value, label in PATIENT_TYPE_CHOICES:
             self.type_combo.addItem(label, value)
         layout.addRow("Тип пациента*", self.type_combo)
 
         # Отделение
         self.dept_combo = QComboBox()
+        self.dept_combo.setFrame(False)
         for value, label in DEPARTMENTS:
             self.dept_combo.addItem(label, value)
 
@@ -238,6 +241,7 @@ class PatientFormDialog(QDialog):
         layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.facility_combo = QComboBox()
+        self.facility_combo.setFrame(False)
         self.facility_combo.addItem("Не выбрано", 0)
         facilities = Facility.get_all()
         for f in facilities:
@@ -247,6 +251,7 @@ class PatientFormDialog(QDialog):
         # Врач (только для ADMIN, REG, LEAD)
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             self.doctor_combo = QComboBox()
+            self.doctor_combo.setFrame(False)
             self.doctor_combo.addItem("Не назначен", 0)
 
             # Получаем врачей
@@ -282,8 +287,9 @@ class PatientFormDialog(QDialog):
         self.gender_combo.setCurrentText(
             "Мужской" if self.patient.gender == "M" else "Женский"
         )
+        type_display = {"adult": "Взрослый", "child": "Детский", "undefined": "Неопределённый"}
         self.type_combo.setCurrentText(
-            "Взрослый" if self.patient.patient_type == "adult" else "Детский"
+            type_display.get(self.patient.patient_type, "Взрослый")
         )
 
         # Найти отделение в списке

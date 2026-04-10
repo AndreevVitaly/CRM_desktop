@@ -91,6 +91,7 @@ class PlanningPage(QWidget):
         layout.addWidget(year_label)
 
         self.year_combo = QComboBox()
+        self.year_combo.setFrame(False)
         current_year = date.today().year
         for y in range(current_year - 5, current_year + 6):
             self.year_combo.addItem(str(y), y)
@@ -103,6 +104,7 @@ class PlanningPage(QWidget):
 
         # Тип мероприятия
         self.type_combo = QComboBox()
+        self.type_combo.setFrame(False)
         self.type_combo.addItem("Все типы", "")
         for value, label in EVENT_TYPES:
             self.type_combo.addItem(label, value)
@@ -114,6 +116,7 @@ class PlanningPage(QWidget):
 
         # Отделение
         self.dept_combo = QComboBox()
+        self.dept_combo.setFrame(False)
         self.dept_combo.addItem("Все отделения", "")
 
         # Ограничение по отделению

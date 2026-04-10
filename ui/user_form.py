@@ -91,6 +91,7 @@ class UserFormDialog(QDialog):
 
         # Роль
         self.role_combo = QComboBox()
+        self.role_combo.setFrame(False)
 
         # Ограничение доступных ролей
         if self.current_user.role == User.ROLE_ADMIN:
@@ -115,6 +116,7 @@ class UserFormDialog(QDialog):
 
         # Отделение
         self.dept_combo = QComboBox()
+        self.dept_combo.setFrame(False)
         self.dept_combo.addItem("Не выбрано", "")
         for value, label in DEPARTMENTS:
             self.dept_combo.addItem(label, value)

@@ -104,6 +104,7 @@ class RegistrationDialog(QDialog):
 
         # Роль
         self.role_combo = QComboBox()
+        self.role_combo.setFrame(False)
         self.role_combo.addItem("Регистратор", User.ROLE_REGISTRAR)
         self.role_combo.addItem("Врач", User.ROLE_DOCTOR)
         self.role_combo.addItem("Медсестра", User.ROLE_NURSE)
@@ -114,6 +115,7 @@ class RegistrationDialog(QDialog):
 
         # Отделение (для врачей, медсестёр, начальников)
         self.dept_combo = QComboBox()
+        self.dept_combo.setFrame(False)
         self.dept_combo.addItem("Не выбрано", "")
         for value, label in DEPARTMENTS:
             self.dept_combo.addItem(label, value)

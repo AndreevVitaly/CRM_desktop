@@ -349,7 +349,8 @@ QLineEdit, QTextEdit, QPlainTextEdit {{
     padding: 10px 14px;
     color: {colors['text']};
     font-size: {FONTS['size_medium']}pt;
-    selection-background-color: {colors['accent_light']};
+    selection-background-color: {colors['accent']};
+    selection-color: {colors['text']};
 }}
 
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {{
@@ -378,20 +379,20 @@ QPlainTextEdit {{
 
 QComboBox {{
     background-color: {colors['surface']};
-    border: 2px solid {colors['line']};
+    border: 1px solid {colors['line']};
     border-radius: {RADIUS['md']}px;
     padding: 10px 14px;
-    min-width: 140px;
+    min-width: 180px;
     color: {colors['text']};
     font-size: {FONTS['size_medium']}pt;
 }}
 
 QComboBox:hover {{
-    border: 2px solid {colors['accent']};
+    border: 1px solid {colors['accent']};
 }}
 
 QComboBox:focus {{
-    border: 2px solid {colors['accent']};
+    border: 1px solid {colors['accent']};
     outline: none;
     background-color: {colors['accent_light']};
 }}
@@ -411,11 +412,11 @@ QComboBox::down-arrow {{
 
 QComboBox QAbstractItemView {{
     background-color: {colors['surface']};
-    border: 2px solid {colors['line']};
-    border-radius: {RADIUS['md']}px;
+    border: 1px solid {colors['line']};
+    padding: 4px;
     selection-background-color: {colors['accent_light']};
     selection-color: {colors['text']};
-    padding: 4px;
+    outline: none;
 }}
 
 QComboBox QAbstractItemView::item {{
@@ -441,12 +442,28 @@ QComboBox QAbstractItemView::item:selected {{
 QTableWidget, QTableView {{
     background-color: {colors['surface']};
     border: 1px solid {colors['table_border']};
-    border-radius: {RADIUS['md']}px;
     selection-background-color: {colors['table_row_selected']};
     selection-color: {colors['text']};
     gridline-color: {colors['line']};
     color: {colors['text']};
     outline: none;
+}}
+
+QHeaderView {{
+    background-color: {colors['table_header_bg']};
+    border: none;
+}}
+
+QHeaderView::section {{
+    background-color: {colors['table_header_bg']};
+    color: {colors['text_muted']};
+    padding: 14px 12px;
+    border: none;
+    border-bottom: 1px solid {colors['line']};
+    font-weight: 600;
+    font-size: {FONTS['size_xs']}pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }}
 
 QTableWidget::item, QTableView::item {{
@@ -463,26 +480,6 @@ QTableWidget::item:selected, QTableView::item:selected {{
 
 QTableWidget::item:hover, QTableView::item:hover {{
     background-color: {colors['table_row_hover']};
-}}
-
-QHeaderView::section {{
-    background-color: {colors['surface']};
-    color: {colors['text_muted']};
-    padding: 14px 12px;
-    border: none;
-    border-bottom: 1px solid {colors['line']};
-    font-weight: 600;
-    font-size: {FONTS['size_xs']}pt;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}}
-
-QHeaderView::section:first {{
-    border-top-left-radius: {RADIUS['md']}px;
-}}
-
-QHeaderView::section:last {{
-    border-top-right-radius: {RADIUS['md']}px;
 }}
 
 /* ============================================
@@ -985,9 +982,11 @@ QLineEdit#searchInput {{
     background-color: {colors['surface']};
     border: 1px solid {colors['line']};
     border-radius: {RADIUS['sm']}px;
-    padding: 10px 14px;
+    padding: 4px 12px;
     color: {colors['text']};
     font-size: {FONTS['size_medium']}pt;
+    selection-background-color: {colors['accent']};
+    selection-color: {colors['text']};
 }}
 
 QLineEdit#searchInput:focus {{

@@ -123,6 +123,8 @@ class LoginWindow(QWidget):
                 padding: 12px 16px;
                 font-size: {FONTS['size_medium']}pt;
                 color: {colors['text']};
+                selection-background-color: {colors['accent']};
+                selection-color: {colors['text']};
             }}
             QLineEdit:hover {{
                 border: 2px solid {colors['accent']};

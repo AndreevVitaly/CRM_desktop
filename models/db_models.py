@@ -25,6 +25,7 @@ DEPARTMENTS = [
 PATIENT_TYPE_CHOICES = [
     ("adult", "Взрослый"),
     ("child", "Детский"),
+    ("undefined", "Неопределённый"),
 ]
 
 GENDER_CHOICES = [
@@ -685,15 +686,6 @@ class Patient:
         # Фильтр по активности
         if not include_inactive:
             query += " AND is_active = 1"
-
-        # Поиск
-        if search_query:
-            query += (
-                " AND (last_name LIKE ? OR first_name LIKE ? OR document_id LIKE ?)"
-            )
-            params.extend(
-                [f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"]
-            )
 
         # Тип пациента
         if patient_type:

@@ -114,6 +114,7 @@ class StatsPage(QWidget):
         layout.addWidget(month_label)
 
         self.month_combo = QComboBox()
+        self.month_combo.setFrame(False)
         months = [
             "Январь",
             "Февраль",
@@ -139,6 +140,7 @@ class StatsPage(QWidget):
 
         # Год
         self.year_combo = QComboBox()
+        self.year_combo.setFrame(False)
         current_year = QDate.currentDate().year()
         for y in range(current_year - 5, current_year + 6):
             self.year_combo.addItem(str(y), y)
@@ -157,6 +159,7 @@ class StatsPage(QWidget):
         layout.addWidget(dept_label)
 
         self.dept_combo = QComboBox()
+        self.dept_combo.setFrame(False)
         self.dept_combo.addItem("Все отделения", "")
 
         # Ограничение по отделению
@@ -196,6 +199,7 @@ class StatsPage(QWidget):
         total_patients = len(patients)
         adult_patients = len([p for p in patients if p.patient_type == "adult"])
         child_patients = len([p for p in patients if p.patient_type == "child"])
+        undefined_patients = len([p for p in patients if p.patient_type == "undefined"])
 
         # Посещения за месяц
         from_date = datetime(self.selected_year, self.selected_month, 1)
@@ -221,6 +225,7 @@ class StatsPage(QWidget):
                 ("", "Всего пациентов", str(total_patients), ""),
                 ("", "Взрослых", str(adult_patients), ""),
                 ("", "Детей", str(child_patients), ""),
+                ("", "Неопределённых", str(undefined_patients), ""),
                 ("", "Визитов за месяц", str(visits_count), ""),
             ]
         elif self.user.role == User.ROLE_LEAD:
@@ -241,6 +246,12 @@ class StatsPage(QWidget):
                     str(len([p for p in dept_patients if p.patient_type == "child"])),
                     "",
                 ),
+                (
+                    "",
+                    "Неопределённых",
+                    str(len([p for p in dept_patients if p.patient_type == "undefined"])),
+                    "",
+                ),
                 ("", "Визитов за месяц", str(visits_count), "отделение"),
             ]
         else:
@@ -248,6 +259,7 @@ class StatsPage(QWidget):
                 ("", "Пациентов", str(total_patients), ""),
                 ("", "Взрослых", str(adult_patients), ""),
                 ("", "Детей", str(child_patients), ""),
+                ("", "Неопределённых", str(undefined_patients), ""),
                 ("", "Визитов", str(visits_count), ""),
             ]
 

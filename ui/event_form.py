@@ -63,12 +63,14 @@ class EventFormDialog(QDialog):
 
         # Тип
         self.type_combo = QComboBox()
+        self.type_combo.setFrame(False)
         for value, label in EVENT_TYPES:
             self.type_combo.addItem(label, value)
         form_layout.addRow("Тип*", self.type_combo)
 
         # Год
         self.year_combo = QComboBox()
+        self.year_combo.setFrame(False)
         current_year = (
             self.default_year if self.default_year else QDate.currentDate().year()
         )
@@ -98,6 +100,7 @@ class EventFormDialog(QDialog):
 
         # Отделение
         self.dept_combo = QComboBox()
+        self.dept_combo.setFrame(False)
         self.dept_combo.addItem("Общее", "")
 
         # Ограничение по отделению
@@ -115,6 +118,7 @@ class EventFormDialog(QDialog):
 
         # Ответственный
         self.responsible_combo = QComboBox()
+        self.responsible_combo.setFrame(False)
         self.responsible_combo.addItem("Не назначен", 0)
 
         # Получаем пользователей

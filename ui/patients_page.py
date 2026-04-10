@@ -82,22 +82,25 @@ class PatientsPage(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText("Поиск по ФИО, номеру документа...")
-        self.search_input.setFixedWidth(300)
+        self.search_input.setFixedWidth(350)
         self.search_input.textChanged.connect(self._on_search_changed)
         layout.addWidget(self.search_input)
 
         # Тип пациента
         self.type_combo = QComboBox()
+        self.type_combo.setFrame(False)
         self.type_combo.setObjectName("filterCombo")
         self.type_combo.addItem("Все типы", "")
         self.type_combo.addItem("Взрослые", "adult")
         self.type_combo.addItem("Дети", "child")
+        self.type_combo.addItem("Неопределённые", "undefined")
         self.type_combo.setFixedWidth(150)
         self.type_combo.currentIndexChanged.connect(self._on_filter_changed)
         layout.addWidget(self.type_combo)
 
         # Место размещения
         self.facility_combo = QComboBox()
+        self.facility_combo.setFrame(False)
         self.facility_combo.addItem("Все места", 0)
         facilities = Facility.get_all()
         for f in facilities:
@@ -240,10 +243,20 @@ class PatientsPage(QWidget):
         patients = Patient.get_all(
             user=self.user,
             include_inactive=False,
-            search_query=self.current_filter,
+            search_query="",
             patient_type=self.type_filter,
             facility_id=self.facility_filter,
         )
+
+        # Фильтрация на уровне Python (SQLite не работает с кириллицей в LIKE)
+        if self.current_filter:
+            search_lower = self.current_filter.lower()
+            patients = [
+                p for p in patients
+                if (p.last_name and p.last_name.lower().startswith(search_lower))
+                or (p.first_name and p.first_name.lower().startswith(search_lower))
+                or (p.document_id and p.document_id.lower().startswith(search_lower))
+            ]
 
         for patient in patients:
             row = self.table.rowCount()
@@ -266,7 +279,7 @@ class PatientsPage(QWidget):
             )
 
             # Тип
-            type_dict = {"adult": "Взрослый", "child": "Детский"}
+            type_dict = {"adult": "Взрослый", "child": "Детский", "undefined": "Неопределённый"}
             self.table.setItem(
                 row, 3, QTableWidgetItem(type_dict.get(patient.patient_type, ""))
             )

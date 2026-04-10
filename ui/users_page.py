@@ -84,14 +84,15 @@ class UsersPage(QWidget):
 
         # Поиск
         self.search_input = QLineEdit()
+        self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText("Поиск по ФИО...")
-        self.search_input.setFixedWidth(250)
-        self.search_input.setFixedHeight(40)
+        self.search_input.setFixedWidth(300)
         self.search_input.textChanged.connect(self._load_users)
         layout.addWidget(self.search_input)
 
         # Фильтр по роли
         self.role_combo = QComboBox()
+        self.role_combo.setFrame(False)
         self.role_combo.addItem("Все роли", "")
         self.role_combo.addItem("Администратор", User.ROLE_ADMIN)
         self.role_combo.addItem("Регистратор", User.ROLE_REGISTRAR)
@@ -105,6 +106,7 @@ class UsersPage(QWidget):
 
         # Фильтр по отделению
         self.dept_combo = QComboBox()
+        self.dept_combo.setFrame(False)
         self.dept_combo.addItem("Все отделения", "")
         for value, label in DEPARTMENTS:
             self.dept_combo.addItem(label, value)
@@ -213,7 +215,7 @@ class UsersPage(QWidget):
                 continue
             if dept and u.department != dept:
                 continue
-            if search and search not in u.full_name.lower():
+            if search and not u.full_name.lower().startswith(search):
                 continue
             filtered.append(u)
 

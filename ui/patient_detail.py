@@ -167,7 +167,9 @@ class PatientDetailDialog(QDialog):
             ("Пол:", "Мужской" if self.patient.gender == "M" else "Женский"),
             (
                 "Тип пациента:",
-                "Взрослый" if self.patient.patient_type == "adult" else "Детский",
+                "Взрослый" if self.patient.patient_type == "adult"
+                else "Детский" if self.patient.patient_type == "child"
+                else "Неопределённый",
             ),
             ("Отделение:", self.patient.department_display),
             (

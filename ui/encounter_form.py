@@ -64,6 +64,7 @@ class EncounterFormDialog(QDialog):
 
         # Врач
         self.doctor_combo = QComboBox()
+        self.doctor_combo.setFrame(False)
         if self.user.role == User.ROLE_DOCTOR:
             self.doctor_combo.addItem(self.user.full_name, self.user.id)
             self.doctor_combo.setEnabled(False)
@@ -82,6 +83,7 @@ class EncounterFormDialog(QDialog):
 
         # Статус
         self.status_combo = QComboBox()
+        self.status_combo.setFrame(False)
         self.status_combo.addItem("Запланирован", Encounter.STATUS_PLANNED)
         self.status_combo.addItem("В процессе", Encounter.STATUS_INPROGRESS)
         self.status_combo.addItem("Завершен", Encounter.STATUS_FINISHED)
