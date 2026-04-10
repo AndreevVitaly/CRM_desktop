@@ -121,9 +121,8 @@ class Database:
             """
             CREATE TABLE IF NOT EXISTS patients (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                first_name TEXT NOT NULL,
-                last_name TEXT NOT NULL,
-                middle_name TEXT,
+                callsign TEXT NOT NULL,
+                personal_number TEXT,
                 birth_date DATE NOT NULL,
                 gender TEXT(1),
                 patient_type TEXT DEFAULT 'adult',
@@ -135,7 +134,6 @@ class Database:
                 document_id TEXT,
                 insurance_number TEXT,
                 employer TEXT,
-                callsign TEXT,
                 address TEXT,
                 emergency_contact TEXT,
                 is_active BOOLEAN DEFAULT 1,
@@ -291,6 +289,58 @@ class Database:
             WHERE year IS NULL
         """
         )
+
+        # Миграция пациентов: замена first_name/last_name/middle_name на callsign/personal_number
+        try:
+            cursor.execute("SELECT first_name FROM patients LIMIT 1")
+            # Создаём временную таблицу с новой структурой
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS patients_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    callsign TEXT NOT NULL DEFAULT '',
+                    personal_number TEXT,
+                    birth_date DATE NOT NULL,
+                    gender TEXT(1),
+                    patient_type TEXT DEFAULT 'adult',
+                    department TEXT,
+                    doctor_id INTEGER,
+                    facility_id INTEGER,
+                    phone TEXT,
+                    email TEXT,
+                    document_id TEXT,
+                    insurance_number TEXT,
+                    employer TEXT,
+                    address TEXT,
+                    emergency_contact TEXT,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (doctor_id) REFERENCES users(id),
+                    FOREIGN KEY (facility_id) REFERENCES facilities(id)
+                )
+                """
+            )
+            # Копируем данные, объединяя ФИО в callsign
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO patients_new
+                (id, callsign, personal_number, birth_date, gender, patient_type,
+                 department, doctor_id, facility_id, phone, email, document_id,
+                 insurance_number, employer, address, emergency_contact, is_active, created_at)
+                SELECT
+                    id,
+                    COALESCE(NULLIF(last_name, '') || ' ' || NULLIF(first_name, '') || ' ' || COALESCE(NULLIF(middle_name, ''), ''), 'Пациент') as callsign,
+                    NULL as personal_number,
+                    birth_date, gender, patient_type,
+                    department, doctor_id, facility_id, phone, email, document_id,
+                    insurance_number, employer, address, emergency_contact, is_active, created_at
+                FROM patients
+                """
+            )
+            cursor.execute("DROP TABLE patients")
+            cursor.execute("ALTER TABLE patients_new RENAME TO patients")
+        except Exception:
+            pass  # Миграция уже выполнена или таблица ещё пуста
 
         self._connection.commit()
 
@@ -547,9 +597,8 @@ class Facility:
 @dataclass
 class Patient:
     id: Optional[int] = None
-    first_name: str = ""
-    last_name: str = ""
-    middle_name: str = ""
+    callsign: str = ""
+    personal_number: str = ""
     birth_date: date = None
     gender: str = "M"
     patient_type: str = "adult"
@@ -561,7 +610,6 @@ class Patient:
     document_id: str = ""
     insurance_number: str = ""
     employer: str = ""
-    callsign: str = ""
     address: str = ""
     emergency_contact: str = ""
     is_active: bool = True
@@ -573,8 +621,8 @@ class Patient:
 
     @property
     def full_name(self) -> str:
-        parts = [self.last_name, self.first_name, self.middle_name]
-        return " ".join(p for p in parts if p)
+        """Возвращает позывной как основное имя"""
+        return self.callsign
 
     @property
     def age(self) -> int:
@@ -604,17 +652,16 @@ class Patient:
     def save(self):
         cursor = db.execute(
             """
-            INSERT OR REPLACE INTO patients 
-            (id, first_name, last_name, middle_name, birth_date, gender, patient_type,
+            INSERT OR REPLACE INTO patients
+            (id, callsign, personal_number, birth_date, gender, patient_type,
              department, doctor_id, facility_id, phone, email, document_id, insurance_number,
-             employer, callsign, address, emergency_contact, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             employer, address, emergency_contact, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
-                self.first_name,
-                self.last_name,
-                self.middle_name,
+                self.callsign,
+                self.personal_number,
                 self.birth_date.isoformat(),
                 self.gender,
                 self.patient_type,
@@ -626,7 +673,6 @@ class Patient:
                 self.document_id,
                 self.insurance_number,
                 self.employer,
-                self.callsign,
                 self.address,
                 self.emergency_contact,
                 self.is_active,
@@ -709,7 +755,7 @@ class Patient:
                 query += " AND department = ?"
                 params.append(user.department)
 
-        query += " ORDER BY last_name, first_name"
+        query += " ORDER BY callsign"
         rows = db.fetchall(query, tuple(params))
         return [cls._from_row(row) for row in rows]
 

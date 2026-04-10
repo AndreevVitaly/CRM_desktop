@@ -81,7 +81,7 @@ class PatientsPage(QWidget):
         # Поиск
         self.search_input = QLineEdit()
         self.search_input.setObjectName("searchInput")
-        self.search_input.setPlaceholderText("Поиск по ФИО, номеру документа...")
+        self.search_input.setPlaceholderText("Поиск по позывному, личному номеру...")
         self.search_input.setFixedWidth(350)
         self.search_input.textChanged.connect(self._on_search_changed)
         layout.addWidget(self.search_input)
@@ -199,14 +199,14 @@ class PatientsPage(QWidget):
         table.setColumnCount(8)
         table.setHorizontalHeaderLabels(
             [
-                "ФИО",
+                "Позывной",
+                "Личный номер",
                 "Дата рождения",
                 "Пол",
                 "Тип",
                 "Отделение",
                 "Врач",
                 "Телефон",
-                "Позывной",
             ]
         )
 
@@ -253,8 +253,8 @@ class PatientsPage(QWidget):
             search_lower = self.current_filter.lower()
             patients = [
                 p for p in patients
-                if (p.last_name and p.last_name.lower().startswith(search_lower))
-                or (p.first_name and p.first_name.lower().startswith(search_lower))
+                if (p.callsign and p.callsign.lower().startswith(search_lower))
+                or (p.personal_number and p.personal_number.lower().startswith(search_lower))
                 or (p.document_id and p.document_id.lower().startswith(search_lower))
             ]
 
@@ -262,40 +262,42 @@ class PatientsPage(QWidget):
             row = self.table.rowCount()
             self.table.insertRow(row)
 
-            # ФИО
-            name_item = QTableWidgetItem(patient.full_name)
+            # Позывной
+            name_item = QTableWidgetItem(patient.callsign or "")
             name_item.setData(Qt.ItemDataRole.UserRole, patient.id)
             self.table.setItem(row, 0, name_item)
 
+            # Личный номер
+            self.table.setItem(
+                row, 1, QTableWidgetItem(patient.personal_number or "—")
+            )
+
             # Дата рождения
             self.table.setItem(
-                row, 1, QTableWidgetItem(patient.birth_date.strftime("%d.%m.%Y"))
+                row, 2, QTableWidgetItem(patient.birth_date.strftime("%d.%m.%Y"))
             )
 
             # Пол
             gender_dict = {"M": "М", "F": "Ж"}
             self.table.setItem(
-                row, 2, QTableWidgetItem(gender_dict.get(patient.gender, ""))
+                row, 3, QTableWidgetItem(gender_dict.get(patient.gender, ""))
             )
 
             # Тип
             type_dict = {"adult": "Взрослый", "child": "Детский", "undefined": "Неопределённый"}
             self.table.setItem(
-                row, 3, QTableWidgetItem(type_dict.get(patient.patient_type, ""))
+                row, 4, QTableWidgetItem(type_dict.get(patient.patient_type, ""))
             )
 
             # Отделение
-            self.table.setItem(row, 4, QTableWidgetItem(patient.department_display))
+            self.table.setItem(row, 5, QTableWidgetItem(patient.department_display))
 
             # Врач
             doctor_name = patient.doctor.full_name if patient.doctor else "—"
-            self.table.setItem(row, 5, QTableWidgetItem(doctor_name))
+            self.table.setItem(row, 6, QTableWidgetItem(doctor_name))
 
             # Телефон
-            self.table.setItem(row, 6, QTableWidgetItem(patient.phone or "—"))
-
-            # Позывной
-            self.table.setItem(row, 7, QTableWidgetItem(patient.callsign or "—"))
+            self.table.setItem(row, 7, QTableWidgetItem(patient.phone or "—"))
 
     def _on_search_changed(self, text: str):
         """Изменение поиска"""

@@ -167,6 +167,8 @@ class PatientDetailDialog(QDialog):
 
         # Личные данные
         fields = [
+            ("Позывной:", self.patient.callsign or "—"),
+            ("Личный номер:", self.patient.personal_number or "—"),
             ("Дата рождения:", self.patient.birth_date.strftime("%d.%m.%Y")),
             ("Возраст:", f"{self.patient.age} лет"),
             ("Пол:", "Мужской" if self.patient.gender == "M" else "Женский"),
@@ -219,10 +221,8 @@ class PatientDetailDialog(QDialog):
         # Документы
         row = 4
         doc_fields = [
-            ("Личный номер:", self.patient.document_id or "—"),
             ("Полис:", self.patient.insurance_number or "—"),
             ("Место работы:", self.patient.employer or "—"),
-            ("Позывной:", self.patient.callsign or "—"),
         ]
 
         for label, value in doc_fields:

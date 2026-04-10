@@ -119,18 +119,18 @@ class PatientFormDialog(QDialog):
         )
         layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
-        # ФИО
-        self.last_name_input = QLineEdit()
-        self.last_name_input.setPlaceholderText("Фамилия")
-        layout.addRow("Фамилия*", self.last_name_input)
+        # Позывной
+        self.callsign_input = QLineEdit()
+        self.callsign_input.setPlaceholderText("Позывной")
+        layout.addRow("Позывной*", self.callsign_input)
 
-        self.first_name_input = QLineEdit()
-        self.first_name_input.setPlaceholderText("Имя")
-        layout.addRow("Имя*", self.first_name_input)
-
-        self.middle_name_input = QLineEdit()
-        self.middle_name_input.setPlaceholderText("Отчество")
-        layout.addRow("Отчество", self.middle_name_input)
+        # Личный номер
+        self.personal_number_input = QLineEdit()
+        self.personal_number_input.setPlaceholderText("Личный номер")
+        self.personal_number_input.setInputMethodHints(
+            Qt.InputMethodHint.ImhDigitsOnly | Qt.InputMethodHint.ImhPreferNumbers
+        )
+        layout.addRow("Личный номер", self.personal_number_input)
 
         # Дата рождения
         self.birth_date_input = QDateEdit()
@@ -222,10 +222,6 @@ class PatientFormDialog(QDialog):
         self.employer_input.setPlaceholderText("Место работы")
         layout.addRow("Место работы", self.employer_input)
 
-        self.callsign_input = QLineEdit()
-        self.callsign_input.setPlaceholderText("Позывной")
-        layout.addRow("Позывной", self.callsign_input)
-
         group.setLayout(layout)
         return group
 
@@ -274,9 +270,8 @@ class PatientFormDialog(QDialog):
             return
 
         # Личные данные
-        self.last_name_input.setText(self.patient.last_name)
-        self.first_name_input.setText(self.patient.first_name)
-        self.middle_name_input.setText(self.patient.middle_name or "")
+        self.callsign_input.setText(self.patient.callsign or "")
+        self.personal_number_input.setText(self.patient.personal_number or "")
         self.birth_date_input.setDate(
             QDate(
                 self.patient.birth_date.year,
@@ -307,7 +302,6 @@ class PatientFormDialog(QDialog):
         self.document_id_input.setText(self.patient.document_id or "")
         self.insurance_input.setText(self.patient.insurance_number or "")
         self.employer_input.setText(self.patient.employer or "")
-        self.callsign_input.setText(self.patient.callsign or "")
 
         # Размещение
         if self.patient.facility_id:
@@ -324,21 +318,16 @@ class PatientFormDialog(QDialog):
     def _save(self):
         """Сохранение пациента"""
         # Валидация
-        if not self.last_name_input.text().strip():
-            QMessageBox.warning(self, "Ошибка", "Введите фамилию")
-            return
-
-        if not self.first_name_input.text().strip():
-            QMessageBox.warning(self, "Ошибка", "Введите имя")
+        if not self.callsign_input.text().strip():
+            QMessageBox.warning(self, "Ошибка", "Введите позывной")
             return
 
         # Создание/обновление пациента
         if not self.patient:
             self.patient = Patient()
 
-        self.patient.last_name = self.last_name_input.text().strip()
-        self.patient.first_name = self.first_name_input.text().strip()
-        self.patient.middle_name = self.middle_name_input.text().strip()
+        self.patient.callsign = self.callsign_input.text().strip()
+        self.patient.personal_number = self.personal_number_input.text().strip()
         self.patient.birth_date = self.birth_date_input.date().toPyDate()
         self.patient.gender = self.gender_combo.currentData()
         self.patient.patient_type = self.type_combo.currentData()
@@ -352,7 +341,6 @@ class PatientFormDialog(QDialog):
         self.patient.document_id = self.document_id_input.text().strip()
         self.patient.insurance_number = self.insurance_input.text().strip()
         self.patient.employer = self.employer_input.text().strip()
-        self.patient.callsign = self.callsign_input.text().strip()
 
         facility_id = self.facility_combo.currentData()
         self.patient.facility_id = facility_id if facility_id else None
