@@ -17,9 +17,9 @@ from PyQt6.QtWidgets import (
     QCheckBox,
 )
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
 
-from models.db_models import User, Patient, Encounter, DEPARTMENTS
+from models.db_models import User, Patient, Encounter, DEPARTMENTS, StatsCache
 from ui.styles import get_colors, FONTS, RADIUS
 from datetime import datetime
 
@@ -33,7 +33,6 @@ class StatsPage(QWidget):
         self.selected_month = QDate.currentDate().month()
         self.selected_year = QDate.currentDate().year()
         self.selected_dept = ""
-        self.kpi_cards = []  # Ссылки на KPI карточки для обновления темы
         self._init_ui()
 
     def _init_ui(self):
@@ -55,29 +54,44 @@ class StatsPage(QWidget):
         filter_panel = self._create_filter_panel()
         layout.addWidget(filter_panel)
 
-        # KPI карточки
-        kpi_layout = QGridLayout()
-        kpi_layout.setSpacing(16)
+        # Основной контейнер со всей статистикой
+        main_card = QFrame()
+        main_card.setObjectName("statsMainCard")
+        main_card.setStyleSheet(
+            f"""
+            QFrame#statsMainCard {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['lg']}px;
+                padding: 20px;
+            }}
+        """
+        )
 
-        self.kpi_cards = []
-        kpi_cards = self._get_kpi_data()
-        for i, (icon, title, value, subtitle) in enumerate(kpi_cards):
-            card = self._create_kpi_card(icon, title, value, subtitle)
-            self.kpi_cards.append(card)
-            row = i // 4
-            col = i % 4
-            kpi_layout.addWidget(card, row, col)
+        main_card_layout = QVBoxLayout(main_card)
+        main_card_layout.setSpacing(20)
+        main_card_layout.setContentsMargins(20, 20, 20, 20)
 
-        layout.addLayout(kpi_layout)
+        # Таблица показателей по отделениям
+        self.dept_stats_table = self._create_dept_stats_table()
+        main_card_layout.addWidget(self.dept_stats_table)
+
+        # Разделительная линия
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        line.setStyleSheet(f"color: {colors['line']};")
+        main_card_layout.addWidget(line)
 
         # Таблица по дням
         table_label = QLabel("Посещения по дням месяца")
         table_label.setObjectName("title")
-        layout.addWidget(table_label)
+        main_card_layout.addWidget(table_label)
 
         self.stats_table = self._create_stats_table()
-        layout.addWidget(self.stats_table)
+        main_card_layout.addWidget(self.stats_table)
 
+        layout.addWidget(main_card)
         layout.addStretch()
 
         self.setLayout(layout)
@@ -185,143 +199,36 @@ class StatsPage(QWidget):
         self.selected_year = self.year_combo.currentData()
         self._load_stats()
 
-    def _get_kpi_data(self) -> list:
-        """KPI данные"""
-        dept = self.dept_combo.currentData() or ""
-
-        # Получаем пациентов
-        patients = Patient.get_all(user=self.user if dept else None)
-
-        # Фильтр по отделению
-        if dept:
-            patients = [p for p in patients if p.department == dept]
-
-        total_patients = len(patients)
-        adult_patients = len([p for p in patients if p.patient_type == "adult"])
-        child_patients = len([p for p in patients if p.patient_type == "child"])
-        undefined_patients = len([p for p in patients if p.patient_type == "undefined"])
-
-        # Посещения за месяц
-        from_date = datetime(self.selected_year, self.selected_month, 1)
-        if self.selected_month == 12:
-            to_date = datetime(self.selected_year + 1, 1, 1)
-        else:
-            to_date = datetime(self.selected_year, self.selected_month + 1, 1)
-
-        # Подсчёт визитов за месяц
-        visits = Encounter.get_all(
-            user=(
-                self.user
-                if self.user.role not in (User.ROLE_ADMIN, User.ROLE_REGISTRAR)
-                else None
-            ),
-            start_date=from_date,
-            end_date=to_date,
-        )
-        visits_count = len(visits)
-
-        if self.user.role == User.ROLE_ADMIN:
-            return [
-                ("", "Всего пациентов", str(total_patients), ""),
-                ("", "Взрослых", str(adult_patients), ""),
-                ("", "Детей", str(child_patients), ""),
-                ("", "Неопределённых", str(undefined_patients), ""),
-                ("", "Визитов за месяц", str(visits_count), ""),
-            ]
-        elif self.user.role == User.ROLE_LEAD:
-            dept_patients = [
-                p for p in patients if p.department == self.user.department
-            ]
-            return [
-                ("", "Пациентов отделения", str(len(dept_patients)), ""),
-                (
-                    "",
-                    "Взрослых",
-                    str(len([p for p in dept_patients if p.patient_type == "adult"])),
-                    "",
-                ),
-                (
-                    "",
-                    "Детей",
-                    str(len([p for p in dept_patients if p.patient_type == "child"])),
-                    "",
-                ),
-                (
-                    "",
-                    "Неопределённых",
-                    str(len([p for p in dept_patients if p.patient_type == "undefined"])),
-                    "",
-                ),
-                ("", "Визитов за месяц", str(visits_count), "отделение"),
-            ]
-        else:
-            return [
-                ("", "Пациентов", str(total_patients), ""),
-                ("", "Взрослых", str(adult_patients), ""),
-                ("", "Детей", str(child_patients), ""),
-                ("", "Неопределённых", str(undefined_patients), ""),
-                ("", "Визитов", str(visits_count), ""),
-            ]
-
-    def _create_kpi_card(
-        self, icon: str, title: str, value: str, subtitle: str
-    ) -> QFrame:
-        """KPI карточка"""
+    def _create_dept_stats_table(self) -> QTableWidget:
+        """Таблица статистики по отделениям"""
         colors = get_colors()
 
-        card = QFrame()
-        card.setObjectName("kpiCard")
-        card.setFixedHeight(120)
-        card.setStyleSheet(
-            f"""
-            QFrame#kpiCard {{
-                background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
-                border-radius: {RADIUS['lg']}px;
-                padding: 16px;
-            }}
-            QFrame#kpiCard:hover {{
-                border: 2px solid {colors['accent']};
-            }}
-        """
-        )
+        table = QTableWidget()
+        # Колонки: Показатель + каждое отделение + Всего
+        num_cols = 1 + len(DEPARTMENTS) + 1  # Показатель + отделения + Всего
+        table.setColumnCount(num_cols)
 
-        layout = QVBoxLayout(card)
-        layout.setSpacing(8)
+        # Заголовки
+        headers = ["Показатель"]
+        for dept_code, dept_name in DEPARTMENTS:
+            headers.append(dept_name)
+        headers.append("Всего")
+        table.setHorizontalHeaderLabels(headers)
 
-        top_layout = QHBoxLayout()
+        # Настройка колонок
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for i in range(1, num_cols):
+            header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
 
-        if icon:
-            icon_label = QLabel(icon)
-            icon_label.setStyleSheet("font-size: 24px;")
-            top_layout.addWidget(icon_label)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.verticalHeader().setVisible(False)
+        table.setShowGrid(True)
+        table.setAlternatingRowColors(False)
+        table.setFrameShape(QTableWidget.Shape.NoFrame)
 
-        title_label = QLabel(title)
-        title_label.setObjectName("muted")
-        title_label.setStyleSheet("background-color: transparent;")
-        top_layout.addWidget(title_label)
-        top_layout.addStretch()
-
-        layout.addLayout(top_layout)
-
-        value_label = QLabel(value)
-        value_label.setStyleSheet(
-            f"""
-            background-color: transparent;
-            font-size: 32px;
-            font-weight: bold;
-            color: {colors['accent']};
-        """
-        )
-        layout.addWidget(value_label)
-
-        if subtitle:
-            subtitle_label = QLabel(subtitle)
-            subtitle_label.setObjectName("muted")
-            subtitle_label.setStyleSheet("background-color: transparent;")
-            layout.addWidget(subtitle_label)
-
-        return card
+        return table
 
     def _create_stats_table(self) -> QTableWidget:
         """Таблица статистики"""
@@ -340,14 +247,137 @@ class StatsPage(QWidget):
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
         table.setAlternatingRowColors(False)
+        table.setFrameShape(QTableWidget.Shape.NoFrame)
 
         return table
 
     def _load_stats(self):
         """Загрузка статистики"""
         self.selected_month = self.month_combo.currentData()
-        dept = self.dept_combo.currentData() or ""
+        self.selected_year = self.year_combo.currentData()
 
+        # Пересчитываем кэш для актуальных данных
+        StatsCache.rebuild_all()
+
+        # Загрузка таблицы по отделениям
+        self._load_dept_stats()
+
+        # Загрузка таблицы по дням
+        self._load_daily_stats()
+
+    def _load_dept_stats(self):
+        """Загрузка статистики по отделениям из кэша"""
+        colors = get_colors()
+        table = self.dept_stats_table
+        table.setRowCount(0)
+
+        # Показатели для строк
+        rows_data = [
+            ("Пациентов", "patients_total"),
+            ("Взрослых", "patients_adult"),
+            ("Детей", "patients_child"),
+            ("Неопределённых", "patients_undefined"),
+            ("Визитов за месяц", "visits"),
+        ]
+
+        # Добавляем строки
+        for row_label, metric_key in rows_data:
+            row = table.rowCount()
+            table.insertRow(row)
+
+            # Название показателя
+            item_label = QTableWidgetItem(row_label)
+            item_label.setForeground(QColor(colors["text_muted"]))
+            table.setItem(row, 0, item_label)
+
+            # Данные по каждому отделению
+            total = 0
+            for col_idx, (dept_code, dept_name) in enumerate(DEPARTMENTS, start=1):
+                # Берём из кэша
+                cached_value = StatsCache.get(
+                    metric_key, dept_code, self.selected_month, self.selected_year
+                )
+                count = cached_value if cached_value is not None else 0
+                total += count
+
+                item = QTableWidgetItem(str(count))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                table.setItem(row, col_idx, item)
+
+            # Итого — берём из кэша для пустого department
+            total_cached = StatsCache.get(
+                metric_key, "", self.selected_month, self.selected_year
+            )
+            total = total_cached if total_cached is not None else total
+
+            total_item = QTableWidgetItem(str(total))
+            total_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            accent_color = QColor(colors["accent"])
+            total_item.setForeground(accent_color)
+            font = total_item.font()
+            font.setBold(True)
+            total_item.setFont(font)
+            table.setItem(row, table.columnCount() - 1, total_item)
+
+        # Применяем стили
+        self._apply_dept_table_styles()
+
+    def _apply_dept_table_styles(self):
+        """Применение стилей к таблице отделений"""
+        colors = get_colors()
+        table = self.dept_stats_table
+
+        table.setStyleSheet(
+            f"""
+            QTableWidget {{
+                background-color: transparent;
+                border: none;
+                selection-background-color: {colors['table_row_selected']};
+                selection-color: {colors['text']};
+                gridline-color: {colors['line']};
+                color: {colors['text']};
+                font-size: 11pt;
+                outline: none;
+            }}
+            QTableWidget::item {{
+                padding: 12px;
+                border-bottom: 1px solid {colors['line_light']};
+            }}
+            QTableWidget::item:selected {{
+                background-color: {colors['table_row_selected']};
+                color: {colors['text']};
+                border: 1px solid {colors['accent']};
+                outline: none;
+            }}
+            QTableWidget::item:hover {{
+                background-color: {colors['table_row_hover']};
+            }}
+            QHeaderView::section {{
+                background-color: transparent;
+                color: {colors['text_muted']};
+                padding: 14px 12px;
+                border: none;
+                border-bottom: 1px solid {colors['line']};
+                font-weight: 600;
+                font-size: {FONTS['size_xs']}pt;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }}
+        """
+        )
+
+        # Выделяем первый столбец жирным
+        for row in range(table.rowCount()):
+            item = table.item(row, 0)
+            if item:
+                font = item.font() if item.font() else QFont()
+                font.setBold(True)
+                font.setPointSize(11)
+                item.setFont(font)
+
+    def _load_daily_stats(self):
+        """Загрузка статистики по дням"""
+        colors = get_colors()
         self.stats_table.setRowCount(0)
 
         # Дни месяца
@@ -400,8 +430,22 @@ class StatsPage(QWidget):
             f"background-color: {colors['bg']}; color: {colors['text']};"
         )
 
+        # Обновляем основной контейнер
+        main_card = self.findChild(QFrame, "statsMainCard")
+        if main_card:
+            main_card.setStyleSheet(
+                f"""
+                QFrame#statsMainCard {{
+                    background-color: {colors['surface']};
+                    border: 1px solid {colors['line']};
+                    border-radius: {RADIUS['lg']}px;
+                    padding: 20px;
+                }}
+            """
+            )
+
         # Обновляем фильтр-панель
-        filter_panel = self.findChild(QFrame)
+        filter_panel = self.findChild(QFrame, "card")
         if filter_panel:
             filter_panel.setStyleSheet(
                 f"""
@@ -414,35 +458,11 @@ class StatsPage(QWidget):
             """
             )
 
-        # Обновляем KPI карточки
-        for card in self.kpi_cards:
-            card.setStyleSheet(
-                f"""
-                QFrame#kpiCard {{
-                    background-color: {colors['surface']};
-                    border: 1px solid {colors['line']};
-                    border-radius: {RADIUS['lg']}px;
-                    padding: 16px;
-                }}
-                QFrame#kpiCard:hover {{
-                    border: 2px solid {colors['accent']};
-                }}
-            """
-            )
+        # Обновляем таблицу по отделениям
+        if hasattr(self, "dept_stats_table"):
+            self._apply_dept_table_styles()
 
-            # Обновляем значение в карточке
-            for child in card.findChildren(QLabel):
-                if child.styleSheet() and "font-size: 32px" in child.styleSheet():
-                    child.setStyleSheet(
-                        f"""
-                        background-color: transparent;
-                        font-size: 32px;
-                        font-weight: bold;
-                        color: {colors['accent']};
-                    """
-                    )
-
-        # Обновляем таблицу
+        # Обновляем таблицу по дням
         if hasattr(self, "stats_table"):
             self.stats_table.setStyleSheet(
                 f"""
@@ -451,12 +471,20 @@ class StatsPage(QWidget):
                     border: 1px solid {colors['table_border']};
                     border-radius: {RADIUS['md']}px;
                     selection-background-color: {colors['table_row_selected']};
+                    selection-color: {colors['text']};
                     gridline-color: {colors['line']};
                     color: {colors['text']};
+                    outline: none;
                 }}
                 QTableWidget::item {{
                     padding: 12px;
                     border-bottom: 1px solid {colors['line_light']};
+                }}
+                QTableWidget::item:selected {{
+                    background-color: {colors['table_row_selected']};
+                    color: {colors['text']};
+                    border: 1px solid {colors['accent']};
+                    outline: none;
                 }}
                 QTableWidget::item:hover {{
                     background-color: {colors['table_row_hover']};

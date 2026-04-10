@@ -247,31 +247,28 @@ class LoginWindow(QWidget):
         bg_path.addRoundedRect(rect, radius, radius)
         painter.fillPath(bg_path, QColor(colors["bg"]))
 
-        # Градиентная рамка
+        # Градиентная рамка — более заметная
+        pen = QPen()
+
         if colors["bg"] == "#0A0A0A":
-            # Тёмная тема: от чёрного к синему (сверху вниз)
-            pen = QPen()
+            # Тёмная тема: яркий синий градиент, тоньше
             pen.setWidth(3)
             grad = QLinearGradient(rect.topLeft(), rect.bottomRight())
-            grad.setColorAt(0, QColor("#000000"))
+            grad.setColorAt(0, QColor("#60A5FA"))
+            grad.setColorAt(0.5, QColor("#3B82F6"))
             grad.setColorAt(1, QColor("#2563EB"))
             pen.setBrush(grad)
-            painter.setPen(pen)
-
-            inner = rect.adjusted(1.5, 1.5, -1.5, -1.5)
-            painter.drawRoundedRect(inner, radius, radius)
         else:
-            # Светлая тема: от белого к серому (сверху вниз)
-            pen = QPen()
+            # Светлая тема: светло-серый градиент
             pen.setWidth(3)
-            grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-            grad.setColorAt(0, QColor("#FFFFFF"))
+            grad = QLinearGradient(rect.topLeft(), rect.bottomRight())
+            grad.setColorAt(0, QColor("#D4D4D4"))
             grad.setColorAt(1, QColor("#A3A3A3"))
             pen.setBrush(grad)
-            painter.setPen(pen)
 
-            inner = rect.adjusted(1.5, 1.5, -1.5, -1.5)
-            painter.drawRoundedRect(inner, radius, radius)
+        painter.setPen(pen)
+        inner = rect.adjusted(1.5, 1.5, -1.5, -1.5)
+        painter.drawRoundedRect(inner, radius, radius)
 
     def mousePressEvent(self, event):
         """Начало перетаскивания окна"""

@@ -342,6 +342,22 @@ class Database:
         except Exception:
             pass  # Миграция уже выполнена или таблица ещё пуста
 
+        # Таблица кэша статистики
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS stats_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                metric TEXT NOT NULL,
+                department TEXT NOT NULL DEFAULT '',
+                month INTEGER NOT NULL,
+                year INTEGER NOT NULL,
+                value INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(metric, department, month, year)
+            )
+        """
+        )
+
         self._connection.commit()
 
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -1464,6 +1480,114 @@ class Event:
         if self.id:
             db.execute("DELETE FROM events WHERE id = ?", (self.id,))
             db.commit()
+
+
+# ============================================================================
+# КЭШ СТАТИСТИКИ
+# ============================================================================
+
+
+class StatsCache:
+    """Кэш для хранения агрегированной статистики"""
+
+    @staticmethod
+    def _key(metric: str, department: str, month: int, year: int) -> tuple:
+        return (metric, department or "", month, year)
+
+    @classmethod
+    def get(cls, metric: str, department: str, month: int, year: int) -> int | None:
+        """Получение значения из кэша"""
+        row = db.fetchone(
+            "SELECT value FROM stats_cache WHERE metric = ? AND department = ? AND month = ? AND year = ?",
+            (metric, department or "", month, year),
+        )
+        return row["value"] if row else None
+
+    @classmethod
+    def set(cls, metric: str, department: str, month: int, year: int, value: int):
+        """Сохранение значения в кэш"""
+        db.execute(
+            """INSERT INTO stats_cache (metric, department, month, year, value, updated_at)
+               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(metric, department, month, year)
+               DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP""",
+            (metric, department or "", month, year, value, value),
+        )
+        db.commit()
+
+    @classmethod
+    def get_all(cls, department: str, month: int, year: int) -> dict:
+        """Получение всей статистики для отделения/месяца"""
+        rows = db.fetchall(
+            "SELECT metric, value FROM stats_cache WHERE department = ? AND month = ? AND year = ?",
+            (department or "", month, year),
+        )
+        return {row["metric"]: row["value"] for row in rows}
+
+    @classmethod
+    def rebuild(cls, department: str = "", month: int = None, year: int = None):
+        """Пересчёт кэша для указанных параметров"""
+        from datetime import datetime
+
+        current_month = month or datetime.now().month
+        current_year = year or datetime.now().year
+
+        # Период для запроса
+        from_date = datetime(current_year, current_month, 1)
+        if current_month == 12:
+            to_date = datetime(current_year + 1, 1, 1)
+        else:
+            to_date = datetime(current_year, current_month + 1, 1)
+
+        # Получаем пациентов
+        all_patients = Patient.get_all(user=None)
+
+        # Фильтруем по отделению если нужно
+        if department:
+            dept_patients = [p for p in all_patients if p.department == department]
+        else:
+            dept_patients = all_patients
+
+        # Метрики
+        metrics = {
+            "patients_total": len(dept_patients),
+            "patients_adult": len(
+                [p for p in dept_patients if p.patient_type == "adult"]
+            ),
+            "patients_child": len(
+                [p for p in dept_patients if p.patient_type == "child"]
+            ),
+            "patients_undefined": len(
+                [p for p in dept_patients if p.patient_type == "undefined"]
+            ),
+        }
+
+        # Визиты за месяц
+        visits = Encounter.get_all(
+            user=None,
+            start_date=from_date,
+            end_date=to_date,
+        )
+        if department:
+            dept_patient_ids = {p.id for p in dept_patients}
+            visits = [v for v in visits if v.patient_id in dept_patient_ids]
+        metrics["visits"] = len(visits)
+
+        # Сохраняем в кэш
+        for metric, value in metrics.items():
+            cls.set(metric, department, current_month, current_year, value)
+
+        return metrics
+
+    @classmethod
+    def rebuild_all(cls):
+        """Пересчёт кэша для всех отделений"""
+        # Обновляем для всех без фильтра (пустое department)
+        cls.rebuild(department="", month=None, year=None)
+
+        # Обновляем для каждого отделения
+        for dept_code, _ in DEPARTMENTS:
+            cls.rebuild(department=dept_code, month=None, year=None)
 
 
 # ============================================================================

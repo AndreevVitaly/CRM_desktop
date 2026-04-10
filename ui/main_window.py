@@ -697,13 +697,50 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"LUX - {user.full_name}")
         self._login_window.close()
 
-        # Включаем кнопки навигации согласно роли
-        nav_items = self._get_nav_items()
-        for nav_id, btn in self.nav_buttons.items():
-            enabled = nav_items.get(nav_id, ("", False))[1]
-            btn.setEnabled(enabled)
+        # Обновляем навигацию для нового пользователя
+        self._rebuild_navigation()
+
+        # Обновляем активную кнопку
+        for btn in self.nav_buttons.values():
+            btn.setProperty("active", False)
             btn.style().unpolish(btn)
             btn.style().polish(btn)
 
         # Загружаем главную страницу
         self._navigate("dashboard")
+
+    def _rebuild_navigation(self):
+        """Обновление навигации для текущего пользователя"""
+        nav_items = self._get_nav_items()
+
+        # Скрываем все текущие кнопки
+        for btn in self.nav_buttons.values():
+            btn.setVisible(False)
+
+        # Показываем нужные и обновляем
+        for nav_id, (text, enabled) in nav_items.items():
+            if nav_id in self.nav_buttons:
+                # Кнопка уже существует — показываем
+                btn = self.nav_buttons[nav_id]
+                btn.setVisible(True)
+                btn.setEnabled(enabled)
+                btn.setText(text)
+            else:
+                # Кнопки нет — создаём новую
+                btn = self._create_nav_button(text, nav_id, enabled)
+                btn.setFixedHeight(48)
+                self.nav_buttons[nav_id] = btn
+
+                # Вставляем перед logoutBtn
+                top_bar = self.findChild(QFrame, "topBar")
+                if top_bar:
+                    layout = top_bar.layout()
+                    for i in range(layout.count()):
+                        item = layout.itemAt(i)
+                        if (
+                            item
+                            and item.widget()
+                            and item.widget().objectName() == "logoutBtn"
+                        ):
+                            layout.insertWidget(i, btn)
+                            break
