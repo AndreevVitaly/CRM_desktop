@@ -135,7 +135,9 @@ class PatientDetailDialog(QDialog):
 
         details_label = QLabel(details)
         details_label.setObjectName("muted")
-        details_label.setStyleSheet(f"color: {colors['text_muted']}; background-color: transparent;")
+        details_label.setStyleSheet(
+            f"color: {colors['text_muted']}; background-color: transparent;"
+        )
         details_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         info_layout.addWidget(details_label)
 
@@ -165,20 +167,25 @@ class PatientDetailDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # Личные данные
+        # Личные данные (левая колонка)
         fields = [
             ("Позывной:", self.patient.callsign or "—"),
             ("Личный номер:", self.patient.personal_number or "—"),
             ("Дата рождения:", self.patient.birth_date.strftime("%d.%m.%Y")),
             ("Возраст:", f"{self.patient.age} лет"),
-            ("Пол:", "Мужской" if self.patient.gender == "M" else "Женский"),
+            (
+                "Пол:",
+                {"M": "Мужской", "F": "Женский"}.get(self.patient.gender, "—"),
+            ),
             (
                 "Тип пациента:",
-                "Взрослый" if self.patient.patient_type == "adult"
-                else "Детский" if self.patient.patient_type == "child"
-                else "Неопределённый",
+                {
+                    "adult": "Взрослый",
+                    "child": "Детский",
+                    "undefined": "Неопределённый",
+                }.get(self.patient.patient_type, "—"),
             ),
-            ("Отделение:", self.patient.department_display),
+            ("Отделение:", self.patient.department_display or "—"),
             (
                 "Лечащий врач:",
                 self.patient.doctor.full_name if self.patient.doctor else "Не назначен",
@@ -188,16 +195,18 @@ class PatientDetailDialog(QDialog):
         row = 0
         for label, value in fields:
             lbl = QLabel(label)
-            lbl.setStyleSheet("font-weight: bold;")
+            lbl.setStyleSheet("font-weight: bold; background-color: transparent;")
             layout.addWidget(lbl, row, 0)
 
             val = QLabel(value)
             val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-            val.setStyleSheet(f"color: {colors['text']}; background-color: transparent;")
+            val.setStyleSheet(
+                f"color: {colors['text']}; background-color: transparent;"
+            )
             layout.addWidget(val, row, 1)
             row += 1
 
-        # Контакты
+        # Контакты (правая колонка)
         row = 0
         col = 2
         contact_fields = [
@@ -209,41 +218,52 @@ class PatientDetailDialog(QDialog):
 
         for label, value in contact_fields:
             lbl = QLabel(label)
-            lbl.setStyleSheet("font-weight: bold;")
+            lbl.setStyleSheet("font-weight: bold; background-color: transparent;")
             layout.addWidget(lbl, row, col)
 
             val = QLabel(value)
             val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-            val.setStyleSheet(f"color: {colors['text']}; background-color: transparent;")
+            val.setStyleSheet(
+                f"color: {colors['text']}; background-color: transparent;"
+            )
             layout.addWidget(val, row, col + 1)
             row += 1
 
-        # Документы
-        row = 4
+        # Документы и место размещения (продолжение левой колонки)
+        row = len(fields)
         doc_fields = [
-            ("Полис:", self.patient.insurance_number or "—"),
+            ("Полис ОМС:", self.patient.insurance_number or "—"),
             ("Место работы:", self.patient.employer or "—"),
         ]
 
         for label, value in doc_fields:
             lbl = QLabel(label)
-            lbl.setStyleSheet("font-weight: bold;")
+            lbl.setStyleSheet("font-weight: bold; background-color: transparent;")
             layout.addWidget(lbl, row, 0)
 
             val = QLabel(value)
             val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-            val.setStyleSheet(f"color: {colors['text']}; background-color: transparent;")
+            val.setStyleSheet(
+                f"color: {colors['text']}; background-color: transparent;"
+            )
             layout.addWidget(val, row, 1)
             row += 1
 
         # Место размещения
         if self.patient.facility:
-            facility_label = QLabel(
+            facility_text = (
                 f"{self.patient.facility.name} ({self.patient.facility.type_display})"
             )
-            facility_label.setStyleSheet(f"font-weight: bold; color: {colors['text']}; background-color: transparent;")
-            facility_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-            layout.addWidget(facility_label, row, 0, 1, 2)
+            lbl = QLabel("Место размещения:")
+            lbl.setStyleSheet("font-weight: bold; background-color: transparent;")
+            layout.addWidget(lbl, row, 0)
+
+            val = QLabel(facility_text)
+            val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+            val.setStyleSheet(
+                f"color: {colors['text']}; background-color: transparent;"
+            )
+            layout.addWidget(val, row, 1)
 
         layout.setColumnStretch(1, 1)
         layout.setColumnStretch(3, 1)
@@ -608,13 +628,17 @@ class PatientDetailDialog(QDialog):
                         colors["text_muted"], FONTS["size_small"]
                     )
                 )
-                note_header.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                note_header.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.NoTextInteraction
+                )
                 note_layout.addWidget(note_header)
 
                 note_text = QLabel(note.text)
                 note_text.setWordWrap(True)
                 note_text.setStyleSheet(f"color: {colors['text']};")
-                note_text.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                note_text.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.NoTextInteraction
+                )
                 note_layout.addWidget(note_text)
 
                 layout.addWidget(note_frame)
@@ -648,20 +672,26 @@ class PatientDetailDialog(QDialog):
 
                 rx_title = QLabel(f"<b>{rx.medication}</b> ({rx.dosage})")
                 rx_title.setStyleSheet(f"color: {colors['accent']};")
-                rx_title.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                rx_title.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.NoTextInteraction
+                )
                 rx_layout.addWidget(rx_title)
 
                 rx_details = QLabel(
                     f"Частота: {rx.frequency} • Длительность: {rx.duration_days} дн."
                 )
                 rx_details.setObjectName("muted")
-                rx_details.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                rx_details.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.NoTextInteraction
+                )
                 rx_layout.addWidget(rx_details)
 
                 if rx.notes:
                     rx_notes = QLabel(rx.notes)
                     rx_notes.setObjectName("muted")
-                    rx_notes.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+                    rx_notes.setTextInteractionFlags(
+                        Qt.TextInteractionFlag.NoTextInteraction
+                    )
                     rx_layout.addWidget(rx_notes)
 
                 layout.addWidget(rx_frame)
