@@ -75,6 +75,18 @@ class PatientFormDialog(QDialog):
         doc_group = self._create_document_group()
         form_layout.addWidget(doc_group)
 
+        # Справка об изучении
+        study_group = self._create_study_group()
+        form_layout.addWidget(study_group)
+
+        # Рапорт на поступление
+        admission_group = self._create_admission_group()
+        form_layout.addWidget(admission_group)
+
+        # Рапорт о поступлении
+        arrival_group = self._create_arrival_group()
+        form_layout.addWidget(arrival_group)
+
         # Размещение
         facility_group = self._create_facility_group()
         form_layout.addWidget(facility_group)
@@ -225,6 +237,88 @@ class PatientFormDialog(QDialog):
         group.setLayout(layout)
         return group
 
+    def _create_study_group(self) -> QGroupBox:
+        """Группа справки об изучении"""
+        group = QGroupBox("Справка об изучении")
+        layout = QFormLayout()
+        layout.setSpacing(10)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.setFormAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        self.study_case_input = QLineEdit()
+        self.study_case_input.setPlaceholderText("Номер дела")
+        layout.addRow("Номер дела", self.study_case_input)
+
+        self.study_sheets_input = QLineEdit()
+        self.study_sheets_input.setPlaceholderText("Номера листов")
+        layout.addRow("Номера листов", self.study_sheets_input)
+
+        group.setLayout(layout)
+        return group
+
+    def _create_admission_group(self) -> QGroupBox:
+        """Группа рапорта на поступление"""
+        group = QGroupBox("Рапорт на поступление")
+        layout = QFormLayout()
+        layout.setSpacing(10)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.setFormAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        self.admission_number_input = QLineEdit()
+        self.admission_number_input.setPlaceholderText("Номер документа")
+        layout.addRow("Номер документа", self.admission_number_input)
+
+        self.admission_date_input = QDateEdit()
+        self.admission_date_input.setCalendarPopup(True)
+        self.admission_date_input.setDate(QDate.currentDate())
+        self.admission_date_input.setDisplayFormat("dd.MM.yyyy")
+        layout.addRow("Дата документа", self.admission_date_input)
+
+        self.admission_sanction_date_input = QDateEdit()
+        self.admission_sanction_date_input.setCalendarPopup(True)
+        self.admission_sanction_date_input.setDate(QDate.currentDate())
+        self.admission_sanction_date_input.setDisplayFormat("dd.MM.yyyy")
+        layout.addRow("Дата санкции", self.admission_sanction_date_input)
+
+        group.setLayout(layout)
+        return group
+
+    def _create_arrival_group(self) -> QGroupBox:
+        """Группа рапорта о поступлении"""
+        group = QGroupBox("Рапорт о поступлении")
+        layout = QFormLayout()
+        layout.setSpacing(10)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.setFormAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+        self.arrival_number_input = QLineEdit()
+        self.arrival_number_input.setPlaceholderText("Номер документа")
+        layout.addRow("Номер документа", self.arrival_number_input)
+
+        self.arrival_date_input = QDateEdit()
+        self.arrival_date_input.setCalendarPopup(True)
+        self.arrival_date_input.setDate(QDate.currentDate())
+        self.arrival_date_input.setDisplayFormat("dd.MM.yyyy")
+        layout.addRow("Дата документа", self.arrival_date_input)
+
+        self.arrival_sanction_date_input = QDateEdit()
+        self.arrival_sanction_date_input.setCalendarPopup(True)
+        self.arrival_sanction_date_input.setDate(QDate.currentDate())
+        self.arrival_sanction_date_input.setDisplayFormat("dd.MM.yyyy")
+        layout.addRow("Дата санкции", self.arrival_sanction_date_input)
+
+        group.setLayout(layout)
+        return group
+
     def _create_facility_group(self) -> QGroupBox:
         """Группа размещения"""
         group = QGroupBox("Место размещения")
@@ -282,7 +376,11 @@ class PatientFormDialog(QDialog):
         self.gender_combo.setCurrentText(
             "Мужской" if self.patient.gender == "M" else "Женский"
         )
-        type_display = {"adult": "Взрослый", "child": "Детский", "undefined": "Неопределённый"}
+        type_display = {
+            "adult": "Взрослый",
+            "child": "Детский",
+            "undefined": "Неопределённый",
+        }
         self.type_combo.setCurrentText(
             type_display.get(self.patient.patient_type, "Взрослый")
         )
@@ -302,6 +400,48 @@ class PatientFormDialog(QDialog):
         self.document_id_input.setText(self.patient.document_id or "")
         self.insurance_input.setText(self.patient.insurance_number or "")
         self.employer_input.setText(self.patient.employer or "")
+
+        # Справка об изучении
+        self.study_case_input.setText(self.patient.study_case_number or "")
+        self.study_sheets_input.setText(self.patient.study_sheet_numbers or "")
+
+        # Рапорт на поступление
+        self.admission_number_input.setText(self.patient.admission_report_number or "")
+        if self.patient.admission_report_date:
+            self.admission_date_input.setDate(
+                QDate(
+                    self.patient.admission_report_date.year,
+                    self.patient.admission_report_date.month,
+                    self.patient.admission_report_date.day,
+                )
+            )
+        if self.patient.admission_sanction_date:
+            self.admission_sanction_date_input.setDate(
+                QDate(
+                    self.patient.admission_sanction_date.year,
+                    self.patient.admission_sanction_date.month,
+                    self.patient.admission_sanction_date.day,
+                )
+            )
+
+        # Рапорт о поступлении
+        self.arrival_number_input.setText(self.patient.arrival_report_number or "")
+        if self.patient.arrival_report_date:
+            self.arrival_date_input.setDate(
+                QDate(
+                    self.patient.arrival_report_date.year,
+                    self.patient.arrival_report_date.month,
+                    self.patient.arrival_report_date.day,
+                )
+            )
+        if self.patient.arrival_sanction_date:
+            self.arrival_sanction_date_input.setDate(
+                QDate(
+                    self.patient.arrival_sanction_date.year,
+                    self.patient.arrival_sanction_date.month,
+                    self.patient.arrival_sanction_date.day,
+                )
+            )
 
         # Размещение
         if self.patient.facility_id:
@@ -341,6 +481,26 @@ class PatientFormDialog(QDialog):
         self.patient.document_id = self.document_id_input.text().strip()
         self.patient.insurance_number = self.insurance_input.text().strip()
         self.patient.employer = self.employer_input.text().strip()
+
+        # Справка об изучении
+        self.patient.study_case_number = self.study_case_input.text().strip()
+        self.patient.study_sheet_numbers = self.study_sheets_input.text().strip()
+
+        # Рапорт на поступление
+        self.patient.admission_report_number = (
+            self.admission_number_input.text().strip()
+        )
+        self.patient.admission_report_date = self.admission_date_input.date().toPyDate()
+        self.patient.admission_sanction_date = (
+            self.admission_sanction_date_input.date().toPyDate()
+        )
+
+        # Рапорт о поступлении
+        self.patient.arrival_report_number = self.arrival_number_input.text().strip()
+        self.patient.arrival_report_date = self.arrival_date_input.date().toPyDate()
+        self.patient.arrival_sanction_date = (
+            self.arrival_sanction_date_input.date().toPyDate()
+        )
 
         facility_id = self.facility_combo.currentData()
         self.patient.facility_id = facility_id if facility_id else None

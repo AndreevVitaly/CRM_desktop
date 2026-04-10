@@ -212,7 +212,8 @@ QPushButton {{
     background-color: transparent;
     border: 2px solid transparent;
     border-radius: {RADIUS['md']}px;
-    padding: 10px 20px;
+    padding: 8px 20px;
+    min-height: 36px;
     font-weight: 600;
     font-size: {FONTS['size_medium']}pt;
     color: {colors['text']};
@@ -245,6 +246,7 @@ QPushButton#secondaryBtn {{
     background-color: transparent;
     border: 2px solid {colors['line']};
     color: {colors['text']};
+    min-height: 36px;
 }}
 
 QPushButton#secondaryBtn:hover {{
@@ -264,6 +266,7 @@ QPushButton#dangerBtn {{
     background-color: transparent;
     border: 2px solid {colors['danger']};
     color: {colors['danger']};
+    min-height: 36px;
 }}
 
 QPushButton#dangerBtn:hover {{
@@ -282,6 +285,7 @@ QPushButton#ghostBtn {{
     background-color: transparent;
     border: 2px solid {colors['line']};
     color: {colors['text_muted']};
+    min-height: 36px;
 }}
 
 QPushButton#ghostBtn:hover {{
@@ -301,6 +305,7 @@ QPushButton#accentBtn {{
     background-color: transparent;
     border: 2px solid {colors['accent']};
     color: {colors['accent']};
+    min-height: 36px;
 }}
 
 QPushButton#accentBtn:hover {{
@@ -321,6 +326,7 @@ QPushButton#actionButton {{
     border: 2px solid {colors['line']};
     border-radius: {RADIUS['md']}px;
     padding: 6px 16px;
+    min-height: 36px;
     font-weight: 600;
     font-size: {FONTS['size_small']}pt;
     color: {colors['text']};

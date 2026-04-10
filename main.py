@@ -4,7 +4,8 @@ LUX - Десктопная CRM для работы с отделениями
 """
 
 import sys
-from PyQt6.QtWidgets import QApplication
+import traceback
+from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
@@ -14,8 +15,25 @@ from ui.main_window import MainWindow
 from ui.styles import get_main_stylesheet
 
 
+def exception_hook(exctype, value, tb):
+    """Глобальный обработчик исключений"""
+    error_msg = "".join(traceback.format_exception(exctype, value, tb))
+    print(f"Uncaught exception: {error_msg}", flush=True)
+
+    # Показываем сообщение об ошибке
+    msg = QMessageBox()
+    msg.setIcon(QMessageBox.Icon.Critical)
+    msg.setWindowTitle("Ошибка")
+    msg.setText(f"Произошла ошибка: {value}")
+    msg.setDetailedText(error_msg)
+    msg.exec()
+
+
 def main():
     """Точка входа в приложение"""
+
+    # Устанавливаем глобальный обработчик исключений
+    sys.excepthook = exception_hook
 
     # Инициализация БД
     init_db("medcrm.db")
@@ -34,6 +52,9 @@ def main():
 
     # Настройка тёмной темы для тёмных элементов
     app.setStyle("Fusion")
+
+    # Обработка исключений в событийном цикле
+    app.setStyleSheet(get_main_stylesheet())
 
     # Окно входа
     login_window = LoginWindow()

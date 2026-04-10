@@ -59,6 +59,13 @@ INTERACTION_ACTIONS = [
     ("plan_item_toggle", "Изменён статус пункта плана"),
 ]
 
+DOCUMENT_CLASSIFICATION_CHOICES = [
+    ("NS", "НС"),
+    ("DSP", "ДСП"),
+    ("S", "С"),
+    ("SS", "СС"),
+]
+
 
 # ============================================================================
 # БАЗА ДАННЫХ
@@ -341,6 +348,44 @@ class Database:
             cursor.execute("ALTER TABLE patients_new RENAME TO patients")
         except Exception:
             pass  # Миграция уже выполнена или таблица ещё пуста
+
+        # Миграция: добавление новых полей для документов пациента
+        new_columns = [
+            ("study_case_number", "TEXT DEFAULT ''"),
+            ("study_sheet_numbers", "TEXT DEFAULT ''"),
+            ("admission_report_number", "TEXT DEFAULT ''"),
+            ("admission_report_date", "DATE"),
+            ("admission_sanction_date", "DATE"),
+            ("arrival_report_number", "TEXT DEFAULT ''"),
+            ("arrival_report_date", "DATE"),
+            ("arrival_sanction_date", "DATE"),
+        ]
+
+        for col_name, col_type in new_columns:
+            try:
+                cursor.execute(f"ALTER TABLE patients ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass  # Колонка уже существует
+
+        # Таблица документов
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                patient_id INTEGER NOT NULL,
+                classification TEXT NOT NULL DEFAULT 'NS',
+                doc_date DATE NOT NULL,
+                author_id INTEGER NOT NULL,
+                doc_type TEXT NOT NULL,
+                summary TEXT,
+                location TEXT,
+                patient_personal_number TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (patient_id) REFERENCES patients(id),
+                FOREIGN KEY (author_id) REFERENCES users(id)
+            )
+        """
+        )
 
         # Таблица кэша статистики
         cursor.execute(
@@ -628,6 +673,17 @@ class Patient:
     employer: str = ""
     address: str = ""
     emergency_contact: str = ""
+    # Справка об изучении
+    study_case_number: str = ""
+    study_sheet_numbers: str = ""
+    # Рапорт на поступление
+    admission_report_number: str = ""
+    admission_report_date: Optional[date] = None
+    admission_sanction_date: Optional[date] = None
+    # Рапорт о поступлении
+    arrival_report_number: str = ""
+    arrival_report_date: Optional[date] = None
+    arrival_sanction_date: Optional[date] = None
     is_active: bool = True
     created_at: Optional[datetime] = None
 
@@ -671,8 +727,12 @@ class Patient:
             INSERT OR REPLACE INTO patients
             (id, callsign, personal_number, birth_date, gender, patient_type,
              department, doctor_id, facility_id, phone, email, document_id, insurance_number,
-             employer, address, emergency_contact, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             employer, address, emergency_contact,
+             study_case_number, study_sheet_numbers,
+             admission_report_number, admission_report_date, admission_sanction_date,
+             arrival_report_number, arrival_report_date, arrival_sanction_date,
+             is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -691,6 +751,30 @@ class Patient:
                 self.employer,
                 self.address,
                 self.emergency_contact,
+                self.study_case_number,
+                self.study_sheet_numbers,
+                self.admission_report_number,
+                (
+                    self.admission_report_date.isoformat()
+                    if self.admission_report_date
+                    else None
+                ),
+                (
+                    self.admission_sanction_date.isoformat()
+                    if self.admission_sanction_date
+                    else None
+                ),
+                self.arrival_report_number,
+                (
+                    self.arrival_report_date.isoformat()
+                    if self.arrival_report_date
+                    else None
+                ),
+                (
+                    self.arrival_sanction_date.isoformat()
+                    if self.arrival_sanction_date
+                    else None
+                ),
                 self.is_active,
             ),
         )
@@ -702,15 +786,28 @@ class Patient:
     def _from_row(cls, row: dict) -> "Patient":
         """Создание объекта из строки БД с конвертацией дат"""
         data = dict(row)
-        if data.get("birth_date") and isinstance(data["birth_date"], str):
-            try:
-                data["birth_date"] = datetime.strptime(
-                    data["birth_date"], "%Y-%m-%d"
-                ).date()
-            except ValueError:
-                data["birth_date"] = datetime.strptime(
-                    data["birth_date"][:10], "%Y-%m-%d"
-                ).date()
+
+        # Конвертация всех полей дат
+        date_fields = [
+            "birth_date",
+            "admission_report_date",
+            "admission_sanction_date",
+            "arrival_report_date",
+            "arrival_sanction_date",
+        ]
+
+        for field in date_fields:
+            if data.get(field) and isinstance(data[field], str):
+                try:
+                    data[field] = datetime.strptime(data[field], "%Y-%m-%d").date()
+                except ValueError:
+                    try:
+                        data[field] = datetime.strptime(
+                            data[field][:10], "%Y-%m-%d"
+                        ).date()
+                    except ValueError:
+                        data[field] = None
+
         if data.get("created_at") and isinstance(data["created_at"], str):
             for fmt in [
                 "%Y-%m-%d %H:%M:%S.%f",
@@ -1319,7 +1416,130 @@ class PatientInteraction:
             "SELECT * FROM patient_interactions WHERE patient_id = ? ORDER BY created_at DESC LIMIT 50",
             (patient_id,),
         )
-        return [cls(**dict(row)) for row in rows]
+        return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    def _from_row(cls, row: dict) -> "PatientInteraction":
+        """Создание объекта из строки БД с конвертацией дат"""
+        data = dict(row)
+        if data.get("created_at") and isinstance(data["created_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
+                try:
+                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
+                    break
+                except ValueError:
+                    continue
+        return cls(**data)
+
+
+@dataclass
+class Document:
+    id: Optional[int] = None
+    patient_id: int = 0
+    classification: str = "NS"
+    doc_date: Optional[date] = None
+    author_id: int = 0
+    doc_type: str = ""
+    summary: str = ""
+    location: str = ""
+    patient_personal_number: str = ""
+    created_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        if self.doc_date is None:
+            self.doc_date = date.today()
+        if self.created_at is None:
+            self.created_at = datetime.now()
+
+    @property
+    def patient(self) -> Optional[Patient]:
+        return Patient.get_by_id(self.patient_id)
+
+    @property
+    def author(self) -> Optional[User]:
+        return User.get_by_id(self.author_id)
+
+    @property
+    def classification_display(self) -> str:
+        class_dict = dict(DOCUMENT_CLASSIFICATION_CHOICES)
+        return class_dict.get(self.classification, self.classification)
+
+    def save(self):
+        cursor = db.execute(
+            """
+            INSERT OR REPLACE INTO documents
+            (id, patient_id, classification, doc_date, author_id, doc_type, summary, location, patient_personal_number, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                self.id,
+                self.patient_id,
+                self.classification,
+                self.doc_date.isoformat() if self.doc_date else None,
+                self.author_id,
+                self.doc_type,
+                self.summary,
+                self.location,
+                self.patient_personal_number,
+                self.created_at.isoformat() if self.created_at else None,
+            ),
+        )
+        db.commit()
+        if self.id is None:
+            self.id = db.lastrowid()
+
+    def delete(self):
+        db.execute("DELETE FROM documents WHERE id = ?", (self.id,))
+        db.commit()
+
+    @classmethod
+    def _from_row(cls, row: dict) -> "Document":
+        """Создание объекта из строки БД с конвертацией дат"""
+        data = dict(row)
+        if data.get("doc_date") and isinstance(data["doc_date"], str):
+            try:
+                data["doc_date"] = datetime.strptime(
+                    data["doc_date"], "%Y-%m-%d"
+                ).date()
+            except ValueError:
+                data["doc_date"] = datetime.strptime(
+                    data["doc_date"][:10], "%Y-%m-%d"
+                ).date()
+        if data.get("created_at") and isinstance(data["created_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
+                try:
+                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
+                    break
+                except ValueError:
+                    continue
+        return cls(**data)
+
+    @classmethod
+    def get_by_patient(cls, patient_id: int) -> List["Document"]:
+        """Получение всех документов пациента"""
+        rows = db.fetchall(
+            "SELECT * FROM documents WHERE patient_id = ? ORDER BY doc_date DESC",
+            (patient_id,),
+        )
+        return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    def get_by_id(cls, doc_id: int) -> Optional["Document"]:
+        """Получение документа по ID"""
+        row = db.fetchone("SELECT * FROM documents WHERE id = ?", (doc_id,))
+        if row:
+            return cls._from_row(row)
+        return None
 
 
 @dataclass

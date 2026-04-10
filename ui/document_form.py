@@ -1,0 +1,197 @@
+"""
+Форма добавления/редактирования документа
+"""
+
+from PyQt6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QFormLayout,
+    QLineEdit,
+    QComboBox,
+    QDateEdit,
+    QGroupBox,
+    QMessageBox,
+    QTextEdit,
+)
+from PyQt6.QtCore import Qt, QDate
+
+from models.db_models import (
+    User,
+    Patient,
+    Document,
+    DOCUMENT_CLASSIFICATION_CHOICES,
+)
+from ui.styles import get_colors, FONTS, RADIUS
+
+
+class DocumentFormDialog(QDialog):
+    """Диалог формы документа"""
+
+    def __init__(self, user: User, patient: Patient, document: Document = None):
+        super().__init__()
+        self.user = user
+        self.patient = patient
+        self.document = document
+        self.is_edit = document is not None and document.id is not None
+
+        title = "Редактирование документа" if self.is_edit else "Новый документ"
+        self.setWindowTitle(title)
+        self.setMinimumSize(500, 500)
+        self._init_ui()
+
+    def _init_ui(self):
+        """Инициализация интерфейса"""
+        colors = get_colors()
+
+        layout = QVBoxLayout()
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Основная форма
+        form_group = QGroupBox("Информация о документе")
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form_layout.setFormAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        form_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+        )
+
+        # Гриф секретности
+        self.classification_combo = QComboBox()
+        self.classification_combo.setFrame(False)
+        for value, label in DOCUMENT_CLASSIFICATION_CHOICES:
+            self.classification_combo.addItem(label, value)
+        form_layout.addRow("Гриф секретности*", self.classification_combo)
+
+        # Дата документа
+        self.doc_date_input = QDateEdit()
+        self.doc_date_input.setCalendarPopup(True)
+        self.doc_date_input.setDate(QDate.currentDate())
+        self.doc_date_input.setDisplayFormat("dd.MM.yyyy")
+        form_layout.addRow("Дата*", self.doc_date_input)
+
+        # Вид документа
+        self.doc_type_input = QLineEdit()
+        self.doc_type_input.setPlaceholderText("Введите вид документа")
+        form_layout.addRow("Вид документа*", self.doc_type_input)
+
+        # Краткое содержание
+        self.summary_input = QTextEdit()
+        self.summary_input.setPlaceholderText("Введите краткое содержание")
+        self.summary_input.setMaximumHeight(100)
+        form_layout.addRow("Краткое содержание", self.summary_input)
+
+        # Куда приобщён
+        self.location_input = QLineEdit()
+        self.location_input.setPlaceholderText("Введите, куда приобщён документ")
+        form_layout.addRow("Куда приобщён*", self.location_input)
+
+        # Личный номер пациента
+        self.patient_personal_number_input = QLineEdit()
+        self.patient_personal_number_input.setPlaceholderText(
+            "Введите личный номер пациента"
+        )
+        form_layout.addRow("Личный номер пациента", self.patient_personal_number_input)
+
+        form_group.setLayout(form_layout)
+        layout.addWidget(form_group)
+
+        # Кнопки
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch()
+
+        save_btn = QPushButton("Сохранить")
+        save_btn.setObjectName("secondaryBtn")
+        save_btn.setFixedHeight(40)
+        save_btn.clicked.connect(self._save)
+        buttons_layout.addWidget(save_btn)
+
+        cancel_btn = QPushButton("Отмена")
+        cancel_btn.setObjectName("secondaryBtn")
+        cancel_btn.setFixedHeight(40)
+        cancel_btn.clicked.connect(self.reject)
+        buttons_layout.addWidget(cancel_btn)
+
+        layout.addLayout(buttons_layout)
+
+        self.setLayout(layout)
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']}; QGroupBox {{ color: {colors['text']}; }}"
+        )
+
+        # Заполнение данными при редактировании
+        if self.is_edit:
+            self._fill_data()
+
+    def _fill_data(self):
+        """Заполнение данными документа"""
+        if not self.document:
+            return
+
+        # Гриф секретности
+        class_index = self.classification_combo.findData(self.document.classification)
+        if class_index >= 0:
+            self.classification_combo.setCurrentIndex(class_index)
+
+        # Дата
+        if self.document.doc_date:
+            self.doc_date_input.setDate(
+                QDate(
+                    self.document.doc_date.year,
+                    self.document.doc_date.month,
+                    self.document.doc_date.day,
+                )
+            )
+
+        # Вид документа
+        self.doc_type_input.setText(self.document.doc_type or "")
+
+        # Краткое содержание
+        self.summary_input.setPlainText(self.document.summary or "")
+
+        # Куда приобщён
+        self.location_input.setText(self.document.location or "")
+
+        # Личный номер пациента
+        self.patient_personal_number_input.setText(
+            self.document.patient_personal_number or ""
+        )
+
+    def _save(self):
+        """Сохранение документа"""
+        # Валидация
+        if not self.doc_type_input.text().strip():
+            QMessageBox.warning(self, "Ошибка", "Введите вид документа")
+            return
+
+        if not self.location_input.text().strip():
+            QMessageBox.warning(self, "Ошибка", "Введите, куда приобщён документ")
+            return
+
+        # Создание/обновление документа
+        if not self.document:
+            self.document = Document()
+
+        self.document.patient_id = self.patient.id
+        self.document.classification = self.classification_combo.currentData()
+        self.document.doc_date = self.doc_date_input.date().toPyDate()
+        self.document.author_id = self.user.id
+        self.document.doc_type = self.doc_type_input.text().strip()
+        self.document.summary = self.summary_input.toPlainText().strip()
+        self.document.location = self.location_input.text().strip()
+        self.document.patient_personal_number = (
+            self.patient_personal_number_input.text().strip()
+        )
+
+        self.document.save()
+
+        QMessageBox.information(
+            self, "Успешно", f"Документ сохранён"
+        )
+        self.accept()

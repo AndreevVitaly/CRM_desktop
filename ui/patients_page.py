@@ -57,6 +57,14 @@ class PatientsPage(QWidget):
         # Загрузка данных
         self._load_patients()
 
+    def _safe_load_patients(self):
+        """Безопасная загрузка данных с проверкой существования таблицы"""
+        if hasattr(self, "table") and self.table is not None:
+            try:
+                self._load_patients()
+            except RuntimeError:
+                pass  # Таблица уже удалена
+
     def _create_filter_panel(self) -> QFrame:
         """Панель фильтров"""
         colors = get_colors()
@@ -252,9 +260,13 @@ class PatientsPage(QWidget):
         if self.current_filter:
             search_lower = self.current_filter.lower()
             patients = [
-                p for p in patients
+                p
+                for p in patients
                 if (p.callsign and p.callsign.lower().startswith(search_lower))
-                or (p.personal_number and p.personal_number.lower().startswith(search_lower))
+                or (
+                    p.personal_number
+                    and p.personal_number.lower().startswith(search_lower)
+                )
                 or (p.document_id and p.document_id.lower().startswith(search_lower))
             ]
 
@@ -268,9 +280,7 @@ class PatientsPage(QWidget):
             self.table.setItem(row, 0, name_item)
 
             # Личный номер
-            self.table.setItem(
-                row, 1, QTableWidgetItem(patient.personal_number or "—")
-            )
+            self.table.setItem(row, 1, QTableWidgetItem(patient.personal_number or "—"))
 
             # Дата рождения
             self.table.setItem(
@@ -284,7 +294,11 @@ class PatientsPage(QWidget):
             )
 
             # Тип
-            type_dict = {"adult": "Взрослый", "child": "Детский", "undefined": "Неопределённый"}
+            type_dict = {
+                "adult": "Взрослый",
+                "child": "Детский",
+                "undefined": "Неопределённый",
+            }
             self.table.setItem(
                 row, 4, QTableWidgetItem(type_dict.get(patient.patient_type, ""))
             )
@@ -386,7 +400,9 @@ class PatientsPage(QWidget):
 
         dialog = PatientDetailDialog(self.user, patient_id)
         dialog.exec()
-        self._load_patients()  # Обновить данные
+
+        # Безопасное обновление данных
+        self._safe_load_patients()
 
     def _add_patient(self):
         """Добавление пациента"""
@@ -394,7 +410,7 @@ class PatientsPage(QWidget):
 
         dialog = PatientFormDialog(self.user, None)
         if dialog.exec():
-            self._load_patients()
+            self._safe_load_patients()
 
     def _edit_patient(self, patient_id: int):
         """Редактирование пациента"""
@@ -403,7 +419,7 @@ class PatientsPage(QWidget):
         patient = Patient.get_by_id(patient_id)
         dialog = PatientFormDialog(self.user, patient)
         if dialog.exec():
-            self._load_patients()
+            self._safe_load_patients()
 
     def _hide_patient(self, patient_id: int):
         """Скрытие пациента"""
@@ -416,13 +432,13 @@ class PatientsPage(QWidget):
         )
         if reply == QMessageBox.StandardButton.Yes:
             patient.delete()
-            self._load_patients()
+            self._safe_load_patients()
 
     def _restore_patient(self, patient_id: int):
         """Восстановление пациента"""
         patient = Patient.get_by_id(patient_id)
         patient.restore()
-        self._load_patients()
+        self._safe_load_patients()
 
     def _generate_certificate_selected(self):
         """Генерация справки для выбранного пациента"""

@@ -38,6 +38,8 @@ from models.db_models import (
     PatientInteraction,
     Facility,
     DEPARTMENTS,
+    Document,
+    DOCUMENT_CLASSIFICATION_CHOICES,
 )
 from ui.styles import get_colors, FONTS, RADIUS
 
@@ -55,48 +57,59 @@ class PatientDetailDialog(QDialog):
 
     def _init_ui(self):
         """Инициализация интерфейса"""
-        colors = get_colors()
+        try:
+            colors = get_colors()
 
-        layout = QVBoxLayout()
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
+            layout = QVBoxLayout()
+            layout.setSpacing(16)
+            layout.setContentsMargins(20, 20, 20, 20)
 
-        # Заголовок
-        header = self._create_header()
-        layout.addWidget(header)
+            # Заголовок
+            header = self._create_header()
+            layout.addWidget(header)
 
-        # Вкладки
-        tabs = QTabWidget()
-        tabs.addTab(self._create_info_tab(), "Информация")
-        tabs.addTab(self._create_encounters_tab(), "Визиты")
-        tabs.addTab(self._create_plan_tab(), "План лечения")
-        tabs.addTab(self._create_log_tab(), "Журнал")
+            # Вкладки
+            tabs = QTabWidget()
+            tabs.addTab(self._create_info_tab(), "Информация")
+            tabs.addTab(self._create_encounters_tab(), "Визиты")
+            tabs.addTab(self._create_plan_tab(), "План лечения")
+            tabs.addTab(self._create_documents_tab(), "Документы")
+            tabs.addTab(self._create_log_tab(), "Журнал")
 
-        layout.addWidget(tabs, 1)
+            layout.addWidget(tabs, 1)
 
-        # Кнопки
-        buttons_layout = QHBoxLayout()
-        buttons_layout.addStretch()
+            # Кнопки
+            buttons_layout = QHBoxLayout()
+            buttons_layout.addStretch()
 
-        if self.user.role in (User.ROLE_REGISTRAR, User.ROLE_LEAD):
-            edit_btn = QPushButton("Редактировать")
-            edit_btn.setObjectName("secondaryBtn")
-            edit_btn.setFixedHeight(40)
-            edit_btn.clicked.connect(self._edit_patient)
-            buttons_layout.addWidget(edit_btn)
+            if self.user.role in (User.ROLE_REGISTRAR, User.ROLE_LEAD):
+                edit_btn = QPushButton("Редактировать")
+                edit_btn.setObjectName("secondaryBtn")
+                edit_btn.setFixedHeight(40)
+                edit_btn.clicked.connect(self._edit_patient)
+                buttons_layout.addWidget(edit_btn)
 
-        close_btn = QPushButton("Закрыть")
-        close_btn.setObjectName("secondaryBtn")
-        close_btn.setFixedHeight(40)
-        close_btn.clicked.connect(self.accept)
-        buttons_layout.addWidget(close_btn)
+            close_btn = QPushButton("Закрыть")
+            close_btn.setObjectName("secondaryBtn")
+            close_btn.setFixedHeight(40)
+            close_btn.clicked.connect(self.accept)
+            buttons_layout.addWidget(close_btn)
 
-        layout.addLayout(buttons_layout)
+            layout.addLayout(buttons_layout)
 
-        self.setLayout(layout)
-        self.setStyleSheet(
-            f"background-color: {colors['bg']}; color: {colors['text']}; QGroupBox {{ color: {colors['text']}; }}"
-        )
+            self.setLayout(layout)
+            self.setStyleSheet(
+                f"background-color: {colors['bg']}; color: {colors['text']}; QGroupBox {{ color: {colors['text']}; }}"
+            )
+        except Exception as e:
+            import traceback
+
+            error_msg = (
+                f"Ошибка при создании интерфейса:\n{str(e)}\n\n{traceback.format_exc()}"
+            )
+            print(error_msg)
+            QMessageBox.critical(None, "Ошибка", error_msg)
+            raise
 
     def _create_header(self) -> QFrame:
         """Заголовок с информацией о пациенте"""
@@ -163,20 +176,27 @@ class PatientDetailDialog(QDialog):
         colors = get_colors()
 
         widget = QWidget()
+        main_layout = QVBoxLayout()
+        main_layout.setSpacing(16)
+        main_layout.setContentsMargins(16, 16, 16, 16)
+
+        # Скролл для контента
+        from PyQt6.QtWidgets import QScrollArea
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background-color: transparent; border: none;")
+
+        content_widget = QWidget()
         layout = QGridLayout()
         layout.setSpacing(12)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        row = 0
 
         # Личные данные (левая колонка)
         fields = [
-            ("Позывной:", self.patient.callsign or "—"),
-            ("Личный номер:", self.patient.personal_number or "—"),
-            ("Дата рождения:", self.patient.birth_date.strftime("%d.%m.%Y")),
-            ("Возраст:", f"{self.patient.age} лет"),
-            (
-                "Пол:",
-                {"M": "Мужской", "F": "Женский"}.get(self.patient.gender, "—"),
-            ),
             (
                 "Тип пациента:",
                 {
@@ -185,6 +205,14 @@ class PatientDetailDialog(QDialog):
                     "undefined": "Неопределённый",
                 }.get(self.patient.patient_type, "—"),
             ),
+            ("Позывной:", self.patient.callsign or "—"),
+            ("Личный номер:", self.patient.personal_number or "—"),
+            ("Дата рождения:", self.patient.birth_date.strftime("%d.%m.%Y")),
+            ("Возраст:", f"{self.patient.age} лет"),
+            (
+                "Пол:",
+                {"M": "Мужской", "F": "Женский"}.get(self.patient.gender, "—"),
+            ),
             ("Отделение:", self.patient.department_display or "—"),
             (
                 "Лечащий врач:",
@@ -192,7 +220,6 @@ class PatientDetailDialog(QDialog):
             ),
         ]
 
-        row = 0
         for label, value in fields:
             lbl = QLabel(label)
             lbl.setStyleSheet("font-weight: bold; background-color: transparent;")
@@ -207,7 +234,7 @@ class PatientDetailDialog(QDialog):
             row += 1
 
         # Контакты (правая колонка)
-        row = 0
+        row_contacts = 0
         col = 2
         contact_fields = [
             ("Телефон:", self.patient.phone or "—"),
@@ -219,15 +246,15 @@ class PatientDetailDialog(QDialog):
         for label, value in contact_fields:
             lbl = QLabel(label)
             lbl.setStyleSheet("font-weight: bold; background-color: transparent;")
-            layout.addWidget(lbl, row, col)
+            layout.addWidget(lbl, row_contacts, col)
 
             val = QLabel(value)
             val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
             val.setStyleSheet(
                 f"color: {colors['text']}; background-color: transparent;"
             )
-            layout.addWidget(val, row, col + 1)
-            row += 1
+            layout.addWidget(val, row_contacts, col + 1)
+            row_contacts += 1
 
         # Документы и место размещения (продолжение левой колонки)
         row = len(fields)
@@ -268,7 +295,200 @@ class PatientDetailDialog(QDialog):
         layout.setColumnStretch(1, 1)
         layout.setColumnStretch(3, 1)
 
-        widget.setLayout(layout)
+        # Новая строка для документов
+        row = max(row, row_contacts)
+
+        # Справка об изучении
+        row += 1
+        study_group = QGroupBox("Справка об изучении")
+        study_group.setStyleSheet(
+            """
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid """
+            + colors["line"]
+            + """;
+                border-radius: """
+            + str(RADIUS["md"])
+            + """px;
+                margin-top: 8px;
+                padding-top: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+        """
+        )
+        study_layout = QGridLayout()
+        study_layout.setSpacing(8)
+        study_layout.setContentsMargins(12, 16, 12, 12)
+
+        study_layout.addWidget(QLabel("Номер дела:"), 0, 0)
+        study_case_label = QLabel(self.patient.study_case_number or "—")
+        study_case_label.setStyleSheet(
+            f"color: {colors['text']}; background-color: transparent;"
+        )
+        study_case_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction
+        )
+        study_layout.addWidget(study_case_label, 0, 1)
+
+        study_layout.addWidget(QLabel("Номера листов:"), 1, 0)
+        study_sheets_label = QLabel(self.patient.study_sheet_numbers or "—")
+        study_sheets_label.setStyleSheet(
+            f"color: {colors['text']}; background-color: transparent;"
+        )
+        study_sheets_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction
+        )
+        study_layout.addWidget(study_sheets_label, 1, 1)
+
+        study_group.setLayout(study_layout)
+        layout.addWidget(study_group, row, 0, 1, 4)
+
+        # Рапорт на поступление
+        row += 1
+        admission_group = QGroupBox("Рапорт на поступление")
+        admission_group.setStyleSheet(
+            """
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid """
+            + colors["line"]
+            + """;
+                border-radius: """
+            + str(RADIUS["md"])
+            + """px;
+                margin-top: 8px;
+                padding-top: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+        """
+        )
+        admission_layout = QGridLayout()
+        admission_layout.setSpacing(8)
+        admission_layout.setContentsMargins(12, 16, 12, 12)
+
+        admission_layout.addWidget(QLabel("Номер документа:"), 0, 0)
+        admission_number_label = QLabel(self.patient.admission_report_number or "—")
+        admission_number_label.setStyleSheet(
+            f"color: {colors['text']}; background-color: transparent;"
+        )
+        admission_number_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction
+        )
+        admission_layout.addWidget(admission_number_label, 0, 1)
+
+        admission_layout.addWidget(QLabel("Дата документа:"), 1, 0)
+        admission_date_label = QLabel(
+            self.patient.admission_report_date.strftime("%d.%m.%Y")
+            if self.patient.admission_report_date
+            else "—"
+        )
+        admission_date_label.setStyleSheet(
+            f"color: {colors['text']}; background-color: transparent;"
+        )
+        admission_date_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction
+        )
+        admission_layout.addWidget(admission_date_label, 1, 1)
+
+        admission_layout.addWidget(QLabel("Дата санкции:"), 2, 0)
+        admission_sanction_label = QLabel(
+            self.patient.admission_sanction_date.strftime("%d.%m.%Y")
+            if self.patient.admission_sanction_date
+            else "—"
+        )
+        admission_sanction_label.setStyleSheet(
+            f"color: {colors['text']}; background-color: transparent;"
+        )
+        admission_sanction_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction
+        )
+        admission_layout.addWidget(admission_sanction_label, 2, 1)
+
+        admission_group.setLayout(admission_layout)
+        layout.addWidget(admission_group, row, 0, 1, 4)
+
+        # Рапорт о поступлении
+        row += 1
+        arrival_group = QGroupBox("Рапорт о поступлении")
+        arrival_group.setStyleSheet(
+            """
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid """
+            + colors["line"]
+            + """;
+                border-radius: """
+            + str(RADIUS["md"])
+            + """px;
+                margin-top: 8px;
+                padding-top: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }
+        """
+        )
+        arrival_layout = QGridLayout()
+        arrival_layout.setSpacing(8)
+        arrival_layout.setContentsMargins(12, 16, 12, 12)
+
+        arrival_layout.addWidget(QLabel("Номер документа:"), 0, 0)
+        arrival_number_label = QLabel(self.patient.arrival_report_number or "—")
+        arrival_number_label.setStyleSheet(
+            f"color: {colors['text']}; background-color: transparent;"
+        )
+        arrival_number_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction
+        )
+        arrival_layout.addWidget(arrival_number_label, 0, 1)
+
+        arrival_layout.addWidget(QLabel("Дата документа:"), 1, 0)
+        arrival_date_label = QLabel(
+            self.patient.arrival_report_date.strftime("%d.%m.%Y")
+            if self.patient.arrival_report_date
+            else "—"
+        )
+        arrival_date_label.setStyleSheet(
+            f"color: {colors['text']}; background-color: transparent;"
+        )
+        arrival_date_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction
+        )
+        arrival_layout.addWidget(arrival_date_label, 1, 1)
+
+        arrival_layout.addWidget(QLabel("Дата санкции:"), 2, 0)
+        arrival_sanction_label = QLabel(
+            self.patient.arrival_sanction_date.strftime("%d.%m.%Y")
+            if self.patient.arrival_sanction_date
+            else "—"
+        )
+        arrival_sanction_label.setStyleSheet(
+            f"color: {colors['text']}; background-color: transparent;"
+        )
+        arrival_sanction_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction
+        )
+        arrival_layout.addWidget(arrival_sanction_label, 2, 1)
+
+        arrival_group.setLayout(arrival_layout)
+        layout.addWidget(arrival_group, row, 0, 1, 4)
+
+        content_widget.setLayout(layout)
+        scroll.setWidget(content_widget)
+        main_layout.addWidget(scroll)
+
+        widget.setLayout(main_layout)
         return widget
 
     def _create_encounters_tab(self) -> QWidget:
@@ -394,10 +614,11 @@ class PatientDetailDialog(QDialog):
         self.plan_table.verticalHeader().setVisible(False)
         self.plan_table.setShowGrid(False)
 
-        layout.addWidget(self.plan_table, 1)
+        layout.addWidget(self.plan_table)
 
         # Кнопки действий
         buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 8, 0, 0)
 
         toggle_btn = QPushButton("Переключить статус")
         toggle_btn.setObjectName("secondaryBtn")
@@ -450,6 +671,244 @@ class PatientDetailDialog(QDialog):
                 else Qt.GlobalColor.darkBlue
             )
             self.plan_table.setItem(row, 3, status_item)
+
+    def _create_documents_tab(self) -> QWidget:
+        """Вкладка документов"""
+        colors = get_colors()
+
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        # Кнопка добавления документа
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_REGISTRAR):
+            add_btn = QPushButton("Добавить документ")
+            add_btn.setFixedHeight(36)
+            add_btn.clicked.connect(self._add_document)
+            layout.addWidget(add_btn)
+
+        # Таблица документов
+        self.documents_table = QTableWidget()
+        self.documents_table.setColumnCount(6)
+        self.documents_table.setHorizontalHeaderLabels(
+            [
+                "№",
+                "Гриф",
+                "Дата",
+                "Вид документа",
+                "Краткое содержание",
+                "Куда приобщён",
+            ]
+        )
+
+        header = self.documents_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+
+        self.documents_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self.documents_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.documents_table.verticalHeader().setVisible(False)
+        self.documents_table.setShowGrid(False)
+        self.documents_table.doubleClicked.connect(self._open_document)
+
+        layout.addWidget(self.documents_table, 1)
+
+        # Кнопки действий
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 8, 0, 0)
+
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_REGISTRAR):
+            delete_btn = QPushButton("Удалить")
+            delete_btn.setObjectName("dangerBtn")
+            delete_btn.setFixedHeight(36)
+            delete_btn.clicked.connect(self._delete_document)
+            buttons_layout.addWidget(delete_btn)
+
+        buttons_layout.addStretch()
+        layout.addLayout(buttons_layout)
+
+        self._load_documents()
+
+        widget.setLayout(layout)
+        return widget
+
+    def _load_documents(self):
+        """Загрузка документов"""
+        try:
+            self.documents_table.setRowCount(0)
+            documents = Document.get_by_patient(self.patient.id)
+
+            for doc in documents:
+                row = self.documents_table.rowCount()
+                self.documents_table.insertRow(row)
+
+                # Номер по порядку
+                self.documents_table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
+
+                # Гриф секретности
+                class_item = QTableWidgetItem(doc.classification_display)
+                class_item.setForeground(
+                    Qt.GlobalColor.darkRed
+                    if doc.classification in ("S", "SS")
+                    else Qt.GlobalColor.darkBlue
+                )
+                self.documents_table.setItem(row, 1, class_item)
+
+                # Дата
+                date_str = doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"
+                self.documents_table.setItem(row, 2, QTableWidgetItem(date_str))
+
+                # Вид документа
+                self.documents_table.setItem(
+                    row, 3, QTableWidgetItem(doc.doc_type or "—")
+                )
+
+                # Краткое содержание
+                self.documents_table.setItem(
+                    row, 4, QTableWidgetItem(doc.summary or "—")
+                )
+
+                # Куда приобщён
+                self.documents_table.setItem(
+                    row, 5, QTableWidgetItem(doc.location or "—")
+                )
+        except Exception as e:
+            import traceback
+
+            print(f"Ошибка при загрузке документов: {e}\n{traceback.format_exc()}")
+            QMessageBox.warning(
+                self, "Ошибка", f"Не удалось загрузить документы: {str(e)}"
+            )
+
+    def _add_document(self):
+        """Добавление документа"""
+        from ui.document_form import DocumentFormDialog
+
+        dialog = DocumentFormDialog(self.user, self.patient, None)
+        if dialog.exec():
+            self._load_documents()
+            self._log_interaction("document_add", "Добавлен документ")
+
+    def _open_document(self, index):
+        """Открытие документа"""
+        selected = self.documents_table.selectedItems()
+        if not selected:
+            return
+
+        row = selected[0].row()
+        documents = Document.get_by_patient(self.patient.id)
+        if row >= len(documents):
+            return
+
+        doc = documents[row]
+
+        # Диалог просмотра документа
+        from PyQt6.QtWidgets import (
+            QDialog,
+            QVBoxLayout,
+            QHBoxLayout,
+            QLabel,
+            QFrame,
+            QPushButton,
+            QFormLayout,
+        )
+        from PyQt6.QtCore import Qt
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Документ №{doc.id}")
+        dialog.setMinimumSize(600, 400)
+
+        colors = get_colors()
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Заголовок
+        title = QLabel(f"Документ №{doc.id}")
+        title.setStyleSheet(f"font-size: {FONTS['size_title']}pt; font-weight: bold;")
+        title.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        layout.addWidget(title)
+
+        # Информация о документе
+        info_frame = QFrame()
+        info_frame.setStyleSheet(
+            f"""
+            QFrame {{
+                background-color: {colors['surface_muted']};
+                border-radius: {RADIUS['md']}px;
+                padding: 12px;
+            }}
+        """
+        )
+        info_layout = QFormLayout(info_frame)
+        info_layout.setSpacing(8)
+
+        fields = [
+            ("Номер по порядку:", str(doc.id)),
+            ("Гриф секретности:", doc.classification_display),
+            ("Дата:", doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"),
+            ("Автор:", doc.author.full_name if doc.author else "—"),
+            ("Вид документа:", doc.doc_type or "—"),
+            ("Краткое содержание:", doc.summary or "—"),
+            ("Куда приобщён:", doc.location or "—"),
+            ("Личный номер пациента:", doc.patient_personal_number or "—"),
+        ]
+
+        for label, value in fields:
+            lbl = QLabel(label)
+            lbl.setStyleSheet("font-weight: bold;")
+            val = QLabel(value)
+            val.setStyleSheet(f"color: {colors['text']};")
+            val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+            info_layout.addRow(lbl, val)
+
+        layout.addWidget(info_frame)
+
+        # Кнопки
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        close_btn = QPushButton("Закрыть")
+        close_btn.setObjectName("secondaryBtn")
+        close_btn.setFixedHeight(40)
+        close_btn.clicked.connect(dialog.accept)
+        button_layout.addWidget(close_btn)
+
+        layout.addLayout(button_layout)
+        dialog.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
+        dialog.exec()
+
+    def _delete_document(self):
+        """Удаление документа"""
+        selected = self.documents_table.selectedItems()
+        if not selected:
+            QMessageBox.warning(self, "Предупреждение", "Выберите документ")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение",
+            "Удалить выбранный документ?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            row = selected[0].row()
+            documents = Document.get_by_patient(self.patient.id)
+            if row < len(documents):
+                doc = documents[row]
+                doc.delete()
+                self._load_documents()
+                self._log_interaction("document_delete", f"Удалён документ №{doc.id}")
 
     def _create_log_tab(self) -> QWidget:
         """Вкладка журнала взаимодействий"""
@@ -712,7 +1171,15 @@ class PatientDetailDialog(QDialog):
         button_layout.addWidget(close_btn)
 
         layout.addLayout(button_layout)
-        dialog.setLayout(layout)
+
+        # Устанавливаем layout через виджет
+        content_widget = QWidget()
+        content_widget.setLayout(layout)
+
+        dialog_layout = QVBoxLayout(dialog)
+        dialog_layout.setContentsMargins(0, 0, 0, 0)
+        dialog_layout.addWidget(content_widget)
+
         dialog.setStyleSheet(
             f"background-color: {colors['bg']}; color: {colors['text']};"
         )
