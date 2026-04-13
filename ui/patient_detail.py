@@ -23,9 +23,10 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QGridLayout,
     QWidget,
+    QMenu,
 )
 from PyQt6.QtCore import Qt, QDate, QTime
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QCursor
 
 from models.db_models import (
     User,
@@ -690,10 +691,11 @@ class PatientDetailDialog(QDialog):
 
         # Таблица документов
         self.documents_table = QTableWidget()
-        self.documents_table.setColumnCount(6)
+        self.documents_table.setColumnCount(7)
         self.documents_table.setHorizontalHeaderLabels(
             [
                 "№",
+                "№ док.",
                 "Гриф",
                 "Дата",
                 "Вид документа",
@@ -707,8 +709,9 @@ class PatientDetailDialog(QDialog):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
 
         self.documents_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -716,6 +719,12 @@ class PatientDetailDialog(QDialog):
         self.documents_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.documents_table.verticalHeader().setVisible(False)
         self.documents_table.setShowGrid(False)
+        self.documents_table.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
+        self.documents_table.customContextMenuRequested.connect(
+            self._show_document_context_menu
+        )
         self.documents_table.doubleClicked.connect(self._open_document)
 
         layout.addWidget(self.documents_table, 1)
@@ -725,6 +734,12 @@ class PatientDetailDialog(QDialog):
         buttons_layout.setContentsMargins(0, 8, 0, 0)
 
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_REGISTRAR):
+            edit_btn = QPushButton("Редактировать")
+            edit_btn.setObjectName("secondaryBtn")
+            edit_btn.setFixedHeight(36)
+            edit_btn.clicked.connect(self._edit_document)
+            buttons_layout.addWidget(edit_btn)
+
             delete_btn = QPushButton("Удалить")
             delete_btn.setObjectName("dangerBtn")
             delete_btn.setFixedHeight(36)
@@ -752,6 +767,10 @@ class PatientDetailDialog(QDialog):
                 # Номер по порядку
                 self.documents_table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
 
+                # Номер документа
+                doc_number_str = str(doc.doc_number) if doc.doc_number else "—"
+                self.documents_table.setItem(row, 1, QTableWidgetItem(doc_number_str))
+
                 # Гриф секретности
                 class_item = QTableWidgetItem(doc.classification_display)
                 class_item.setForeground(
@@ -759,25 +778,25 @@ class PatientDetailDialog(QDialog):
                     if doc.classification in ("S", "SS")
                     else Qt.GlobalColor.darkBlue
                 )
-                self.documents_table.setItem(row, 1, class_item)
+                self.documents_table.setItem(row, 2, class_item)
 
                 # Дата
                 date_str = doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"
-                self.documents_table.setItem(row, 2, QTableWidgetItem(date_str))
+                self.documents_table.setItem(row, 3, QTableWidgetItem(date_str))
 
                 # Вид документа
                 self.documents_table.setItem(
-                    row, 3, QTableWidgetItem(doc.doc_type or "—")
+                    row, 4, QTableWidgetItem(doc.doc_type or "—")
                 )
 
                 # Краткое содержание
                 self.documents_table.setItem(
-                    row, 4, QTableWidgetItem(doc.summary or "—")
+                    row, 5, QTableWidgetItem(doc.summary or "—")
                 )
 
                 # Куда приобщён
                 self.documents_table.setItem(
-                    row, 5, QTableWidgetItem(doc.location or "—")
+                    row, 6, QTableWidgetItem(doc.location or "—")
                 )
         except Exception as e:
             import traceback
@@ -796,6 +815,29 @@ class PatientDetailDialog(QDialog):
             self._load_documents()
             self._log_interaction("document_add", "Добавлен документ")
 
+    def _edit_document(self):
+        """Редактирование документа"""
+        selected = self.documents_table.selectedItems()
+        if not selected:
+            QMessageBox.warning(
+                self, "Предупреждение", "Выберите документ для редактирования"
+            )
+            return
+
+        row = selected[0].row()
+        documents = Document.get_by_patient(self.patient.id)
+        if row >= len(documents):
+            return
+
+        doc = documents[row]
+
+        from ui.document_form import DocumentFormDialog
+
+        dialog = DocumentFormDialog(self.user, self.patient, doc)
+        if dialog.exec():
+            self._load_documents()
+            self._log_interaction("document_edit", f"Изменён документ №{doc.id}")
+
     def _open_document(self, index):
         """Открытие документа"""
         selected = self.documents_table.selectedItems()
@@ -803,6 +845,44 @@ class PatientDetailDialog(QDialog):
             return
 
         row = selected[0].row()
+        self._open_document_at_row(row)
+
+    def _delete_document(self):
+        """Удаление документа"""
+        selected = self.documents_table.selectedItems()
+        if not selected:
+            QMessageBox.warning(self, "Предупреждение", "Выберите документ")
+            return
+
+        row = selected[0].row()
+        self._delete_document_at_row(row)
+
+    def _show_document_context_menu(self, position):
+        """Показать контекстное меню для документов"""
+        row = self.documents_table.rowAt(position.y())
+        if row is None:
+            return
+
+        menu = QMenu(self)
+
+        # Действия для просмотра
+        view_action = menu.addAction("Просмотр")
+        view_action.triggered.connect(lambda: self._open_document_at_row(row))
+
+        # Действия для редактирования (только для авторизованных ролей)
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_REGISTRAR):
+            edit_action = menu.addAction("Редактировать")
+            edit_action.triggered.connect(lambda: self._edit_document_at_row(row))
+
+            menu.addSeparator()
+
+            delete_action = menu.addAction("Удалить")
+            delete_action.triggered.connect(lambda: self._delete_document_at_row(row))
+
+        menu.exec(self.documents_table.viewport().mapToGlobal(position))
+
+    def _open_document_at_row(self, row):
+        """Открыть документ по строке"""
         documents = Document.get_by_patient(self.patient.id)
         if row >= len(documents):
             return
@@ -852,6 +932,7 @@ class PatientDetailDialog(QDialog):
 
         fields = [
             ("Номер по порядку:", str(doc.id)),
+            ("Номер документа:", str(doc.doc_number) if doc.doc_number else "—"),
             ("Гриф секретности:", doc.classification_display),
             ("Дата:", doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"),
             ("Автор:", doc.author.full_name if doc.author else "—"),
@@ -887,13 +968,23 @@ class PatientDetailDialog(QDialog):
         )
         dialog.exec()
 
-    def _delete_document(self):
-        """Удаление документа"""
-        selected = self.documents_table.selectedItems()
-        if not selected:
-            QMessageBox.warning(self, "Предупреждение", "Выберите документ")
+    def _edit_document_at_row(self, row):
+        """Редактировать документ по строке"""
+        documents = Document.get_by_patient(self.patient.id)
+        if row >= len(documents):
             return
 
+        doc = documents[row]
+
+        from ui.document_form import DocumentFormDialog
+
+        dialog = DocumentFormDialog(self.user, self.patient, doc)
+        if dialog.exec():
+            self._load_documents()
+            self._log_interaction("document_edit", f"Изменён документ №{doc.id}")
+
+    def _delete_document_at_row(self, row):
+        """Удалить документ по строке"""
         reply = QMessageBox.question(
             self,
             "Подтверждение",
@@ -902,7 +993,6 @@ class PatientDetailDialog(QDialog):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            row = selected[0].row()
             documents = Document.get_by_patient(self.patient.id)
             if row < len(documents):
                 doc = documents[row]

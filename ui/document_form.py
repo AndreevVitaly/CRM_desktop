@@ -76,6 +76,11 @@ class DocumentFormDialog(QDialog):
         self.doc_date_input.setDisplayFormat("dd.MM.yyyy")
         form_layout.addRow("Дата*", self.doc_date_input)
 
+        # Номер документа
+        self.doc_number_input = QLineEdit()
+        self.doc_number_input.setPlaceholderText("Введите номер документа")
+        form_layout.addRow("Номер документа", self.doc_number_input)
+
         # Вид документа
         self.doc_type_input = QLineEdit()
         self.doc_type_input.setPlaceholderText("Введите вид документа")
@@ -149,6 +154,12 @@ class DocumentFormDialog(QDialog):
                 )
             )
 
+        # Номер документа
+        if self.document.doc_number is not None:
+            self.doc_number_input.setText(str(self.document.doc_number))
+        else:
+            self.doc_number_input.setText("")
+
         # Вид документа
         self.doc_type_input.setText(self.document.doc_type or "")
 
@@ -189,9 +200,11 @@ class DocumentFormDialog(QDialog):
             self.patient_personal_number_input.text().strip()
         )
 
+        # Номер документа (пустая строка сохраняется как None)
+        doc_number_str = self.doc_number_input.text().strip()
+        self.document.doc_number = doc_number_str if doc_number_str else None
+
         self.document.save()
 
-        QMessageBox.information(
-            self, "Успешно", f"Документ сохранён"
-        )
+        QMessageBox.information(self, "Успешно", f"Документ сохранён")
         self.accept()

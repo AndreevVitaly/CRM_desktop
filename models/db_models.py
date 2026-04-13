@@ -380,12 +380,19 @@ class Database:
                 summary TEXT,
                 location TEXT,
                 patient_personal_number TEXT,
+                doc_number TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (patient_id) REFERENCES patients(id),
                 FOREIGN KEY (author_id) REFERENCES users(id)
             )
         """
         )
+
+        # Миграция: добавление колонки doc_number
+        try:
+            cursor.execute("ALTER TABLE documents ADD COLUMN doc_number TEXT")
+        except Exception:
+            pass  # Колонка уже существует
 
         # Таблица кэша статистики
         cursor.execute(
@@ -1448,6 +1455,7 @@ class Document:
     summary: str = ""
     location: str = ""
     patient_personal_number: str = ""
+    doc_number: Optional[str] = None
     created_at: Optional[datetime] = None
 
     def __post_init__(self):
@@ -1473,8 +1481,8 @@ class Document:
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO documents
-            (id, patient_id, classification, doc_date, author_id, doc_type, summary, location, patient_personal_number, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, patient_id, classification, doc_date, author_id, doc_type, summary, location, patient_personal_number, doc_number, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -1486,6 +1494,7 @@ class Document:
                 self.summary,
                 self.location,
                 self.patient_personal_number,
+                self.doc_number,
                 self.created_at.isoformat() if self.created_at else None,
             ),
         )
