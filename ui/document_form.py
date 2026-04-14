@@ -24,6 +24,7 @@ from models.db_models import (
     Document,
     DOCUMENT_CLASSIFICATION_CHOICES,
     DOCUMENT_TYPE_PLAN,
+    DOCUMENT_TYPE_MEETING,
 )
 from ui.styles import get_colors, FONTS, RADIUS
 
@@ -87,6 +88,7 @@ class DocumentFormDialog(QDialog):
         self.doc_type_selector.setFrame(False)
         self.doc_type_selector.addItem("Выберите тип документа", "")
         self.doc_type_selector.addItem("План работы с пациентом", DOCUMENT_TYPE_PLAN)
+        self.doc_type_selector.addItem("Встреча", DOCUMENT_TYPE_MEETING)
         self.doc_type_selector.addItem("Иной документ (ручной ввод)", "custom")
         form_layout.addRow("Тип документа*", self.doc_type_selector)
 
@@ -118,6 +120,20 @@ class DocumentFormDialog(QDialog):
         else:
             self.patient_personal_number_input.setText("Не присвоен")
         form_layout.addRow("Личный номер пациента", self.patient_personal_number_input)
+
+        # Встреча (выпадающий список)
+        self.encounter_combo = QComboBox()
+        self.encounter_combo.setFrame(False)
+        self.encounter_combo.addItem("Без привязки к встрече", 0)
+
+        # Загрузка встреч пациента
+        from models.db_models import Encounter
+
+        encounters = Encounter.get_by_patient(self.patient.id)
+        for enc in encounters:
+            display_text = f"{enc.started_at.strftime('%d.%m.%Y %H:%M')} - {enc.doctor.full_name if enc.doctor else 'Без врача'}"
+            self.encounter_combo.addItem(display_text, enc.id)
+        form_layout.addRow("Связанная встреча", self.encounter_combo)
 
         form_group.setLayout(form_layout)
         layout.addWidget(form_group)
@@ -185,6 +201,9 @@ class DocumentFormDialog(QDialog):
         if self.document.doc_type == DOCUMENT_TYPE_PLAN:
             selector_index = self.doc_type_selector.findData(DOCUMENT_TYPE_PLAN)
             self.doc_type_selector.setCurrentIndex(selector_index)
+        elif self.document.doc_type == DOCUMENT_TYPE_MEETING:
+            selector_index = self.doc_type_selector.findData(DOCUMENT_TYPE_MEETING)
+            self.doc_type_selector.setCurrentIndex(selector_index)
         else:
             selector_index = self.doc_type_selector.findData("custom")
             self.doc_type_selector.setCurrentIndex(selector_index)
@@ -202,6 +221,12 @@ class DocumentFormDialog(QDialog):
             self.patient_personal_number_input.setText(self.patient.personal_number)
         else:
             self.patient_personal_number_input.setText("Не присвоен")
+
+        # Связанная встреча
+        if self.document.encounter_id:
+            encounter_index = self.encounter_combo.findData(self.document.encounter_id)
+            if encounter_index >= 0:
+                self.encounter_combo.setCurrentIndex(encounter_index)
 
     def _save(self):
         """Сохранение документа"""
@@ -240,6 +265,10 @@ class DocumentFormDialog(QDialog):
         # Номер документа (пустая строка сохраняется как None)
         doc_number_str = self.doc_number_input.text().strip()
         self.document.doc_number = doc_number_str if doc_number_str else None
+
+        # Связанная встреча
+        encounter_id = self.encounter_combo.currentData()
+        self.document.encounter_id = encounter_id if encounter_id else None
 
         self.document.save()
 

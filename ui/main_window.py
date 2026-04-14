@@ -230,6 +230,10 @@ class MainWindow(QMainWindow):
         # Планирование
         items["planning"] = ("Планирование", True)
 
+        # КМ (Комиссионные Мероприятия)
+        if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
+            items["km"] = ("КМ", True)
+
         # Статистика
         if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             items["stats"] = ("Статистика", True)
@@ -416,6 +420,7 @@ class MainWindow(QMainWindow):
         from ui.patients_page import PatientsPage
         from ui.users_page import UsersPage
         from ui.planning_page import PlanningPage
+        from ui.km_page import KmPage
         from ui.stats_page import StatsPage
 
         # Очищаем текущий виджет
@@ -433,6 +438,8 @@ class MainWindow(QMainWindow):
             page = UsersPage(self.user)
         elif page_id == "planning":
             page = PlanningPage(self.user)
+        elif page_id == "km":
+            page = KmPage(self.user)
         elif page_id == "stats":
             page = StatsPage(self.user)
         else:
@@ -617,6 +624,9 @@ class MainWindow(QMainWindow):
                 "planning": lambda: __import__(
                     "ui.planning_page", fromlist=["PlanningPage"]
                 ).PlanningPage(self.user),
+                "km": lambda: __import__("ui.km_page", fromlist=["KmPage"]).KmPage(
+                    self.user
+                ),
                 "stats": lambda: __import__(
                     "ui.stats_page", fromlist=["StatsPage"]
                 ).StatsPage(self.user),

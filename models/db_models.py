@@ -67,6 +67,7 @@ DOCUMENT_CLASSIFICATION_CHOICES = [
 ]
 
 DOCUMENT_TYPE_PLAN = "plan_work"  # План работы с пациентом
+DOCUMENT_TYPE_MEETING = "meeting"  # Встреча
 
 
 # ============================================================================
@@ -77,6 +78,7 @@ DOCUMENT_TYPE_PLAN = "plan_work"  # План работы с пациентом
 class Database:
     _instance = None
     _connection = None
+    _last_cursor = None  # Сохраняем последний курсор для lastrowid
 
     def __new__(cls, db_path: str = "medcrm.db"):
         if cls._instance is None:
@@ -165,8 +167,75 @@ class Database:
                 reason TEXT,
                 status TEXT DEFAULT 'PLANNED',
                 treatment_plan_item_id INTEGER,
+                document_id INTEGER,
+                meeting_result TEXT,
+                patient_info TEXT,
+                meeting_description TEXT,
+                patient_tasks TEXT,
+                patient_measures TEXT,
+                general_measures TEXT,
                 FOREIGN KEY (patient_id) REFERENCES patients(id),
-                FOREIGN KEY (doctor_id) REFERENCES users(id)
+                FOREIGN KEY (doctor_id) REFERENCES users(id),
+                FOREIGN KEY (document_id) REFERENCES documents(id)
+            )
+        """
+        )
+
+        # Миграция: добавление новых полей для encounters
+        encounter_new_columns = [
+            ("document_id", "INTEGER"),
+            ("meeting_result", "TEXT"),
+            ("patient_info", "TEXT"),
+            ("meeting_description", "TEXT"),
+            ("patient_tasks", "TEXT"),
+            ("patient_measures", "TEXT"),
+            ("general_measures", "TEXT"),
+        ]
+        for col_name, col_type in encounter_new_columns:
+            try:
+                cursor.execute(
+                    f"ALTER TABLE encounters ADD COLUMN {col_name} {col_type}"
+                )
+            except Exception:
+                pass  # Колонка уже существует
+
+        # Таблица информаторов встречи (Encounter Informants)
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS encounter_informants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                encounter_id INTEGER NOT NULL,
+                position TEXT,
+                full_name TEXT,
+                birth_date DATE,
+                workplace TEXT,
+                info_essence TEXT,
+                measures_taken TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (encounter_id) REFERENCES encounters(id)
+            )
+        """
+        )
+
+        # Таблица таблицы КМ (KM Records)
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS km_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                callsign TEXT NOT NULL,
+                personal_number TEXT,
+                document_number TEXT,
+                position TEXT,
+                full_name TEXT,
+                birth_date DATE,
+                workplace TEXT,
+                info_essence TEXT,
+                measures_taken TEXT,
+                encounter_id INTEGER,
+                document_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (encounter_id) REFERENCES encounters(id),
+                FOREIGN KEY (document_id) REFERENCES documents(id)
             )
         """
         )
@@ -391,18 +460,27 @@ class Database:
                 location TEXT,
                 patient_personal_number TEXT,
                 doc_number TEXT,
+                encounter_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (patient_id) REFERENCES patients(id),
-                FOREIGN KEY (author_id) REFERENCES users(id)
+                FOREIGN KEY (author_id) REFERENCES users(id),
+                FOREIGN KEY (encounter_id) REFERENCES encounters(id)
             )
         """
         )
 
-        # Миграция: добавление колонки doc_number
-        try:
-            cursor.execute("ALTER TABLE documents ADD COLUMN doc_number TEXT")
-        except Exception:
-            pass  # Колонка уже существует
+        # Миграция: добавление колонок doc_number и encounter_id
+        doc_new_columns = [
+            ("doc_number", "TEXT"),
+            ("encounter_id", "INTEGER"),
+        ]
+        for col_name, col_type in doc_new_columns:
+            try:
+                cursor.execute(
+                    f"ALTER TABLE documents ADD COLUMN {col_name} {col_type}"
+                )
+            except Exception:
+                pass  # Колонка уже существует
 
         # Таблица кэша статистики
         cursor.execute(
@@ -426,6 +504,7 @@ class Database:
         conn = self.connect()
         cursor = conn.cursor()
         cursor.execute(query, params)
+        self._last_cursor = cursor  # Сохраняем курсор для lastrowid
         return cursor
 
     def commit(self):
@@ -441,8 +520,8 @@ class Database:
         return cursor.fetchall()
 
     def lastrowid(self) -> int:
-        if self._connection:
-            return self._connection.cursor().lastrowid
+        if self._connection and self._last_cursor:
+            return self._last_cursor.lastrowid or 0
         return 0
 
 
@@ -918,10 +997,23 @@ class Encounter:
     reason: str = ""
     status: str = "PLANNED"
     treatment_plan_item_id: Optional[int] = None
+    document_id: Optional[int] = None  # Связь с документом
+    meeting_result: str = ""  # Результат встречи
+    patient_info: str = ""  # Информация от пациента
+    meeting_description: str = ""  # Описание встречи
+    patient_tasks: str = ""  # Мероприятия для исполнения пациентом
+    patient_measures: str = ""  # Мероприятия в отношении пациента
+    general_measures: str = ""  # Мероприятия общего формата
 
     STATUS_PLANNED = "PLANNED"
     STATUS_INPROGRESS = "INPROGRESS"
     STATUS_FINISHED = "FINISHED"
+
+    # Типы результатов встречи
+    MEETING_RESULT_CHOICES = [
+        ("message", "Сообщение от"),
+        ("certificate", "Справка о встрече с"),
+    ]
 
     def __post_init__(self):
         if self.started_at is None:
@@ -937,6 +1029,11 @@ class Encounter:
         return statuses.get(self.status, self.status)
 
     @property
+    def meeting_result_display(self) -> str:
+        choice_dict = dict(self.MEETING_RESULT_CHOICES)
+        return choice_dict.get(self.meeting_result, self.meeting_result)
+
+    @property
     def doctor(self) -> Optional[User]:
         return User.get_by_id(self.doctor_id)
 
@@ -944,12 +1041,19 @@ class Encounter:
     def patient(self) -> Optional[Patient]:
         return Patient.get_by_id(self.patient_id)
 
+    @property
+    def document(self) -> Optional["Document"]:
+        if self.document_id:
+            return Document.get_by_id(self.document_id)
+        return None
+
     def save(self):
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO encounters
-            (id, patient_id, doctor_id, started_at, finished_at, reason, status, treatment_plan_item_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (id, patient_id, doctor_id, started_at, finished_at, reason, status, treatment_plan_item_id,
+             document_id, meeting_result, patient_info, meeting_description, patient_tasks, patient_measures, general_measures)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -960,6 +1064,13 @@ class Encounter:
                 self.reason,
                 self.status,
                 self.treatment_plan_item_id,
+                self.document_id,
+                self.meeting_result,
+                self.patient_info,
+                self.meeting_description,
+                self.patient_tasks,
+                self.patient_measures,
+                self.general_measures,
             ),
         )
         db.commit()
@@ -977,6 +1088,7 @@ class Encounter:
                 "%Y-%m-%d %H:%M:%S",
                 "%Y-%m-%dT%H:%M:%S.%f",
                 "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d",  # Простой формат даты (без времени)
             ]:
                 try:
                     data["started_at"] = datetime.strptime(data["started_at"], fmt)
@@ -989,6 +1101,7 @@ class Encounter:
                 "%Y-%m-%d %H:%M:%S",
                 "%Y-%m-%dT%H:%M:%S.%f",
                 "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d",
             ]:
                 try:
                     data["finished_at"] = datetime.strptime(data["finished_at"], fmt)
@@ -1484,6 +1597,7 @@ class Document:
     location: str = ""
     patient_personal_number: str = ""
     doc_number: Optional[str] = None
+    encounter_id: Optional[int] = None  # Связь с встречей
     created_at: Optional[datetime] = None
 
     def __post_init__(self):
@@ -1501,6 +1615,12 @@ class Document:
         return User.get_by_id(self.author_id)
 
     @property
+    def encounter(self) -> Optional[Encounter]:
+        if self.encounter_id:
+            return Encounter.get_by_id(self.encounter_id)
+        return None
+
+    @property
     def classification_display(self) -> str:
         class_dict = dict(DOCUMENT_CLASSIFICATION_CHOICES)
         return class_dict.get(self.classification, self.classification)
@@ -1509,8 +1629,8 @@ class Document:
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO documents
-            (id, patient_id, classification, doc_date, author_id, doc_type, summary, location, patient_personal_number, doc_number, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, patient_id, classification, doc_date, author_id, doc_type, summary, location, patient_personal_number, doc_number, encounter_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -1523,6 +1643,7 @@ class Document:
                 self.location,
                 self.patient_personal_number,
                 self.doc_number,
+                self.encounter_id,
                 self.created_at.isoformat() if self.created_at else None,
             ),
         )
@@ -1845,6 +1966,232 @@ class StatsCache:
         # Обновляем для каждого отделения
         for dept_code, _ in DEPARTMENTS:
             cls.rebuild(department=dept_code, month=None, year=None)
+
+
+@dataclass
+class EncounterInformant:
+    """Модель информатора встречи"""
+
+    id: Optional[int] = None
+    encounter_id: int = 0
+    position: str = ""  # Должность
+    full_name: str = ""  # ФИО
+    birth_date: Optional[date] = None  # Дата рождения
+    workplace: str = ""  # Место работы
+    info_essence: str = ""  # Суть информации
+    measures_taken: str = ""  # Принятые меры
+    created_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        if self.created_at is None:
+            self.created_at = datetime.now()
+
+    @property
+    def encounter(self) -> Optional[Encounter]:
+        return Encounter.get_by_id(self.encounter_id)
+
+    def save(self):
+        cursor = db.execute(
+            """
+            INSERT OR REPLACE INTO encounter_informants
+            (id, encounter_id, position, full_name, birth_date, workplace, info_essence, measures_taken, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                self.id,
+                self.encounter_id,
+                self.position,
+                self.full_name,
+                self.birth_date.isoformat() if self.birth_date else None,
+                self.workplace,
+                self.info_essence,
+                self.measures_taken,
+                self.created_at.isoformat() if self.created_at else None,
+            ),
+        )
+        db.commit()
+        if self.id is None:
+            self.id = db.lastrowid()
+
+    @classmethod
+    def _from_row(cls, row: dict) -> "EncounterInformant":
+        """Создание объекта из строки БД с конвертацией дат"""
+        data = dict(row)
+        if data.get("birth_date") and isinstance(data["birth_date"], str):
+            try:
+                data["birth_date"] = datetime.strptime(
+                    data["birth_date"], "%Y-%m-%d"
+                ).date()
+            except ValueError:
+                data["birth_date"] = datetime.strptime(
+                    data["birth_date"][:10], "%Y-%m-%d"
+                ).date()
+        if data.get("created_at") and isinstance(data["created_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
+                try:
+                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
+                    break
+                except ValueError:
+                    continue
+        return cls(**data)
+
+    @classmethod
+    def get_by_encounter(cls, encounter_id: int) -> List["EncounterInformant"]:
+        """Получение всех информаторов для встречи"""
+        rows = db.fetchall(
+            "SELECT * FROM encounter_informants WHERE encounter_id = ? ORDER BY created_at",
+            (encounter_id,),
+        )
+        return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    def get_by_id(cls, informant_id: int) -> Optional["EncounterInformant"]:
+        """Получение информатора по ID"""
+        row = db.fetchone(
+            "SELECT * FROM encounter_informants WHERE id = ?", (informant_id,)
+        )
+        if row:
+            return cls._from_row(row)
+        return None
+
+    def delete(self):
+        """Удаление информатора"""
+        if self.id:
+            db.execute("DELETE FROM encounter_informants WHERE id = ?", (self.id,))
+            db.commit()
+
+
+@dataclass
+class KmRecord:
+    """Модель записи таблицы КМ (Комиссионные Мероприятия)"""
+
+    id: Optional[int] = None
+    callsign: str = ""  # Позывной
+    personal_number: str = ""  # Личный номер
+    document_number: str = ""  # Номер документа
+    position: str = ""  # Должность
+    full_name: str = ""  # ФИО
+    birth_date: Optional[date] = None  # Дата рождения
+    workplace: str = ""  # Место работы
+    info_essence: str = ""  # Суть информации
+    measures_taken: str = ""  # Принятые меры
+    encounter_id: Optional[int] = None  # Связь с встречей
+    document_id: Optional[int] = None  # Связь с документом
+    created_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        if self.created_at is None:
+            self.created_at = datetime.now()
+
+    @property
+    def encounter(self) -> Optional[Encounter]:
+        if self.encounter_id:
+            return Encounter.get_by_id(self.encounter_id)
+        return None
+
+    @property
+    def document(self) -> Optional["Document"]:
+        if self.document_id:
+            return Document.get_by_id(self.document_id)
+        return None
+
+    def save(self):
+        cursor = db.execute(
+            """
+            INSERT OR REPLACE INTO km_records
+            (id, callsign, personal_number, document_number, position, full_name, birth_date,
+             workplace, info_essence, measures_taken, encounter_id, document_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                self.id,
+                self.callsign,
+                self.personal_number,
+                self.document_number,
+                self.position,
+                self.full_name,
+                self.birth_date.isoformat() if self.birth_date else None,
+                self.workplace,
+                self.info_essence,
+                self.measures_taken,
+                self.encounter_id,
+                self.document_id,
+                self.created_at.isoformat() if self.created_at else None,
+            ),
+        )
+        db.commit()
+        if self.id is None:
+            self.id = db.lastrowid()
+
+    @classmethod
+    def _from_row(cls, row: dict) -> "KmRecord":
+        """Создание объекта из строки БД с конвертацией дат"""
+        data = dict(row)
+        if data.get("birth_date") and isinstance(data["birth_date"], str):
+            try:
+                data["birth_date"] = datetime.strptime(
+                    data["birth_date"], "%Y-%m-%d"
+                ).date()
+            except ValueError:
+                data["birth_date"] = datetime.strptime(
+                    data["birth_date"][:10], "%Y-%m-%d"
+                ).date()
+        if data.get("created_at") and isinstance(data["created_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
+                try:
+                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
+                    break
+                except ValueError:
+                    continue
+        return cls(**data)
+
+    @classmethod
+    def get_all(cls) -> List["KmRecord"]:
+        """Получение всех записей КМ"""
+        rows = db.fetchall("SELECT * FROM km_records ORDER BY created_at DESC")
+        return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    def get_by_id(cls, record_id: int) -> Optional["KmRecord"]:
+        """Получение записи по ID"""
+        row = db.fetchone("SELECT * FROM km_records WHERE id = ?", (record_id,))
+        if row:
+            return cls._from_row(row)
+        return None
+
+    @classmethod
+    def get_by_encounter(cls, encounter_id: int) -> List["KmRecord"]:
+        """Получение записей КМ по встрече"""
+        rows = db.fetchall(
+            "SELECT * FROM km_records WHERE encounter_id = ? ORDER BY created_at",
+            (encounter_id,),
+        )
+        return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    def get_by_document(cls, document_id: int) -> List["KmRecord"]:
+        """Получение записей КМ по документу"""
+        rows = db.fetchall(
+            "SELECT * FROM km_records WHERE document_id = ? ORDER BY created_at",
+            (document_id,),
+        )
+        return [cls._from_row(row) for row in rows]
+
+    def delete(self):
+        """Удаление записи КМ"""
+        if self.id:
+            db.execute("DELETE FROM km_records WHERE id = ?", (self.id,))
+            db.commit()
 
 
 # ============================================================================

@@ -406,7 +406,20 @@ class StatsPage(QWidget):
         visits_by_day = {}
         for visit in visits:
             if visit.started_at:
-                day = visit.started_at.day
+                # Если started_at — строка, конвертируем в datetime
+                if isinstance(visit.started_at, str):
+                    from datetime import datetime as dt
+
+                    try:
+                        started_dt = dt.strptime(visit.started_at, "%Y-%m-%d")
+                    except ValueError:
+                        continue
+                elif hasattr(visit.started_at, "day"):
+                    started_dt = visit.started_at
+                else:
+                    continue
+
+                day = started_dt.day
                 visits_by_day[day] = visits_by_day.get(day, 0) + 1
 
         for day in range(1, days_in_month + 1):

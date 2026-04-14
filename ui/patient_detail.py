@@ -516,7 +516,7 @@ class PatientDetailDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # Кнопка добавления встречи
+        # Кнопка добавления встречи (создаёт документ типа "Встреча")
         if self.user.role in (
             User.ROLE_ADMIN,
             User.ROLE_REGISTRAR,
@@ -531,17 +531,29 @@ class PatientDetailDialog(QDialog):
 
         # Таблица встреч
         self.encounters_table = QTableWidget()
-        self.encounters_table.setColumnCount(5)
+        self.encounters_table.setColumnCount(8)
         self.encounters_table.setHorizontalHeaderLabels(
-            ["Дата", "Врач", "Причина", "Статус", "Заметки"]
+            [
+                "Дата",
+                "Врач",
+                "Результат",
+                "Причина",
+                "Статус",
+                "Информация",
+                "Документ",
+                "Заметки",
+            ]
         )
 
         header = self.encounters_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
 
         self.encounters_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -549,7 +561,7 @@ class PatientDetailDialog(QDialog):
         self.encounters_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.encounters_table.verticalHeader().setVisible(False)
         self.encounters_table.setShowGrid(False)
-        self.encounters_table.doubleClicked.connect(self._open_encounter)
+        self.encounters_table.doubleClicked.connect(self._edit_encounter)
 
         layout.addWidget(self.encounters_table, 1)
 
@@ -559,42 +571,61 @@ class PatientDetailDialog(QDialog):
         return widget
 
     def _load_encounters(self):
-        """Загрузка встреч"""
+        """Загрузка встреч из документов типа "Встреча" с данными из Encounter"""
         self.encounters_table.setRowCount(0)
-        encounters = Encounter.get_by_patient(self.patient.id)
 
-        for encounter in encounters:
+        from models.db_models import Document, DOCUMENT_TYPE_MEETING, Encounter
+
+        # Получаем все документы типа "Встреча" пациента
+        documents = Document.get_by_patient(self.patient.id)
+        encounter_docs = [d for d in documents if d.doc_type == DOCUMENT_TYPE_MEETING]
+
+        for doc in encounter_docs:
             row = self.encounters_table.rowCount()
             self.encounters_table.insertRow(row)
 
-            date_str = encounter.started_at.strftime("%d.%m.%Y %H:%M")
+            # Дата документа
+            date_str = doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"
             self.encounters_table.setItem(row, 0, QTableWidgetItem(date_str))
 
-            doctor_name = encounter.doctor.full_name if encounter.doctor else "—"
-            self.encounters_table.setItem(row, 1, QTableWidgetItem(doctor_name))
+            # Автор документа (врач)
+            author_name = doc.author.full_name if doc.author else "—"
+            self.encounters_table.setItem(row, 1, QTableWidgetItem(author_name))
 
-            self.encounters_table.setItem(
-                row, 2, QTableWidgetItem(encounter.reason or "—")
-            )
+            # Результат встречи (из Encounter)
+            result_display = "—"
+            encounter = None
+            if doc.encounter_id:
+                encounter = Encounter.get_by_id(doc.encounter_id)
+                if encounter and encounter.meeting_result:
+                    result_display = encounter.meeting_result_display
+            self.encounters_table.setItem(row, 2, QTableWidgetItem(result_display))
 
-            status_item = QTableWidgetItem(encounter.status_display)
-            status_item.setForeground(
-                Qt.GlobalColor.darkGreen
-                if encounter.status == Encounter.STATUS_FINISHED
-                else self._get_status_color(False)
-            )
-            self.encounters_table.setItem(row, 3, status_item)
+            # Краткое содержание как причина
+            self.encounters_table.setItem(row, 3, QTableWidgetItem(doc.summary or "—"))
 
-            notes_count = len(Note.get_by_encounter(encounter.id))
-            rx_count = len(Prescription.get_by_encounter(encounter.id))
-            notes_info = f"Заметки: {notes_count}" if notes_count else ""
-            if rx_count:
-                notes_info += (
-                    f", Назначения: {rx_count}"
-                    if notes_info
-                    else f"Назначения: {rx_count}"
+            # Статус (из Encounter или по умолчанию завершён)
+            status_display = "Завершен"
+            if encounter and encounter.status:
+                status_display = encounter.status_display
+            status_item = QTableWidgetItem(status_display)
+            status_item.setForeground(Qt.GlobalColor.darkGreen)
+            self.encounters_table.setItem(row, 4, status_item)
+
+            # Информация от пациента (кратко)
+            patient_info_short = "—"
+            if encounter and encounter.patient_info:
+                patient_info_short = encounter.patient_info[:50] + (
+                    "..." if len(encounter.patient_info) > 50 else ""
                 )
-            self.encounters_table.setItem(row, 4, QTableWidgetItem(notes_info or "—"))
+            self.encounters_table.setItem(row, 5, QTableWidgetItem(patient_info_short))
+
+            # Номер документа
+            doc_number_str = str(doc.doc_number) if doc.doc_number else f"#{doc.id}"
+            self.encounters_table.setItem(row, 6, QTableWidgetItem(doc_number_str))
+
+            # Заметки (пустая колонка)
+            self.encounters_table.setItem(row, 7, QTableWidgetItem("—"))
 
     def _create_plan_tab(self) -> QWidget:
         """Вкладка плана лечения"""
@@ -1286,224 +1317,86 @@ class PatientDetailDialog(QDialog):
             )
 
     def _add_encounter(self):
-        """Добавление встречи"""
-        from ui.encounter_form import EncounterFormDialog
+        """Добавление встречи (через создание документа типа "Встреча" + создание записи Encounter)"""
+        from ui.document_form import DocumentFormDialog
+        from models.db_models import DOCUMENT_TYPE_MEETING, Encounter
 
-        dialog = EncounterFormDialog(self.user, self.patient, None)
+        dialog = DocumentFormDialog(self.user, self.patient, None)
         if dialog.exec():
-            self._load_encounters()
-            self._log_interaction("visit_created", "Создана новая встреча")
+            doc = dialog.document
+            if doc and doc.doc_type == DOCUMENT_TYPE_MEETING:
+                # Автоматически создаём запись Encounter
+                encounter = Encounter()
+                encounter.patient_id = self.patient.id
+                encounter.doctor_id = (
+                    self.user.id if self.user.role == User.ROLE_DOCTOR else 0
+                )
+                encounter.started_at = doc.doc_date
+                encounter.reason = doc.summary or ""
+                encounter.status = Encounter.STATUS_FINISHED
+                encounter.document_id = doc.id
+                encounter.save()
 
-    def _open_encounter(self, index):
-        """Открытие встречи"""
+                # Связываем документ с встречей
+                doc.encounter_id = encounter.id
+                doc.save()
+
+                self._load_encounters()
+                self._load_documents()
+                self._log_interaction("visit_created", "Создана новая встреча")
+
+    def _edit_encounter(self, index):
+        """Редактирование встречи (двойной клик) - открывает расширенную форму встречи"""
         selected = self.encounters_table.selectedItems()
         if not selected:
             QMessageBox.warning(self, "Предупреждение", "Выберите встречу")
             return
 
         row = selected[0].row()
-        encounters = Encounter.get_by_patient(self.patient.id)
-        if row >= len(encounters):
+
+        from models.db_models import Document, DOCUMENT_TYPE_MEETING, Encounter
+
+        # Получаем документы типа "Встреча"
+        documents = Document.get_by_patient(self.patient.id)
+        encounter_docs = [d for d in documents if d.doc_type == DOCUMENT_TYPE_MEETING]
+
+        if row >= len(encounter_docs):
             return
 
-        encounter = encounters[row]
+        doc = encounter_docs[row]
 
-        # Диалог просмотра встречи
-        from PyQt6.QtWidgets import (
-            QDialog,
-            QVBoxLayout,
-            QHBoxLayout,
-            QLabel,
-            QFrame,
-            QPushButton,
-            QTextEdit,
-            QFormLayout,
-        )
-        from PyQt6.QtCore import Qt
-        from datetime import datetime
+        # Получаем или создаём запись Encounter
+        encounter = None
+        if doc.encounter_id:
+            encounter = Encounter.get_by_id(doc.encounter_id)
 
-        dialog = QDialog(self)
-        dialog.setWindowTitle(
-            f"Встреча от {encounter.started_at.strftime('%d.%m.%Y %H:%M')}"
-        )
-        dialog.setMinimumSize(600, 500)
-
-        colors = get_colors()
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        # Заголовок
-        title = QLabel(f"Встреча с пациентом")
-        title.setStyleSheet(f"font-size: {FONTS['size_title']}pt; font-weight: bold;")
-        title.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        layout.addWidget(title)
-
-        # Информация о встрече
-        info_frame = QFrame()
-        info_frame.setStyleSheet(
-            f"""
-            QFrame {{
-                background-color: {colors['surface_muted']};
-                border-radius: {RADIUS['md']}px;
-                padding: 12px;
-            }}
-        """
-        )
-        info_layout = QFormLayout(info_frame)
-        info_layout.setSpacing(8)
-
-        date_val = QLabel(encounter.started_at.strftime("%d.%m.%Y %H:%M"))
-        date_val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        doctor_val = QLabel(encounter.doctor.full_name if encounter.doctor else "—")
-        doctor_val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        reason_val = QLabel(encounter.reason or "—")
-        reason_val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-
-        info_layout.addRow("Дата:", date_val)
-        info_layout.addRow("Врач:", doctor_val)
-        info_layout.addRow("Причина:", reason_val)
-
-        status_label = QLabel(encounter.status_display)
-        status_label.setStyleSheet(
-            "font-weight: bold; color: {};".format(
-                colors["success"]
-                if encounter.status == Encounter.STATUS_FINISHED
-                else colors["warning"]
+        if not encounter:
+            # Создаём запись Encounter, если её нет
+            encounter = Encounter()
+            encounter.patient_id = self.patient.id
+            encounter.doctor_id = (
+                self.user.id if self.user.role == User.ROLE_DOCTOR else 0
             )
-        )
-        status_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        info_layout.addRow("Статус:", status_label)
+            encounter.started_at = doc.doc_date
+            encounter.reason = doc.summary or ""
+            encounter.status = Encounter.STATUS_FINISHED
+            encounter.document_id = doc.id
+            encounter.save()
 
-        layout.addWidget(info_frame)
+            # Связываем документ с встречей
+            doc.encounter_id = encounter.id
+            doc.save()
 
-        # Заметки
-        notes_label = QLabel("Заметки:")
-        notes_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        notes_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        layout.addWidget(notes_label)
+        # Открываем расширенную форму редактирования встречи
+        from ui.encounter_edit_form import EncounterEditDialog
 
-        notes = Note.get_by_encounter(encounter.id)
-        if notes:
-            for note in notes:
-                note_frame = QFrame()
-                note_frame.setStyleSheet(
-                    f"""
-                    QFrame {{
-                        background-color: {colors['surface']};
-                        border: 1px solid {colors['line']};
-                        border-radius: {RADIUS['sm']}px;
-                        padding: 8px;
-                    }}
-                """
-                )
-                note_layout = QVBoxLayout(note_frame)
-
-                note_header = QLabel(
-                    f"<b>{note.author.full_name}</b> • {note.created_at.strftime('%d.%m.%Y %H:%M') if note.created_at else ''}"
-                )
-                note_header.setStyleSheet(
-                    "color: {}; font-size: {}pt;".format(
-                        colors["text_muted"], FONTS["size_small"]
-                    )
-                )
-                note_header.setTextInteractionFlags(
-                    Qt.TextInteractionFlag.NoTextInteraction
-                )
-                note_layout.addWidget(note_header)
-
-                note_text = QLabel(note.text)
-                note_text.setWordWrap(True)
-                note_text.setStyleSheet(f"color: {colors['text']};")
-                note_text.setTextInteractionFlags(
-                    Qt.TextInteractionFlag.NoTextInteraction
-                )
-                note_layout.addWidget(note_text)
-
-                layout.addWidget(note_frame)
-        else:
-            no_notes = QLabel("Нет заметок")
-            no_notes.setObjectName("muted")
-            no_notes.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-            layout.addWidget(no_notes)
-
-        # Назначения
-        rx_label = QLabel("Назначения:")
-        rx_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        rx_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        layout.addWidget(rx_label)
-
-        prescriptions = Prescription.get_by_encounter(encounter.id)
-        if prescriptions:
-            for rx in prescriptions:
-                rx_frame = QFrame()
-                rx_frame.setStyleSheet(
-                    f"""
-                    QFrame {{
-                        background-color: {colors['surface']};
-                        border: 1px solid {colors['line']};
-                        border-radius: {RADIUS['sm']}px;
-                        padding: 8px;
-                    }}
-                """
-                )
-                rx_layout = QVBoxLayout(rx_frame)
-
-                rx_title = QLabel(f"<b>{rx.medication}</b> ({rx.dosage})")
-                rx_title.setStyleSheet(f"color: {colors['accent']};")
-                rx_title.setTextInteractionFlags(
-                    Qt.TextInteractionFlag.NoTextInteraction
-                )
-                rx_layout.addWidget(rx_title)
-
-                rx_details = QLabel(
-                    f"Частота: {rx.frequency} • Длительность: {rx.duration_days} дн."
-                )
-                rx_details.setObjectName("muted")
-                rx_details.setTextInteractionFlags(
-                    Qt.TextInteractionFlag.NoTextInteraction
-                )
-                rx_layout.addWidget(rx_details)
-
-                if rx.notes:
-                    rx_notes = QLabel(rx.notes)
-                    rx_notes.setObjectName("muted")
-                    rx_notes.setTextInteractionFlags(
-                        Qt.TextInteractionFlag.NoTextInteraction
-                    )
-                    rx_layout.addWidget(rx_notes)
-
-                layout.addWidget(rx_frame)
-        else:
-            no_rx = QLabel("Нет назначений")
-            no_rx.setObjectName("muted")
-            no_rx.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-            layout.addWidget(no_rx)
-
-        # Кнопки
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        close_btn = QPushButton("Закрыть")
-        close_btn.setObjectName("secondaryBtn")
-        close_btn.setFixedHeight(40)
-        close_btn.clicked.connect(dialog.accept)
-        button_layout.addWidget(close_btn)
-
-        layout.addLayout(button_layout)
-
-        # Устанавливаем layout через виджет
-        content_widget = QWidget()
-        content_widget.setLayout(layout)
-
-        dialog_layout = QVBoxLayout(dialog)
-        dialog_layout.setContentsMargins(0, 0, 0, 0)
-        dialog_layout.addWidget(content_widget)
-
-        dialog.setStyleSheet(
-            f"background-color: {colors['bg']}; color: {colors['text']};"
-        )
-        dialog.exec()
+        dialog = EncounterEditDialog(self.user, self.patient, encounter)
+        if dialog.exec():
+            self._load_encounters()
+            self._load_documents()
+            self._log_interaction(
+                "visit_edit", f"Отредактирована встреча (док. №{doc.id})"
+            )
 
     def _add_plan_item(self):
         """Создание плана работы (документ + пункты)"""
