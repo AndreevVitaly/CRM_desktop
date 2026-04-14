@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QDate, QTime
 from PyQt6.QtGui import QFont, QCursor
+from datetime import datetime
 
 from models.db_models import (
     User,
@@ -41,6 +42,7 @@ from models.db_models import (
     DEPARTMENTS,
     Document,
     DOCUMENT_CLASSIFICATION_CHOICES,
+    DOCUMENT_TYPE_PLAN,
 )
 from ui.styles import get_colors, FONTS, RADIUS
 
@@ -55,11 +57,13 @@ class PatientDetailDialog(QDialog):
         self.setWindowTitle(f"Пациент: {self.patient.full_name}")
         self.setMinimumSize(1000, 700)
         self._init_ui()
+        self.showMaximized()
 
     def _init_ui(self):
         """Инициализация интерфейса"""
         try:
             colors = get_colors()
+            self._colors = colors
 
             layout = QVBoxLayout()
             layout.setSpacing(16)
@@ -70,14 +74,15 @@ class PatientDetailDialog(QDialog):
             layout.addWidget(header)
 
             # Вкладки
-            tabs = QTabWidget()
-            tabs.addTab(self._create_info_tab(), "Информация")
-            tabs.addTab(self._create_encounters_tab(), "Визиты")
-            tabs.addTab(self._create_plan_tab(), "План лечения")
-            tabs.addTab(self._create_documents_tab(), "Документы")
-            tabs.addTab(self._create_log_tab(), "Журнал")
+            self.tabs = QTabWidget()
+            self.tabs.addTab(self._create_info_tab(), "Информация")
+            self.tabs.addTab(self._create_encounters_tab(), "Визиты")
+            self.plan_tab_index = 2  # Индекс вкладки "План лечения"
+            self.tabs.addTab(self._create_plan_tab(), "План лечения")
+            self.tabs.addTab(self._create_documents_tab(), "Документы")
+            self.tabs.addTab(self._create_log_tab(), "Журнал")
 
-            layout.addWidget(tabs, 1)
+            layout.addWidget(self.tabs, 1)
 
             # Кнопки
             buttons_layout = QHBoxLayout()
@@ -111,6 +116,16 @@ class PatientDetailDialog(QDialog):
             print(error_msg)
             QMessageBox.critical(None, "Ошибка", error_msg)
             raise
+
+    def _get_status_color(self, is_completed):
+        """Получить цвет статуса выполнения"""
+        if is_completed:
+            return Qt.GlobalColor.darkGreen
+        # Для "В ожидании" — цвет текста текущей темы
+        from PyQt6.QtGui import QColor
+
+        text_color = self._colors.get("text", Qt.GlobalColor.black)
+        return QColor(text_color)
 
     def _create_header(self) -> QFrame:
         """Заголовок с информацией о пациенте"""
@@ -566,7 +581,7 @@ class PatientDetailDialog(QDialog):
             status_item.setForeground(
                 Qt.GlobalColor.darkGreen
                 if encounter.status == Encounter.STATUS_FINISHED
-                else Qt.GlobalColor.darkBlue
+                else self._get_status_color(False)
             )
             self.encounters_table.setItem(row, 3, status_item)
 
@@ -590,14 +605,52 @@ class PatientDetailDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # Кнопка добавления пункта
+        # Кнопка добавления плана
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_DOCTOR):
-            add_btn = QPushButton("Добавить пункт плана")
+            add_btn = QPushButton("Создать план работы")
             add_btn.setFixedHeight(36)
             add_btn.clicked.connect(self._add_plan_item)
             layout.addWidget(add_btn)
 
-        # Таблица пунктов плана
+        # Таблица планов (документов)
+        plans_label = QLabel("Планы работы:")
+        plans_label.setStyleSheet(
+            f"font-weight: bold; font-size: {FONTS['size_normal']}pt;"
+        )
+        layout.addWidget(plans_label)
+
+        self.plans_table = QTableWidget()
+        self.plans_table.setColumnCount(5)
+        self.plans_table.setHorizontalHeaderLabels(
+            ["№", "№ плана", "Дата", "Описание", "Пунктов"]
+        )
+
+        header = self.plans_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+
+        self.plans_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.plans_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.plans_table.verticalHeader().setVisible(False)
+        self.plans_table.setShowGrid(False)
+        self.plans_table.setMaximumHeight(200)
+        self.plans_table.selectionModel().selectionChanged.connect(
+            self._on_plan_selected
+        )
+        self.plans_table.doubleClicked.connect(self._open_plan_work_from_double_click)
+
+        layout.addWidget(self.plans_table)
+
+        # Таблица пунктов выбранного плана
+        items_label = QLabel("Пункты плана:")
+        items_label.setStyleSheet(
+            f"font-weight: bold; font-size: {FONTS['size_normal']}pt;"
+        )
+        layout.addWidget(items_label)
+
         self.plan_table = QTableWidget()
         self.plan_table.setColumnCount(4)
         self.plan_table.setHorizontalHeaderLabels(
@@ -615,20 +668,26 @@ class PatientDetailDialog(QDialog):
         self.plan_table.verticalHeader().setVisible(False)
         self.plan_table.setShowGrid(False)
 
-        layout.addWidget(self.plan_table)
+        layout.addWidget(self.plan_table, 1)
 
         # Кнопки действий
         buttons_layout = QHBoxLayout()
         buttons_layout.setContentsMargins(0, 8, 0, 0)
 
-        toggle_btn = QPushButton("Переключить статус")
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_DOCTOR):
+            edit_plan_btn = QPushButton("Редактировать пункты")
+            edit_plan_btn.setFixedHeight(36)
+            edit_plan_btn.clicked.connect(self._edit_plan)
+            buttons_layout.addWidget(edit_plan_btn)
+
+        toggle_btn = QPushButton("Переключить статус пункта")
         toggle_btn.setObjectName("secondaryBtn")
         toggle_btn.setFixedHeight(36)
         toggle_btn.clicked.connect(self._toggle_plan_item)
         buttons_layout.addWidget(toggle_btn)
 
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_DOCTOR):
-            delete_btn = QPushButton("Удалить")
+            delete_btn = QPushButton("Удалить пункт")
             delete_btn.setObjectName("dangerBtn")
             delete_btn.setFixedHeight(36)
             delete_btn.clicked.connect(self._delete_plan_item)
@@ -637,17 +696,152 @@ class PatientDetailDialog(QDialog):
         buttons_layout.addStretch()
         layout.addLayout(buttons_layout)
 
+        self._load_plans()
         self._load_plan_items()
 
         widget.setLayout(layout)
         return widget
 
-    def _load_plan_items(self):
-        """Загрузка пунктов плана"""
+    def _open_plan_work_from_double_click(self, index):
+        """Открытие окна работы с планом по двойному клику"""
+        row = index.row()
+        doc_id_item = self.plans_table.item(row, 0)
+        if not doc_id_item:
+            return
+
+        doc_id = doc_id_item.data(Qt.ItemDataRole.UserRole)
+        if not doc_id:
+            return
+
+        doc = Document.get_by_id(doc_id)
+        if not doc:
+            return
+
+        from ui.plan_work_items_form import PlanWorkItemsFormDialog
+
+        dialog = PlanWorkItemsFormDialog(self.user, self.patient, doc)
+        if dialog.exec():
+            self._load_plans()
+            # Восстанавливаем выделение и обновляем пункты
+            for r in range(self.plans_table.rowCount()):
+                item = self.plans_table.item(r, 0)
+                if item and item.data(Qt.ItemDataRole.UserRole) == doc.id:
+                    self.plans_table.selectRow(r)
+                    self._refresh_plan_items()
+                    break
+            self._load_documents()
+
+    def _on_plan_selected(self, selected, deselected):
+        """При выборе плана загружаем его пункты и запоминаем id"""
+        selected_indexes = self.plans_table.selectionModel().selectedRows()
+        if selected_indexes:
+            row = selected_indexes[0].row()
+            doc_id_item = self.plans_table.item(row, 0)
+            if doc_id_item:
+                self._selected_plan_id = doc_id_item.data(Qt.ItemDataRole.UserRole)
+            self._load_plan_items_for_row(row)
+        else:
+            self._selected_plan_id = None
+
+    def _load_plans(self):
+        """Загрузка документов-планов"""
+        saved_plan_id = self._get_selected_plan_id()
+        self.plans_table.setRowCount(0)
+        self._selected_plan_id = None
+
+        plans = Document.get_by_patient(self.patient.id)
+        plan_docs = [d for d in plans if d.doc_type == DOCUMENT_TYPE_PLAN]
+
+        for doc in plan_docs:
+            row = self.plans_table.rowCount()
+            self.plans_table.insertRow(row)
+
+            # Сохраняем id документа в скрытой роли
+            id_item = QTableWidgetItem(str(doc.id))
+            id_item.setData(Qt.ItemDataRole.UserRole, doc.id)
+            id_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.plans_table.setItem(row, 0, id_item)
+
+            doc_number = str(doc.doc_number) if doc.doc_number else "—"
+            self.plans_table.setItem(row, 1, QTableWidgetItem(doc_number))
+
+            date_str = doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"
+            self.plans_table.setItem(row, 2, QTableWidgetItem(date_str))
+
+            summary = doc.summary or "—"
+            self.plans_table.setItem(row, 3, QTableWidgetItem(summary))
+
+            items_count = len(TreatmentPlanItem.get_by_plan(doc.id))
+            self.plans_table.setItem(row, 4, QTableWidgetItem(str(items_count)))
+
+        # Восстанавливаем выделение
+        if saved_plan_id:
+            for r in range(self.plans_table.rowCount()):
+                item = self.plans_table.item(r, 0)
+                if item and item.data(Qt.ItemDataRole.UserRole) == saved_plan_id:
+                    self.plans_table.selectRow(r)
+                    self._selected_plan_id = saved_plan_id
+                    break
+
+    def _load_plan_items_for_row(self, plan_row):
+        """Загрузка пунктов плана для выбранной строки плана"""
+        if plan_row < 0 or plan_row >= self.plans_table.rowCount():
+            self.plan_table.setRowCount(0)
+            return
+
+        doc_id_item = self.plans_table.item(plan_row, 0)
+        if not doc_id_item:
+            self.plan_table.setRowCount(0)
+            return
+
+        doc_id = doc_id_item.data(Qt.ItemDataRole.UserRole)
+        if not doc_id:
+            self.plan_table.setRowCount(0)
+            return
+
         self.plan_table.setRowCount(0)
-        plan_items = TreatmentPlanItem.get_by_patient(self.patient.id)
+        plan_items = TreatmentPlanItem.get_by_plan(doc_id)
 
         for item in plan_items:
+            row = self.plan_table.rowCount()
+            self.plan_table.insertRow(row)
+
+            check_item = QTableWidgetItem("✓" if item.is_completed else "")
+            check_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.plan_table.setItem(row, 0, check_item)
+
+            self.plan_table.setItem(row, 1, QTableWidgetItem(item.event))
+
+            due_date = item.due_date.strftime("%d.%m.%Y") if item.due_date else "—"
+            self.plan_table.setItem(row, 2, QTableWidgetItem(due_date))
+
+            status = "Выполнено" if item.is_completed else "В ожидании"
+            status_item = QTableWidgetItem(status)
+            status_item.setForeground(
+                Qt.GlobalColor.darkGreen
+                if item.is_completed
+                else self._get_status_color(False)
+            )
+            self.plan_table.setItem(row, 3, status_item)
+
+    def _load_plan_items(self):
+        """Загрузка пунктов плана из всех документов-планов"""
+        self.plan_table.setRowCount(0)
+
+        # Загружаем все документы-планы пациента
+        plans = Document.get_by_patient(self.patient.id)
+        plan_docs = [d for d in plans if d.doc_type == DOCUMENT_TYPE_PLAN]
+
+        # Загружаем все пункты из всех планов
+        all_items = []
+        for plan_doc in plan_docs:
+            items = TreatmentPlanItem.get_by_plan(plan_doc.id)
+            all_items.extend(items)
+
+        # Сортируем по order_num и дате создания
+        all_items.sort(key=lambda x: (x.order_num, x.created_at or datetime.min))
+
+        for item in all_items:
             row = self.plan_table.rowCount()
             self.plan_table.insertRow(row)
 
@@ -669,7 +863,7 @@ class PatientDetailDialog(QDialog):
             status_item.setForeground(
                 Qt.GlobalColor.darkGreen
                 if item.is_completed
-                else Qt.GlobalColor.darkBlue
+                else self._get_status_color(False)
             )
             self.plan_table.setItem(row, 3, status_item)
 
@@ -773,11 +967,6 @@ class PatientDetailDialog(QDialog):
 
                 # Гриф секретности
                 class_item = QTableWidgetItem(doc.classification_display)
-                class_item.setForeground(
-                    Qt.GlobalColor.darkRed
-                    if doc.classification in ("S", "SS")
-                    else Qt.GlobalColor.darkBlue
-                )
                 self.documents_table.setItem(row, 2, class_item)
 
                 # Дата
@@ -785,9 +974,13 @@ class PatientDetailDialog(QDialog):
                 self.documents_table.setItem(row, 3, QTableWidgetItem(date_str))
 
                 # Вид документа
-                self.documents_table.setItem(
-                    row, 4, QTableWidgetItem(doc.doc_type or "—")
-                )
+                if doc.doc_type == DOCUMENT_TYPE_PLAN:
+                    # Для плана показываем количество пунктов
+                    items_count = len(TreatmentPlanItem.get_by_plan(doc.id))
+                    doc_type_display = f"План работы ({items_count} п.)"
+                else:
+                    doc_type_display = doc.doc_type or "—"
+                self.documents_table.setItem(row, 4, QTableWidgetItem(doc_type_display))
 
                 # Краткое содержание
                 self.documents_table.setItem(
@@ -831,11 +1024,24 @@ class PatientDetailDialog(QDialog):
 
         doc = documents[row]
 
-        from ui.document_form import DocumentFormDialog
+        # Для плана работы — открываем специальную форму
+        if doc.doc_type == DOCUMENT_TYPE_PLAN:
+            from ui.plan_work_form import PlanWorkFormDialog
 
-        dialog = DocumentFormDialog(self.user, self.patient, doc)
+            dialog = PlanWorkFormDialog(self.user, self.patient, doc)
+        else:
+            from ui.document_form import DocumentFormDialog
+
+            dialog = DocumentFormDialog(self.user, self.patient, doc)
+
         if dialog.exec():
             self._load_documents()
+            self._load_plans()
+            # Если редактировали план, обновляем и пункты
+            if doc.doc_type == DOCUMENT_TYPE_PLAN:
+                selected = self.plans_table.selectionModel().selectedRows()
+                if selected:
+                    self._load_plan_items_for_row(selected[0].row())
             self._log_interaction("document_edit", f"Изменён документ №{doc.id}")
 
     def _open_document(self, index):
@@ -863,6 +1069,12 @@ class PatientDetailDialog(QDialog):
         if row is None:
             return
 
+        # Определяем тип документа
+        documents = Document.get_by_patient(self.patient.id)
+        if row >= len(documents):
+            return
+        doc = documents[row]
+
         menu = QMenu(self)
 
         # Действия для просмотра
@@ -889,6 +1101,17 @@ class PatientDetailDialog(QDialog):
 
         doc = documents[row]
 
+        # Для плана работы — переключаемся на вкладку "План лечения" и выбираем план
+        if doc.doc_type == DOCUMENT_TYPE_PLAN:
+            self.tabs.setCurrentIndex(self.plan_tab_index)
+            # Находим строку плана в таблице
+            for r in range(self.plans_table.rowCount()):
+                item = self.plans_table.item(r, 0)
+                if item and item.data(Qt.ItemDataRole.UserRole) == doc.id:
+                    self.plans_table.selectRow(r)
+                    break
+            return
+
         # Диалог просмотра документа
         from PyQt6.QtWidgets import (
             QDialog,
@@ -899,7 +1122,6 @@ class PatientDetailDialog(QDialog):
             QPushButton,
             QFormLayout,
         )
-        from PyQt6.QtCore import Qt
 
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Документ №{doc.id}")
@@ -979,8 +1201,10 @@ class PatientDetailDialog(QDialog):
         from ui.document_form import DocumentFormDialog
 
         dialog = DocumentFormDialog(self.user, self.patient, doc)
+
         if dialog.exec():
             self._load_documents()
+            self._load_plans()
             self._log_interaction("document_edit", f"Изменён документ №{doc.id}")
 
     def _delete_document_at_row(self, row):
@@ -996,8 +1220,14 @@ class PatientDetailDialog(QDialog):
             documents = Document.get_by_patient(self.patient.id)
             if row < len(documents):
                 doc = documents[row]
+                # Если это план, сначала удаляем его пункты
+                if doc.doc_type == DOCUMENT_TYPE_PLAN:
+                    items = TreatmentPlanItem.get_by_plan(doc.id)
+                    for item in items:
+                        item.delete()
                 doc.delete()
                 self._load_documents()
+                self._load_plans()
                 self._log_interaction("document_delete", f"Удалён документ №{doc.id}")
 
     def _create_log_tab(self) -> QWidget:
@@ -1276,13 +1506,91 @@ class PatientDetailDialog(QDialog):
         dialog.exec()
 
     def _add_plan_item(self):
-        """Добавление пункта плана"""
-        from ui.plan_item_form import PlanItemFormDialog
+        """Создание плана работы (документ + пункты)"""
+        from ui.document_form import DocumentFormDialog
 
-        dialog = PlanItemFormDialog(self.user, self.patient, None)
+        dialog = DocumentFormDialog(self.user, self.patient, None)
         if dialog.exec():
-            self._load_plan_items()
-            self._log_interaction("plan_item_add", "Добавлен пункт плана лечения")
+            doc = dialog.document
+            if doc and doc.doc_type == DOCUMENT_TYPE_PLAN:
+                self._load_plans()
+                self._load_documents()
+                # Переключаемся на вкладку "План лечения" и выбираем новый план
+                self.tabs.setCurrentIndex(self.plan_tab_index)
+                for r in range(self.plans_table.rowCount()):
+                    item = self.plans_table.item(r, 0)
+                    if item and item.data(Qt.ItemDataRole.UserRole) == doc.id:
+                        self.plans_table.selectRow(r)
+                        break
+                self._log_interaction("plan_item_add", "Создан план работы")
+
+    def _edit_plan(self):
+        """Переключение на вкладку плана лечения для редактирования пунктов"""
+        plan_id = self._get_selected_plan_id()
+        if not plan_id:
+            QMessageBox.information(
+                self,
+                "Информация",
+                "Выберите план работы для редактирования",
+            )
+            return
+
+        doc = Document.get_by_id(plan_id)
+        if not doc or doc.doc_type != DOCUMENT_TYPE_PLAN:
+            QMessageBox.warning(self, "Ошибка", "Не удалось найти план")
+            return
+
+        # Переключаемся на вкладку "План лечения"
+        self.tabs.setCurrentIndex(self.plan_tab_index)
+
+    def _get_all_plan_items(self):
+        """Получение всех пунктов плана из всех документов-планов"""
+        plans = Document.get_by_patient(self.patient.id)
+        plan_docs = [d for d in plans if d.doc_type == DOCUMENT_TYPE_PLAN]
+
+        all_items = []
+        for plan_doc in plan_docs:
+            items = TreatmentPlanItem.get_by_plan(plan_doc.id)
+            all_items.extend(items)
+
+        all_items.sort(key=lambda x: (x.order_num, x.created_at or datetime.min))
+        return all_items
+
+    def _get_selected_plan_id(self):
+        """Получение id выбранного плана"""
+        return getattr(self, "_selected_plan_id", None)
+
+    def _refresh_plan_items(self):
+        """Обновление пунктов выбранного плана без сброса выделения"""
+        plan_id = self._get_selected_plan_id()
+        if not plan_id:
+            self.plan_table.setRowCount(0)
+            return
+
+        self.plan_table.setRowCount(0)
+        plan_items = TreatmentPlanItem.get_by_plan(plan_id)
+
+        for item in plan_items:
+            row = self.plan_table.rowCount()
+            self.plan_table.insertRow(row)
+
+            check_item = QTableWidgetItem("✓" if item.is_completed else "")
+            check_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.plan_table.setItem(row, 0, check_item)
+
+            self.plan_table.setItem(row, 1, QTableWidgetItem(item.event))
+
+            due_date = item.due_date.strftime("%d.%m.%Y") if item.due_date else "—"
+            self.plan_table.setItem(row, 2, QTableWidgetItem(due_date))
+
+            status = "Выполнено" if item.is_completed else "В ожидании"
+            status_item = QTableWidgetItem(status)
+            status_item.setForeground(
+                Qt.GlobalColor.darkGreen
+                if item.is_completed
+                else self._get_status_color(False)
+            )
+            self.plan_table.setItem(row, 3, status_item)
 
     def _toggle_plan_item(self):
         """Переключение статуса пункта плана"""
@@ -1291,12 +1599,18 @@ class PatientDetailDialog(QDialog):
             QMessageBox.warning(self, "Предупреждение", "Выберите пункт плана")
             return
 
+        plan_id = self._get_selected_plan_id()
+        if not plan_id:
+            QMessageBox.warning(self, "Предупреждение", "Выберите план работы")
+            return
+
         row = selected[0].row()
-        plan_items = TreatmentPlanItem.get_by_patient(self.patient.id)
+        plan_items = TreatmentPlanItem.get_by_plan(plan_id)
         if row < len(plan_items):
             item = plan_items[row]
             item.toggle()
-            self._load_plan_items()
+            self._refresh_plan_items()
+            self._load_plans()  # Обновляем счётчик пунктов
             self._log_interaction(
                 "plan_item_toggle",
                 f"{'Выполнен' if item.is_completed else 'Отменён'} пункт: {item.event}",
@@ -1309,6 +1623,11 @@ class PatientDetailDialog(QDialog):
             QMessageBox.warning(self, "Предупреждение", "Выберите пункт плана")
             return
 
+        plan_id = self._get_selected_plan_id()
+        if not plan_id:
+            QMessageBox.warning(self, "Предупреждение", "Выберите план работы")
+            return
+
         reply = QMessageBox.question(
             self,
             "Подтверждение",
@@ -1318,11 +1637,13 @@ class PatientDetailDialog(QDialog):
 
         if reply == QMessageBox.StandardButton.Yes:
             row = selected[0].row()
-            plan_items = TreatmentPlanItem.get_by_patient(self.patient.id)
+            plan_items = TreatmentPlanItem.get_by_plan(plan_id)
             if row < len(plan_items):
                 item = plan_items[row]
                 item.delete()
-                self._load_plan_items()
+                self._refresh_plan_items()
+                self._load_plans()  # Обновляем счётчик пунктов
+                self._load_documents()
                 self._log_interaction("plan_item_delete", f"Удалён пункт: {item.event}")
 
     def _edit_patient(self):

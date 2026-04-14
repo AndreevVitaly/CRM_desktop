@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python *)",
-      "Bash(taskkill *)"
+      "Bash(taskkill *)",
+      "Bash(timeout *)"
     ]
   },
   "$version": 3

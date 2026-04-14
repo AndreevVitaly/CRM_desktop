@@ -66,6 +66,8 @@ DOCUMENT_CLASSIFICATION_CHOICES = [
     ("SS", "СС"),
 ]
 
+DOCUMENT_TYPE_PLAN = "plan_work"  # План работы с пациентом
+
 
 # ============================================================================
 # БАЗА ДАННЫХ
@@ -244,6 +246,14 @@ class Database:
             )
         """
         )
+
+        # Миграция: добавление колонки plan_document_id
+        try:
+            cursor.execute(
+                "ALTER TABLE treatment_plan_items ADD COLUMN plan_document_id INTEGER"
+            )
+        except Exception:
+            pass  # Колонка уже существует
 
         # Таблица взаимодействий
         cursor.execute(
@@ -1274,6 +1284,7 @@ class Attachment:
 class TreatmentPlanItem:
     id: Optional[int] = None
     patient_id: int = 0
+    plan_document_id: Optional[int] = None  # FK к Document (план работы)
     order_num: int = 1
     event: str = ""
     due_date: Optional[date] = None
@@ -1296,13 +1307,14 @@ class TreatmentPlanItem:
         self.updated_at = datetime.now()
         cursor = db.execute(
             """
-            INSERT OR REPLACE INTO treatment_plan_items 
-            (id, patient_id, order_num, event, due_date, is_completed, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO treatment_plan_items
+            (id, patient_id, plan_document_id, order_num, event, due_date, is_completed, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
                 self.patient_id,
+                self.plan_document_id,
                 self.order_num,
                 self.event,
                 self.due_date.isoformat() if self.due_date else None,
@@ -1361,6 +1373,22 @@ class TreatmentPlanItem:
             (patient_id,),
         )
         return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    def get_by_plan(cls, plan_document_id: int) -> List["TreatmentPlanItem"]:
+        """Получение пунктов плана по документу-плану"""
+        rows = db.fetchall(
+            "SELECT * FROM treatment_plan_items WHERE plan_document_id = ? ORDER BY order_num, created_at",
+            (plan_document_id,),
+        )
+        return [cls._from_row(row) for row in rows]
+
+    @property
+    def plan_document(self) -> Optional["Document"]:
+        """Получение связанного документа-плана"""
+        if self.plan_document_id is None:
+            return None
+        return Document.get_by_id(self.plan_document_id)
 
     def toggle(self):
         """Переключение статуса выполнения"""

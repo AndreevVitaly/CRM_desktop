@@ -23,6 +23,7 @@ from models.db_models import (
     Patient,
     Document,
     DOCUMENT_CLASSIFICATION_CHOICES,
+    DOCUMENT_TYPE_PLAN,
 )
 from ui.styles import get_colors, FONTS, RADIUS
 
@@ -81,10 +82,22 @@ class DocumentFormDialog(QDialog):
         self.doc_number_input.setPlaceholderText("Введите номер документа")
         form_layout.addRow("Номер документа", self.doc_number_input)
 
-        # Вид документа
+        # Тип документа (выпадающий список)
+        self.doc_type_selector = QComboBox()
+        self.doc_type_selector.setFrame(False)
+        self.doc_type_selector.addItem("Выберите тип документа", "")
+        self.doc_type_selector.addItem("План работы с пациентом", DOCUMENT_TYPE_PLAN)
+        self.doc_type_selector.addItem("Иной документ (ручной ввод)", "custom")
+        form_layout.addRow("Тип документа*", self.doc_type_selector)
+
+        # Поле для ручного ввода вида документа (скрыто по умолчанию)
         self.doc_type_input = QLineEdit()
         self.doc_type_input.setPlaceholderText("Введите вид документа")
+        self.doc_type_input.setVisible(False)
         form_layout.addRow("Вид документа*", self.doc_type_input)
+
+        # Подключение сигнала для показа/скрытия поля ручного ввода
+        self.doc_type_selector.currentIndexChanged.connect(self._on_doc_type_changed)
 
         # Краткое содержание
         self.summary_input = QTextEdit()
@@ -134,6 +147,12 @@ class DocumentFormDialog(QDialog):
         if self.is_edit:
             self._fill_data()
 
+    def _on_doc_type_changed(self, index):
+        """Обработка изменения типа документа"""
+        selected_type = self.doc_type_selector.currentData()
+        # Показываем поле ручного ввода только при выборе "Иной документ"
+        self.doc_type_input.setVisible(selected_type == "custom")
+
     def _fill_data(self):
         """Заполнение данными документа"""
         if not self.document:
@@ -160,8 +179,15 @@ class DocumentFormDialog(QDialog):
         else:
             self.doc_number_input.setText("")
 
-        # Вид документа
-        self.doc_type_input.setText(self.document.doc_type or "")
+        # Тип документа
+        if self.document.doc_type == DOCUMENT_TYPE_PLAN:
+            selector_index = self.doc_type_selector.findData(DOCUMENT_TYPE_PLAN)
+            self.doc_type_selector.setCurrentIndex(selector_index)
+        else:
+            selector_index = self.doc_type_selector.findData("custom")
+            self.doc_type_selector.setCurrentIndex(selector_index)
+            self.doc_type_input.setVisible(True)
+            self.doc_type_input.setText(self.document.doc_type or "")
 
         # Краткое содержание
         self.summary_input.setPlainText(self.document.summary or "")
@@ -176,10 +202,20 @@ class DocumentFormDialog(QDialog):
 
     def _save(self):
         """Сохранение документа"""
-        # Валидация
-        if not self.doc_type_input.text().strip():
-            QMessageBox.warning(self, "Ошибка", "Введите вид документа")
+        # Валидация типа документа
+        selected_type = self.doc_type_selector.currentData()
+        if not selected_type:
+            QMessageBox.warning(self, "Ошибка", "Выберите тип документа")
             return
+
+        # Определяем вид документа
+        if selected_type == "custom":
+            doc_type = self.doc_type_input.text().strip()
+            if not doc_type:
+                QMessageBox.warning(self, "Ошибка", "Введите вид документа")
+                return
+        else:
+            doc_type = selected_type
 
         if not self.location_input.text().strip():
             QMessageBox.warning(self, "Ошибка", "Введите, куда приобщён документ")
@@ -193,7 +229,7 @@ class DocumentFormDialog(QDialog):
         self.document.classification = self.classification_combo.currentData()
         self.document.doc_date = self.doc_date_input.date().toPyDate()
         self.document.author_id = self.user.id
-        self.document.doc_type = self.doc_type_input.text().strip()
+        self.document.doc_type = doc_type
         self.document.summary = self.summary_input.toPlainText().strip()
         self.document.location = self.location_input.text().strip()
         self.document.patient_personal_number = (
