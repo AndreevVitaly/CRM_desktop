@@ -1,1 +1,1 @@
-# LUX package
+# PULSAR package

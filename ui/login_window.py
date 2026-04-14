@@ -27,7 +27,7 @@ class LoginWindow(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("LUX - Вход")
+        self.setWindowTitle("PULSAR - Вход")
         self.setFixedSize(420, 520)
         # Убираем рамку для закруглённых углов
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -45,7 +45,7 @@ class LoginWindow(QWidget):
         main_layout.setContentsMargins(40, 40, 40, 40)
 
         # Заголовок
-        title_label = QLabel("LUX")
+        title_label = QLabel("PULSAR")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setObjectName("title")
         title_label.setStyleSheet(
@@ -57,7 +57,7 @@ class LoginWindow(QWidget):
         )
         main_layout.addWidget(title_label)
 
-        subtitle_label = QLabel("Ясность процессов. Свет решений.")
+        subtitle_label = QLabel("Фундамент стабильной работы")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle_label.setObjectName("muted")
         subtitle_label.setStyleSheet(

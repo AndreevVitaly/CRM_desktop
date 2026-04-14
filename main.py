@@ -1,5 +1,5 @@
 """
-LUX - Десктопная CRM для работы с отделениями
+PULSAR - Десктопная CRM для работы с отделениями
 Главный файл запуска
 """
 
@@ -40,8 +40,8 @@ def main():
 
     # Создание приложения
     app = QApplication(sys.argv)
-    app.setApplicationName("LUX")
-    app.setOrganizationName("Hospital CRM")
+    app.setApplicationName("PULSAR")
+    app.setOrganizationName("PULSAR")
 
     # Установка шрифта
     font = QFont("Segoe UI", 10)

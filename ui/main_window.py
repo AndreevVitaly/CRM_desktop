@@ -129,7 +129,7 @@ class MainWindow(QMainWindow):
         self.user = user
         self.current_theme_light = True
 
-        self.setWindowTitle(f"LUX - {user.full_name}")
+        self.setWindowTitle(f"PULSAR - {user.full_name}")
         self.setMinimumSize(1200, 800)
         self.setStyleSheet(get_main_stylesheet())
 
@@ -320,7 +320,7 @@ class MainWindow(QMainWindow):
         self._update_logo(logo_path, colors)
         logo_layout.addWidget(self.logo_label)
 
-        title_label = QLabel("LUX")
+        title_label = QLabel("PULSAR")
         title_label.setObjectName("title")
         title_label.setStyleSheet(
             f"font-size: {FONTS['size_xlarge']}pt; font-weight: 700; color: {colors['accent']};"
@@ -328,7 +328,7 @@ class MainWindow(QMainWindow):
         logo_layout.addWidget(title_label)
 
         # Подзаголовок
-        subtitle_label = QLabel("Ясность процессов. Свет решений.")
+        subtitle_label = QLabel("Фундамент стабильной работы")
         subtitle_label.setObjectName("muted")
         subtitle_label.setStyleSheet(
             f"font-size: {FONTS['size_xs']}pt; color: {colors['text_muted']};"
@@ -664,7 +664,7 @@ class MainWindow(QMainWindow):
             btn.style().polish(btn)
 
         # Сбрасываем заголовок
-        self.setWindowTitle("LUX - Вход")
+        self.setWindowTitle("PULSAR - Вход")
 
         # Создаём модальное окно входа поверх главного
         login_window = LoginWindow()
@@ -694,7 +694,7 @@ class MainWindow(QMainWindow):
     def _on_login_success(self, user: User):
         """Успешный вход - обновление пользователя"""
         self.user = user
-        self.setWindowTitle(f"LUX - {user.full_name}")
+        self.setWindowTitle(f"PULSAR - {user.full_name}")
         self._login_window.close()
 
         # Обновляем навигацию для нового пользователя
