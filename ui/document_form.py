@@ -110,11 +110,13 @@ class DocumentFormDialog(QDialog):
         self.location_input.setPlaceholderText("Введите, куда приобщён документ")
         form_layout.addRow("Куда приобщён*", self.location_input)
 
-        # Личный номер пациента
+        # Личный номер пациента (автозаполнение из карточки пациента)
         self.patient_personal_number_input = QLineEdit()
-        self.patient_personal_number_input.setPlaceholderText(
-            "Введите личный номер пациента"
-        )
+        self.patient_personal_number_input.setReadOnly(True)
+        if self.patient.personal_number:
+            self.patient_personal_number_input.setText(self.patient.personal_number)
+        else:
+            self.patient_personal_number_input.setText("Не присвоен")
         form_layout.addRow("Личный номер пациента", self.patient_personal_number_input)
 
         form_group.setLayout(form_layout)
@@ -195,10 +197,11 @@ class DocumentFormDialog(QDialog):
         # Куда приобщён
         self.location_input.setText(self.document.location or "")
 
-        # Личный номер пациента
-        self.patient_personal_number_input.setText(
-            self.document.patient_personal_number or ""
-        )
+        # Личный номер пациента (всегда из карточки пациента)
+        if self.patient.personal_number:
+            self.patient_personal_number_input.setText(self.patient.personal_number)
+        else:
+            self.patient_personal_number_input.setText("Не присвоен")
 
     def _save(self):
         """Сохранение документа"""
@@ -232,9 +235,7 @@ class DocumentFormDialog(QDialog):
         self.document.doc_type = doc_type
         self.document.summary = self.summary_input.toPlainText().strip()
         self.document.location = self.location_input.text().strip()
-        self.document.patient_personal_number = (
-            self.patient_personal_number_input.text().strip()
-        )
+        self.document.patient_personal_number = self.patient.personal_number or ""
 
         # Номер документа (пустая строка сохраняется как None)
         doc_number_str = self.doc_number_input.text().strip()
