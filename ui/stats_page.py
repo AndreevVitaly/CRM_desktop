@@ -277,7 +277,7 @@ class StatsPage(QWidget):
             ("Взрослых", "patients_adult"),
             ("Детей", "patients_child"),
             ("Неопределённых", "patients_undefined"),
-            ("Визитов за месяц", "visits"),
+            ("Встреч за месяц", "visits"),
         ]
 
         # Добавляем строки
@@ -385,7 +385,7 @@ class StatsPage(QWidget):
 
         days_in_month = calendar.monthrange(self.selected_year, self.selected_month)[1]
 
-        # Получаем визиты за месяц
+        # Получаем встречи за месяц
         from_date = datetime(self.selected_year, self.selected_month, 1)
         if self.selected_month == 12:
             to_date = datetime(self.selected_year + 1, 1, 1)

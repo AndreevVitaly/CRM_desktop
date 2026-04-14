@@ -76,7 +76,7 @@ class PatientDetailDialog(QDialog):
             # Вкладки
             self.tabs = QTabWidget()
             self.tabs.addTab(self._create_info_tab(), "Информация")
-            self.tabs.addTab(self._create_encounters_tab(), "Визиты")
+            self.tabs.addTab(self._create_encounters_tab(), "Встречи")
             self.plan_tab_index = 2  # Индекс вкладки "План лечения"
             self.tabs.addTab(self._create_plan_tab(), "План лечения")
             self.tabs.addTab(self._create_documents_tab(), "Документы")
@@ -508,7 +508,7 @@ class PatientDetailDialog(QDialog):
         return widget
 
     def _create_encounters_tab(self) -> QWidget:
-        """Вкладка визитов"""
+        """Вкладка встреч"""
         colors = get_colors()
 
         widget = QWidget()
@@ -516,7 +516,7 @@ class PatientDetailDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # Кнопка добавления визита
+        # Кнопка добавления встречи
         if self.user.role in (
             User.ROLE_ADMIN,
             User.ROLE_REGISTRAR,
@@ -524,12 +524,12 @@ class PatientDetailDialog(QDialog):
             User.ROLE_DOCTOR,
             User.ROLE_NURSE,
         ):
-            add_btn = QPushButton("Добавить визит")
+            add_btn = QPushButton("Добавить встречу")
             add_btn.setFixedHeight(36)
             add_btn.clicked.connect(self._add_encounter)
             layout.addWidget(add_btn)
 
-        # Таблица визитов
+        # Таблица встреч
         self.encounters_table = QTableWidget()
         self.encounters_table.setColumnCount(5)
         self.encounters_table.setHorizontalHeaderLabels(
@@ -559,7 +559,7 @@ class PatientDetailDialog(QDialog):
         return widget
 
     def _load_encounters(self):
-        """Загрузка визитов"""
+        """Загрузка встреч"""
         self.encounters_table.setRowCount(0)
         encounters = Encounter.get_by_patient(self.patient.id)
 
@@ -1286,19 +1286,19 @@ class PatientDetailDialog(QDialog):
             )
 
     def _add_encounter(self):
-        """Добавление визита"""
+        """Добавление встречи"""
         from ui.encounter_form import EncounterFormDialog
 
         dialog = EncounterFormDialog(self.user, self.patient, None)
         if dialog.exec():
             self._load_encounters()
-            self._log_interaction("visit_created", "Создан новый визит")
+            self._log_interaction("visit_created", "Создана новая встреча")
 
     def _open_encounter(self, index):
-        """Открытие визита"""
+        """Открытие встречи"""
         selected = self.encounters_table.selectedItems()
         if not selected:
-            QMessageBox.warning(self, "Предупреждение", "Выберите визит")
+            QMessageBox.warning(self, "Предупреждение", "Выберите встречу")
             return
 
         row = selected[0].row()
@@ -1308,7 +1308,7 @@ class PatientDetailDialog(QDialog):
 
         encounter = encounters[row]
 
-        # Диалог просмотра визита
+        # Диалог просмотра встречи
         from PyQt6.QtWidgets import (
             QDialog,
             QVBoxLayout,
@@ -1324,7 +1324,7 @@ class PatientDetailDialog(QDialog):
 
         dialog = QDialog(self)
         dialog.setWindowTitle(
-            f"Визит от {encounter.started_at.strftime('%d.%m.%Y %H:%M')}"
+            f"Встреча от {encounter.started_at.strftime('%d.%m.%Y %H:%M')}"
         )
         dialog.setMinimumSize(600, 500)
 
@@ -1334,12 +1334,12 @@ class PatientDetailDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
 
         # Заголовок
-        title = QLabel(f"Визит пациента")
+        title = QLabel(f"Встреча с пациентом")
         title.setStyleSheet(f"font-size: {FONTS['size_title']}pt; font-weight: bold;")
         title.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         layout.addWidget(title)
 
-        # Информация о визите
+        # Информация о встрече
         info_frame = QFrame()
         info_frame.setStyleSheet(
             f"""

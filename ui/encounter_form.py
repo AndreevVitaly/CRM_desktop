@@ -38,7 +38,7 @@ class EncounterFormDialog(QDialog):
         self.encounter = encounter
         self.is_edit = encounter is not None and encounter.id is not None
 
-        title = "Редактирование визита" if self.is_edit else "Новый визит"
+        title = "Редактирование встречи" if self.is_edit else "Новая встреча"
         self.setWindowTitle(title)
         self.setMinimumSize(500, 400)
         self._init_ui()
@@ -77,9 +77,9 @@ class EncounterFormDialog(QDialog):
 
         # Причина
         self.reason_input = QTextEdit()
-        self.reason_input.setPlaceholderText("Причина визита, жалобы")
+        self.reason_input.setPlaceholderText("Причина встречи, жалобы")
         self.reason_input.setMaximumHeight(100)
-        form_layout.addRow("Причина визита", self.reason_input)
+        form_layout.addRow("Причина встречи", self.reason_input)
 
         # Статус
         self.status_combo = QComboBox()
@@ -159,7 +159,7 @@ class EncounterFormDialog(QDialog):
             self._fill_data()
 
     def _fill_data(self):
-        """Заполнение данными визита"""
+        """Заполнение данными встречи"""
         if not self.encounter:
             return
 
@@ -185,14 +185,14 @@ class EncounterFormDialog(QDialog):
         self.reason_input.setText(self.encounter.reason or "")
 
     def _save(self):
-        """Сохранение визита"""
+        """Сохранение встречи"""
         # Валидация
         doctor_id = self.doctor_combo.currentData()
         if not doctor_id:
             QMessageBox.warning(self, "Ошибка", "Выберите врача")
             return
 
-        # Создание/обновление визита
+        # Создание/обновление встречи
         if not self.encounter:
             self.encounter = Encounter()
             self.encounter.patient_id = self.patient.id
@@ -233,11 +233,11 @@ class EncounterFormDialog(QDialog):
             patient_id=self.patient.id,
             user_id=self.user.id,
             action="visit_created",
-            description="Создан новый визит",
+            description="Создана новая встреча",
         )
         interaction.save()
 
-        QMessageBox.information(self, "Успешно", "Визит сохранён")
+        QMessageBox.information(self, "Успешно", "Встреча сохранена")
         self.accept()
 
 
