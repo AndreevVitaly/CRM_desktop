@@ -2179,6 +2179,12 @@ class KmRecord:
         return [cls._from_row(row) for row in rows]
 
     @classmethod
+    def delete_by_encounter(cls, encounter_id: int):
+        """Удаление всех записей КМ по встрече"""
+        db.execute("DELETE FROM km_records WHERE encounter_id = ?", (encounter_id,))
+        db.commit()
+
+    @classmethod
     def get_by_document(cls, document_id: int) -> List["KmRecord"]:
         """Получение записей КМ по документу"""
         rows = db.fetchall(

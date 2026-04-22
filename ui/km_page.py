@@ -12,15 +12,12 @@ from PyQt6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
-    QComboBox,
-    QDateEdit,
     QLineEdit,
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt
 
 from models.db_models import User, KmRecord
 from ui.styles import get_colors, FONTS, RADIUS
-from datetime import date
 
 
 class KmPage(QWidget):
@@ -75,44 +72,17 @@ class KmPage(QWidget):
         layout = QHBoxLayout(panel)
         layout.setSpacing(12)
 
-        # Поиск по позывному/ФИО
+        # Поиск по позывному/ФИО/личному номеру
         search_label = QLabel("Поиск:")
         search_label.setStyleSheet("font-weight: bold; background-color: transparent;")
         layout.addWidget(search_label)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Позывной или ФИО")
+        self.search_input.setPlaceholderText("Позывной, личный номер или ФИО")
         self.search_input.setFixedWidth(250)
         self.search_input.setFixedHeight(42)
         self.search_input.textChanged.connect(self._load_km_records)
         layout.addWidget(self.search_input)
-
-        # Фильтр по дате
-        date_from_label = QLabel("Дата с:")
-        date_from_label.setStyleSheet("font-weight: bold; background-color: transparent;")
-        layout.addWidget(date_from_label)
-
-        self.date_from_input = QDateEdit()
-        self.date_from_input.setCalendarPopup(True)
-        self.date_from_input.setDate(QDate(date.today().year, 1, 1))
-        self.date_from_input.setDisplayFormat("dd.MM.yyyy")
-        self.date_from_input.setFixedWidth(120)
-        self.date_from_input.setFixedHeight(42)
-        self.date_from_input.dateChanged.connect(self._load_km_records)
-        layout.addWidget(self.date_from_input)
-
-        date_to_label = QLabel("по:")
-        date_to_label.setStyleSheet("font-weight: bold; background-color: transparent;")
-        layout.addWidget(date_to_label)
-
-        self.date_to_input = QDateEdit()
-        self.date_to_input.setCalendarPopup(True)
-        self.date_to_input.setDate(QDate.currentDate())
-        self.date_to_input.setDisplayFormat("dd.MM.yyyy")
-        self.date_to_input.setFixedWidth(120)
-        self.date_to_input.setFixedHeight(42)
-        self.date_to_input.dateChanged.connect(self._load_km_records)
-        layout.addWidget(self.date_to_input)
 
         layout.addStretch()
 
@@ -174,8 +144,6 @@ class KmPage(QWidget):
 
         # Фильтрация
         search_text = self.search_input.text().lower()
-        date_from = self.date_from_input.date().toPyDate()
-        date_to = self.date_to_input.date().toPyDate()
 
         filtered_records = []
         for record in records:
@@ -183,14 +151,12 @@ class KmPage(QWidget):
             if search_text:
                 if not (
                     (record.callsign and search_text in record.callsign.lower())
+                    or (
+                        record.personal_number
+                        and search_text in record.personal_number.lower()
+                    )
                     or (record.full_name and search_text in record.full_name.lower())
                 ):
-                    continue
-
-            # Фильтр по дате
-            if record.created_at:
-                record_date = record.created_at.date() if hasattr(record.created_at, 'date') else record.created_at
-                if record_date < date_from or record_date > date_to:
                     continue
 
             filtered_records.append(record)

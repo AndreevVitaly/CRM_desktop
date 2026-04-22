@@ -44,7 +44,7 @@ class EncounterInformantDialog(QDialog):
         super().__init__()
         self.informant = informant
         self.setWindowTitle("Информатор")
-        self.setMinimumSize(450, 400)
+        self.setMinimumSize(560, 520)
         self._init_ui()
 
     def _init_ui(self):
@@ -77,6 +77,18 @@ class EncounterInformantDialog(QDialog):
         self.workplace_input = QLineEdit()
         self.workplace_input.setPlaceholderText("Введите место работы")
         form_layout.addRow("Место работы", self.workplace_input)
+
+        # Суть информации
+        self.info_essence_input = QTextEdit()
+        self.info_essence_input.setPlaceholderText("Введите суть информации")
+        self.info_essence_input.setMaximumHeight(100)
+        form_layout.addRow("Суть информации", self.info_essence_input)
+
+        # Принятые меры
+        self.measures_taken_input = QTextEdit()
+        self.measures_taken_input.setPlaceholderText("Введите принятые меры")
+        self.measures_taken_input.setMaximumHeight(100)
+        form_layout.addRow("Принятые меры", self.measures_taken_input)
 
         layout.addLayout(form_layout)
 
@@ -118,6 +130,8 @@ class EncounterInformantDialog(QDialog):
                 )
             )
         self.workplace_input.setText(self.informant.workplace or "")
+        self.info_essence_input.setPlainText(self.informant.info_essence or "")
+        self.measures_taken_input.setPlainText(self.informant.measures_taken or "")
 
     def _save(self):
         """Сохранение информатора"""
@@ -132,6 +146,8 @@ class EncounterInformantDialog(QDialog):
         self.informant.full_name = self.full_name_input.text().strip()
         self.informant.birth_date = self.birth_date_input.date().toPyDate()
         self.informant.workplace = self.workplace_input.text().strip()
+        self.informant.info_essence = self.info_essence_input.toPlainText().strip()
+        self.informant.measures_taken = self.measures_taken_input.toPlainText().strip()
 
         self.accept()
 
@@ -152,6 +168,7 @@ class EncounterEditDialog(QDialog):
         self.informants = []
         if encounter.id:
             self.informants = EncounterInformant.get_by_encounter(encounter.id)
+        self.deleted_informant_ids = []
         # Флаг для отслеживания изменений в информаторах
         self.informants_modified = False
 
@@ -405,9 +422,16 @@ class EncounterEditDialog(QDialog):
 
         # Таблица информаторов
         self.informants_table = QTableWidget()
-        self.informants_table.setColumnCount(4)
+        self.informants_table.setColumnCount(6)
         self.informants_table.setHorizontalHeaderLabels(
-            ["Должность", "ФИО", "Дата рождения", "Место работы"]
+            [
+                "Должность",
+                "ФИО",
+                "Дата рождения",
+                "Место работы",
+                "Суть информации",
+                "Принятые меры",
+            ]
         )
         self.informants_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -416,6 +440,13 @@ class EncounterEditDialog(QDialog):
         self.informants_table.verticalHeader().setVisible(False)
         self.informants_table.setMinimumHeight(200)
         self.informants_table.setMaximumHeight(400)
+        informants_header = self.informants_table.horizontalHeader()
+        informants_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        informants_header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        informants_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        informants_header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        informants_header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        informants_header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
         informants_layout.addWidget(self.informants_table)
 
         # Кнопки управления информаторами
@@ -454,8 +485,9 @@ class EncounterEditDialog(QDialog):
         buttons_layout = QHBoxLayout()
         buttons_layout.addStretch()
 
-        save_btn = QPushButton("💾 Сохранить")
+        save_btn = QPushButton("Сохранить")
         save_btn.setFixedHeight(40)
+        save_btn.setObjectName("secondaryBtn")
         save_btn.clicked.connect(self._save)
         buttons_layout.addWidget(save_btn)
 
@@ -528,6 +560,12 @@ class EncounterEditDialog(QDialog):
             self.informants_table.setItem(
                 row, 3, QTableWidgetItem(informant.workplace or "—")
             )
+            self.informants_table.setItem(
+                row, 4, QTableWidgetItem(informant.info_essence or "—")
+            )
+            self.informants_table.setItem(
+                row, 5, QTableWidgetItem(informant.measures_taken or "—")
+            )
 
     def _add_informant(self):
         """Добавление информатора (сохраняется только при общем сохранении встречи)"""
@@ -553,7 +591,7 @@ class EncounterEditDialog(QDialog):
         informant = self.informants[row]
         dialog = EncounterInformantDialog(informant)
         if dialog.exec():
-            informant.save()
+            self.informants_modified = True
             self._load_informants()
 
     def _delete_informant(self):
@@ -575,8 +613,10 @@ class EncounterEditDialog(QDialog):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            informant.delete()
+            if informant.id:
+                self.deleted_informant_ids.append(informant.id)
             self.informants.pop(row)
+            self.informants_modified = True
             self._load_informants()
 
     def _fill_data(self):
@@ -649,55 +689,42 @@ class EncounterEditDialog(QDialog):
 
     def _save_informants(self):
         """Сохранение всех информаторов после сохранения встречи"""
+        for informant_id in self.deleted_informant_ids:
+            existing_informant = EncounterInformant.get_by_id(informant_id)
+            if existing_informant:
+                existing_informant.delete()
+
         for informant in self.informants:
             informant.encounter_id = self.encounter.id
             informant.save()
 
+        self.deleted_informant_ids.clear()
+        self.informants_modified = False
+
     def _save_km_record(self):
-        """Сохранение/обновление записи в таблицу КМ"""
-        from models.db_models import KmRecord
+        """Синхронизация записей в таблице КМ по текущим информаторам"""
+        from models.db_models import Document, KmRecord
 
         # Получаем номер документа, если он есть
         doc_number = ""
         if self.encounter.document_id:
-            from models.db_models import Document
-
             doc = Document.get_by_id(self.encounter.document_id)
             if doc and doc.doc_number:
                 doc_number = str(doc.doc_number)
 
-        # Берем данные из информатора (если есть)
-        informant_position = ""
-        informant_full_name = ""
-        informant_birth_date = None
-        informant_workplace = ""
-        if self.informants:
-            informant = self.informants[0]
-            informant_position = informant.position or ""
-            informant_full_name = informant.full_name or ""
-            informant_birth_date = informant.birth_date
-            informant_workplace = informant.workplace or ""
+        KmRecord.delete_by_encounter(self.encounter.id)
 
-        # Проверяем, есть ли уже запись КМ для этой встречи
-        existing_records = KmRecord.get_by_encounter(self.encounter.id)
-
-        if existing_records:
-            # Обновляем существующую запись
-            km_record = existing_records[0]
-        else:
-            # Создаём новую запись
+        for informant in self.informants:
             km_record = KmRecord()
-
-        km_record.callsign = self.patient.callsign
-        km_record.personal_number = self.patient.personal_number or ""
-        km_record.document_number = doc_number
-        km_record.position = informant_position
-        km_record.full_name = informant_full_name
-        km_record.birth_date = informant_birth_date
-        km_record.workplace = informant_workplace
-        # Суть информации берём из "Информация от пациента" встречи
-        km_record.info_essence = self.encounter.patient_info or ""
-        km_record.measures_taken = ""
-        km_record.encounter_id = self.encounter.id
-        km_record.document_id = self.encounter.document_id
-        km_record.save()
+            km_record.callsign = self.patient.callsign
+            km_record.personal_number = self.patient.personal_number or ""
+            km_record.document_number = doc_number
+            km_record.position = informant.position or ""
+            km_record.full_name = informant.full_name or ""
+            km_record.birth_date = informant.birth_date
+            km_record.workplace = informant.workplace or ""
+            km_record.info_essence = informant.info_essence or ""
+            km_record.measures_taken = informant.measures_taken or ""
+            km_record.encounter_id = self.encounter.id
+            km_record.document_id = self.encounter.document_id
+            km_record.save()

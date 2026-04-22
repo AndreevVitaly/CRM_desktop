@@ -516,19 +516,6 @@ class PatientDetailDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # Кнопка добавления встречи (создаёт документ типа "Встреча")
-        if self.user.role in (
-            User.ROLE_ADMIN,
-            User.ROLE_REGISTRAR,
-            User.ROLE_LEAD,
-            User.ROLE_DOCTOR,
-            User.ROLE_NURSE,
-        ):
-            add_btn = QPushButton("Добавить встречу")
-            add_btn.setFixedHeight(36)
-            add_btn.clicked.connect(self._add_encounter)
-            layout.addWidget(add_btn)
-
         # Таблица встреч
         self.encounters_table = QTableWidget()
         self.encounters_table.setColumnCount(8)
