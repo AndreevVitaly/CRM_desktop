@@ -548,8 +548,8 @@ QPushButton#navButton {{
     background-color: transparent;
     border: 2px solid transparent;
     border-radius: {RADIUS['md']}px;
-    padding: 10px 20px;
-    font-size: {FONTS['size_medium']}pt;
+    padding: 8px 14px;
+    font-size: {FONTS['size_small']}pt;
     font-weight: 600;
     color: {colors['text']};
 }}

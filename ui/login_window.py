@@ -230,7 +230,8 @@ class LoginWindow(QWidget):
     def keyPressEvent(self, event):
         """Обработка нажатий клавиш"""
         if event.key() == Qt.Key.Key_Escape:
-            self.close()
+            event.ignore()
+            return
         super().keyPressEvent(event)
 
     def paintEvent(self, event):

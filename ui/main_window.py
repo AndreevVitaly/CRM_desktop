@@ -237,6 +237,7 @@ class MainWindow(QMainWindow):
         # Статистика
         if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             items["stats"] = ("Статистика", True)
+            items["documents"] = ("Документы", True)
 
         return items
 
@@ -246,8 +247,8 @@ class MainWindow(QMainWindow):
 
         btn = QPushButton(text)
         btn.setObjectName("navButton")
-        btn.setFixedHeight(48)
-        btn.setMinimumWidth(120)
+        btn.setFixedHeight(40)
+        btn.setMinimumWidth(104)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(
             f"""
@@ -255,8 +256,8 @@ class MainWindow(QMainWindow):
                 background-color: transparent;
                 border: 2px solid transparent;
                 border-radius: {RADIUS['md']}px;
-                padding: 10px 20px;
-                font-size: {FONTS['size_medium']}pt;
+                padding: 8px 14px;
+                font-size: {FONTS['size_small']}pt;
                 font-weight: 600;
                 color: {colors['text']};
             }}
@@ -350,7 +351,7 @@ class MainWindow(QMainWindow):
         nav_items = list(self._get_nav_items().items())
         for nav_id, (text, enabled) in nav_items:
             btn = self._create_nav_button(text, nav_id, enabled)
-            btn.setFixedHeight(48)
+            btn.setFixedHeight(40)
             self.nav_buttons[nav_id] = btn
             layout.addWidget(btn)
 
@@ -422,6 +423,7 @@ class MainWindow(QMainWindow):
         from ui.planning_page import PlanningPage
         from ui.km_page import KmPage
         from ui.stats_page import StatsPage
+        from ui.documents_page import DocumentsPage
 
         # Очищаем текущий виджет
         widget = self.stacked_widget.currentWidget()
@@ -442,6 +444,8 @@ class MainWindow(QMainWindow):
             page = KmPage(self.user)
         elif page_id == "stats":
             page = StatsPage(self.user)
+        elif page_id == "documents":
+            page = DocumentsPage(self.user)
         else:
             page = DashboardPage(self.user)
 
@@ -565,8 +569,8 @@ class MainWindow(QMainWindow):
                     background-color: transparent;
                     border: 2px solid transparent;
                     border-radius: {RADIUS['md']}px;
-                    padding: 10px 20px;
-                    font-size: {FONTS['size_medium']}pt;
+                    padding: 8px 14px;
+                    font-size: {FONTS['size_small']}pt;
                     font-weight: 600;
                     color: {colors['text']};
                 }}
@@ -630,6 +634,9 @@ class MainWindow(QMainWindow):
                 "stats": lambda: __import__(
                     "ui.stats_page", fromlist=["StatsPage"]
                 ).StatsPage(self.user),
+                "documents": lambda: __import__(
+                    "ui.documents_page", fromlist=["DocumentsPage"]
+                ).DocumentsPage(self.user),
             }
 
             for nav_id, page_factory in pages.items():
@@ -738,7 +745,7 @@ class MainWindow(QMainWindow):
             else:
                 # Кнопки нет — создаём новую
                 btn = self._create_nav_button(text, nav_id, enabled)
-                btn.setFixedHeight(48)
+                btn.setFixedHeight(40)
                 self.nav_buttons[nav_id] = btn
 
                 # Вставляем перед logoutBtn

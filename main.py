@@ -14,6 +14,11 @@ from ui.login_window import LoginWindow
 from ui.main_window import MainWindow
 from ui.styles import get_main_stylesheet
 
+app_state = {
+    "login_window": None,
+    "main_window": None,
+}
+
 
 def exception_hook(exctype, value, tb):
     """Глобальный обработчик исключений"""
@@ -58,6 +63,7 @@ def main():
 
     # Окно входа
     login_window = LoginWindow()
+    app_state["login_window"] = login_window
     login_window.login_successful.connect(
         lambda user: on_login_success(user, login_window)
     )
@@ -72,6 +78,8 @@ def on_login_success(user, login_window):
 
     # Главное окно
     main_window = MainWindow(user)
+    app_state["main_window"] = main_window
+    app_state["login_window"] = None
     main_window.showMaximized()  # Открываем на весь экран
 
     # Загрузка дашборда

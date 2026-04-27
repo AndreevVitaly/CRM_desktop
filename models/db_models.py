@@ -1692,6 +1692,14 @@ class Document:
         return [cls._from_row(row) for row in rows]
 
     @classmethod
+    def get_all(cls) -> List["Document"]:
+        """Получение всех документов"""
+        rows = db.fetchall(
+            "SELECT * FROM documents ORDER BY doc_date DESC, created_at DESC, id DESC"
+        )
+        return [cls._from_row(row) for row in rows]
+
+    @classmethod
     def get_by_id(cls, doc_id: int) -> Optional["Document"]:
         """Получение документа по ID"""
         row = db.fetchone("SELECT * FROM documents WHERE id = ?", (doc_id,))
