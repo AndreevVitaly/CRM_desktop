@@ -143,7 +143,7 @@ class DocumentsPage(QWidget):
     def _load_documents(self):
         self.table.setRowCount(0)
 
-        documents = Document.get_all()
+        documents = Document.get_all(self.user)
         search_text = self.search_input.text().strip().lower()
 
         self.filtered_documents = []

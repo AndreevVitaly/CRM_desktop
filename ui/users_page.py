@@ -110,6 +110,11 @@ class UsersPage(QWidget):
         self.dept_combo.addItem("Все отделения", "")
         for value, label in DEPARTMENTS:
             self.dept_combo.addItem(label, value)
+        if self.user.role == User.ROLE_LEAD:
+            dept_index = self.dept_combo.findData(self.user.department)
+            if dept_index >= 0:
+                self.dept_combo.setCurrentIndex(dept_index)
+            self.dept_combo.setEnabled(False)
         self.dept_combo.setFixedWidth(180)
         self.dept_combo.setFixedHeight(40)
         self.dept_combo.currentIndexChanged.connect(self._load_users)
@@ -159,7 +164,7 @@ class UsersPage(QWidget):
         layout = QHBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR):
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             add_btn = QPushButton("Добавить пользователя")
             add_btn.setObjectName("actionButton")
             add_btn.setFixedHeight(36)
@@ -203,6 +208,8 @@ class UsersPage(QWidget):
         self.table.setRowCount(0)
 
         users = User.get_all(include_inactive=True)
+        if self.user.role == User.ROLE_LEAD:
+            users = [u for u in users if u.department == self.user.department]
 
         # Фильтры
         search = self.search_input.text().strip().lower()
@@ -270,6 +277,13 @@ class UsersPage(QWidget):
 
         self.count_label.setText(f"Найдено: {len(filtered)}")
 
+    def _can_manage_user(self, target_user: User) -> bool:
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR):
+            return True
+        if self.user.role == User.ROLE_LEAD:
+            return target_user.department == self.user.department
+        return False
+
     def _get_role_color(self, role: str) -> str:
         """Цвет роли"""
         colors = get_colors()
@@ -335,6 +349,9 @@ class UsersPage(QWidget):
         from ui.user_form import UserFormDialog
 
         user = User.get_by_id(user_id)
+        if not user or not self._can_manage_user(user):
+            QMessageBox.warning(self, "Ошибка", "Нет доступа к этому пользователю")
+            return
         dialog = UserFormDialog(self.user, user)
         if dialog.exec():
             self._load_users()

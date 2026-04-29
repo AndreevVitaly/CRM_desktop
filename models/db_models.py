@@ -1692,11 +1692,34 @@ class Document:
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    def get_all(cls) -> List["Document"]:
+    def get_all(cls, user: Optional[User] = None) -> List["Document"]:
         """Получение всех документов"""
-        rows = db.fetchall(
-            "SELECT * FROM documents ORDER BY doc_date DESC, created_at DESC, id DESC"
-        )
+        query = """
+            SELECT d.* FROM documents d
+            LEFT JOIN patients p ON p.id = d.patient_id
+            LEFT JOIN encounters e ON e.id = d.encounter_id
+            WHERE 1=1
+        """
+        params = []
+
+        if user:
+            if user.role not in (
+                User.ROLE_ADMIN,
+                User.ROLE_REGISTRAR,
+                User.ROLE_LEAD,
+                User.ROLE_DOCTOR,
+                User.ROLE_NURSE,
+            ):
+                return []
+            if user.role in (User.ROLE_LEAD, User.ROLE_NURSE):
+                query += " AND p.department = ?"
+                params.append(user.department)
+            elif user.role == User.ROLE_DOCTOR:
+                query += " AND (d.author_id = ? OR p.doctor_id = ? OR e.doctor_id = ?)"
+                params.extend([user.id, user.id, user.id])
+
+        query += " ORDER BY d.doc_date DESC, d.created_at DESC, d.id DESC"
+        rows = db.fetchall(query, tuple(params))
         return [cls._from_row(row) for row in rows]
 
     @classmethod
@@ -2164,9 +2187,35 @@ class KmRecord:
         return cls(**data)
 
     @classmethod
-    def get_all(cls) -> List["KmRecord"]:
+    def get_all(cls, user: Optional[User] = None) -> List["KmRecord"]:
         """Получение всех записей КМ"""
-        rows = db.fetchall("SELECT * FROM km_records ORDER BY created_at DESC")
+        query = """
+            SELECT k.* FROM km_records k
+            LEFT JOIN encounters e ON e.id = k.encounter_id
+            LEFT JOIN documents d ON d.id = k.document_id
+            LEFT JOIN patients ep ON ep.id = e.patient_id
+            LEFT JOIN patients dp ON dp.id = d.patient_id
+            WHERE 1=1
+        """
+        params = []
+
+        if user:
+            if user.role not in (
+                User.ROLE_ADMIN,
+                User.ROLE_REGISTRAR,
+                User.ROLE_LEAD,
+                User.ROLE_DOCTOR,
+            ):
+                return []
+            if user.role == User.ROLE_LEAD:
+                query += " AND (ep.department = ? OR dp.department = ?)"
+                params.extend([user.department, user.department])
+            elif user.role == User.ROLE_DOCTOR:
+                query += " AND (e.doctor_id = ? OR d.author_id = ? OR ep.doctor_id = ? OR dp.doctor_id = ?)"
+                params.extend([user.id, user.id, user.id, user.id])
+
+        query += " ORDER BY k.created_at DESC"
+        rows = db.fetchall(query, tuple(params))
         return [cls._from_row(row) for row in rows]
 
     @classmethod

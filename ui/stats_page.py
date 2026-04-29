@@ -177,7 +177,7 @@ class StatsPage(QWidget):
         self.dept_combo.addItem("Все отделения", "")
 
         # Ограничение по отделению
-        if self.user.role == User.ROLE_LEAD:
+        if self.user.role in (User.ROLE_LEAD, User.ROLE_DOCTOR):
             self.dept_combo.addItem(self.user.department_display, self.user.department)
             self.dept_combo.setEnabled(False)
         else:
@@ -198,6 +198,13 @@ class StatsPage(QWidget):
         """Изменение года"""
         self.selected_year = self.year_combo.currentData()
         self._load_stats()
+
+    def _get_dept_stats_columns(self):
+        if self.user.role == User.ROLE_LEAD:
+            return [(self.user.department, self.user.department_display)]
+        if self.user.role == User.ROLE_DOCTOR:
+            return [("__own__", "Свои данные")]
+        return DEPARTMENTS
 
     def _create_dept_stats_table(self) -> QTableWidget:
         """Таблица статистики по отделениям"""
@@ -265,11 +272,43 @@ class StatsPage(QWidget):
         # Загрузка таблицы по дням
         self._load_daily_stats()
 
+    def _get_own_metric(self, metric_key: str) -> int:
+        patients = Patient.get_all(user=self.user)
+        if metric_key == "patients_total":
+            return len(patients)
+        if metric_key == "patients_adult":
+            return len([p for p in patients if p.patient_type == "adult"])
+        if metric_key == "patients_child":
+            return len([p for p in patients if p.patient_type == "child"])
+        if metric_key == "patients_undefined":
+            return len([p for p in patients if p.patient_type == "undefined"])
+        if metric_key == "visits":
+            from_date = datetime(self.selected_year, self.selected_month, 1)
+            if self.selected_month == 12:
+                to_date = datetime(self.selected_year + 1, 1, 1)
+            else:
+                to_date = datetime(self.selected_year, self.selected_month + 1, 1)
+            return len(
+                Encounter.get_all(
+                    user=self.user,
+                    start_date=from_date,
+                    end_date=to_date,
+                )
+            )
+        return 0
+
     def _load_dept_stats(self):
         """Загрузка статистики по отделениям из кэша"""
         colors = get_colors()
         table = self.dept_stats_table
         table.setRowCount(0)
+        dept_columns = self._get_dept_stats_columns()
+        show_total = self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR)
+        table.setColumnCount(1 + len(dept_columns) + (1 if show_total else 0))
+        headers = ["Показатель"] + [dept_name for _, dept_name in dept_columns]
+        if show_total:
+            headers.append("Всего")
+        table.setHorizontalHeaderLabels(headers)
 
         # Показатели для строк
         rows_data = [
@@ -292,12 +331,15 @@ class StatsPage(QWidget):
 
             # Данные по каждому отделению
             total = 0
-            for col_idx, (dept_code, dept_name) in enumerate(DEPARTMENTS, start=1):
+            for col_idx, (dept_code, dept_name) in enumerate(dept_columns, start=1):
                 # Берём из кэша
-                cached_value = StatsCache.get(
-                    metric_key, dept_code, self.selected_month, self.selected_year
-                )
-                count = cached_value if cached_value is not None else 0
+                if dept_code == "__own__":
+                    count = self._get_own_metric(metric_key)
+                else:
+                    cached_value = StatsCache.get(
+                        metric_key, dept_code, self.selected_month, self.selected_year
+                    )
+                    count = cached_value if cached_value is not None else 0
                 total += count
 
                 item = QTableWidgetItem(str(count))
@@ -305,19 +347,20 @@ class StatsPage(QWidget):
                 table.setItem(row, col_idx, item)
 
             # Итого — берём из кэша для пустого department
-            total_cached = StatsCache.get(
-                metric_key, "", self.selected_month, self.selected_year
-            )
-            total = total_cached if total_cached is not None else total
+            if show_total:
+                total_cached = StatsCache.get(
+                    metric_key, "", self.selected_month, self.selected_year
+                )
+                total = total_cached if total_cached is not None else total
 
-            total_item = QTableWidgetItem(str(total))
-            total_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            accent_color = QColor(colors["accent"])
-            total_item.setForeground(accent_color)
-            font = total_item.font()
-            font.setBold(True)
-            total_item.setFont(font)
-            table.setItem(row, table.columnCount() - 1, total_item)
+                total_item = QTableWidgetItem(str(total))
+                total_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                accent_color = QColor(colors["accent"])
+                total_item.setForeground(accent_color)
+                font = total_item.font()
+                font.setBold(True)
+                total_item.setFont(font)
+                table.setItem(row, table.columnCount() - 1, total_item)
 
         # Применяем стили
         self._apply_dept_table_styles()

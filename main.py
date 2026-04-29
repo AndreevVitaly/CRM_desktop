@@ -13,6 +13,7 @@ from models.db_models import init_db, db
 from ui.login_window import LoginWindow
 from ui.main_window import MainWindow
 from ui.styles import get_main_stylesheet
+from utils.app_paths import get_db_path
 
 app_state = {
     "login_window": None,
@@ -41,7 +42,7 @@ def main():
     sys.excepthook = exception_hook
 
     # Инициализация БД
-    init_db("medcrm.db")
+    init_db(str(get_db_path()))
 
     # Создание приложения
     app = QApplication(sys.argv)

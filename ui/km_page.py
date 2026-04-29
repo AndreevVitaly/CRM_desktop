@@ -140,7 +140,7 @@ class KmPage(QWidget):
         """Загрузка записей КМ"""
         self.table.setRowCount(0)
 
-        records = KmRecord.get_all()
+        records = KmRecord.get_all(self.user)
 
         # Фильтрация
         search_text = self.search_input.text().lower()

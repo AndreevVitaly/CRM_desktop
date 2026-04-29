@@ -199,9 +199,10 @@ class RegistrationDialog(QDialog):
         # Создание пользователя
         try:
             from models.db_models import db, init_db
+            from utils.app_paths import get_db_path
 
             # Убеждаемся, что БД инициализирована
-            init_db("medcrm.db")
+            init_db(str(get_db_path()))
 
             user = User(
                 username=username,

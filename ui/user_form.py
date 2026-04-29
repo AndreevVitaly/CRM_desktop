@@ -123,7 +123,9 @@ class UserFormDialog(QDialog):
 
         # LEAD видит только своё отделение
         if self.current_user.role == User.ROLE_LEAD:
-            self.dept_combo.setCurrentText(self.current_user.department_display)
+            dept_index = self.dept_combo.findData(self.current_user.department)
+            if dept_index >= 0:
+                self.dept_combo.setCurrentIndex(dept_index)
             self.dept_combo.setEnabled(False)
 
         role_layout.addRow("Отделение", self.dept_combo)

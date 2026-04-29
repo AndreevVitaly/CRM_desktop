@@ -25,6 +25,7 @@ import os
 
 from models.db_models import User
 from ui.styles import get_colors, FONTS, RADIUS, get_main_stylesheet
+from utils.app_paths import get_resource_path
 
 
 class ThemeSwitch(QWidget):
@@ -164,9 +165,7 @@ class MainWindow(QMainWindow):
 
     def _get_logo_path(self) -> str:
         """Путь к логотипу"""
-        assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
-        logo = "logo_light.png"
-        path = os.path.join(assets_dir, logo)
+        path = str(get_resource_path("assets", "logo_light.png"))
         if os.path.exists(path):
             return path
         return ""
@@ -219,12 +218,11 @@ class MainWindow(QMainWindow):
             User.ROLE_REGISTRAR,
             User.ROLE_LEAD,
             User.ROLE_DOCTOR,
-            User.ROLE_NURSE,
         ):
             items["patients"] = ("Пациенты", True)
 
         # Пользователи
-        if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR):
+        if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             items["users"] = ("Пользователи", True)
 
         # Планирование
@@ -237,6 +235,13 @@ class MainWindow(QMainWindow):
         # Статистика
         if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             items["stats"] = ("Статистика", True)
+            items["documents"] = ("Документы", True)
+
+        if user.role == User.ROLE_DOCTOR:
+            items["km"] = ("КМ", True)
+            items["stats"] = ("Статистика", True)
+
+        if user.role in (User.ROLE_DOCTOR, User.ROLE_NURSE):
             items["documents"] = ("Документы", True)
 
         return items
