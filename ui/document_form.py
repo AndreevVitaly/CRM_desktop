@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QTextEdit,
 )
 from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QFont
 
 from models.db_models import (
     User,
@@ -47,6 +48,7 @@ class DocumentFormDialog(QDialog):
     def _init_ui(self):
         """Инициализация интерфейса"""
         colors = get_colors()
+        compact_font = QFont("Segoe UI", 9)
 
         layout = QVBoxLayout()
         layout.setSpacing(16)
@@ -67,6 +69,8 @@ class DocumentFormDialog(QDialog):
         # Гриф секретности
         self.classification_combo = QComboBox()
         self.classification_combo.setFrame(False)
+        self.classification_combo.setFont(compact_font)
+        self.classification_combo.setMinimumHeight(34)
         for value, label in DOCUMENT_CLASSIFICATION_CHOICES:
             self.classification_combo.addItem(label, value)
         form_layout.addRow("Гриф секретности*", self.classification_combo)
@@ -76,15 +80,21 @@ class DocumentFormDialog(QDialog):
         self.doc_date_input.setCalendarPopup(True)
         self.doc_date_input.setDate(QDate.currentDate())
         self.doc_date_input.setDisplayFormat("dd.MM.yyyy")
+        self.doc_date_input.setFont(compact_font)
+        self.doc_date_input.setMinimumHeight(34)
         form_layout.addRow("Дата*", self.doc_date_input)
 
         # Номер документа
         self.doc_number_input = QLineEdit()
+        self.doc_number_input.setFont(compact_font)
+        self.doc_number_input.setMinimumHeight(34)
         self.doc_number_input.setPlaceholderText("Введите номер документа")
         form_layout.addRow("Номер документа", self.doc_number_input)
 
         # Тип документа (выпадающий список)
         self.doc_type_selector = QComboBox()
+        self.doc_type_selector.setFont(compact_font)
+        self.doc_type_selector.setMinimumHeight(34)
         self.doc_type_selector.setFrame(False)
         self.doc_type_selector.addItem("Выберите тип документа", "")
         self.doc_type_selector.addItem("План работы с пациентом", DOCUMENT_TYPE_PLAN)
@@ -94,6 +104,8 @@ class DocumentFormDialog(QDialog):
 
         # Поле для ручного ввода вида документа (скрыто по умолчанию)
         self.doc_type_input = QLineEdit()
+        self.doc_type_input.setFont(compact_font)
+        self.doc_type_input.setMinimumHeight(34)
         self.doc_type_input.setPlaceholderText("Введите вид документа")
         self.doc_type_input.setVisible(False)
         form_layout.addRow("Вид документа*", self.doc_type_input)
@@ -103,38 +115,23 @@ class DocumentFormDialog(QDialog):
 
         # Краткое содержание
         self.summary_input = QTextEdit()
+        self.summary_input.setFont(compact_font)
+        self.summary_input.document().setDocumentMargin(6)
+        self.summary_input.setMinimumHeight(72)
         self.summary_input.setPlaceholderText("Введите краткое содержание")
         self.summary_input.setMaximumHeight(100)
         form_layout.addRow("Краткое содержание", self.summary_input)
 
         # Куда приобщён
-        self.location_input = QLineEdit()
+        self.location_input = QTextEdit()
+        self.location_input.setFont(compact_font)
+        self.location_input.document().setDocumentMargin(6)
+        self.location_input.setMinimumHeight(72)
+        self.location_input.setMaximumHeight(100)
         self.location_input.setPlaceholderText("Введите, куда приобщён документ")
-        form_layout.addRow("Куда приобщён*", self.location_input)
+        form_layout.addRow("Куда приобщён", self.location_input)
 
-        # Личный номер пациента (автозаполнение из карточки пациента)
-        self.patient_personal_number_input = QLineEdit()
-        self.patient_personal_number_input.setReadOnly(True)
-        if self.patient.personal_number:
-            self.patient_personal_number_input.setText(self.patient.personal_number)
-        else:
-            self.patient_personal_number_input.setText("Не присвоен")
-        form_layout.addRow("Личный номер пациента", self.patient_personal_number_input)
-
-        # Встреча (выпадающий список)
-        self.encounter_combo = QComboBox()
-        self.encounter_combo.setFrame(False)
-        self.encounter_combo.addItem("Без привязки к встрече", 0)
-
-        # Загрузка встреч пациента
-        from models.db_models import Encounter
-
-        encounters = Encounter.get_by_patient(self.patient.id)
-        for enc in encounters:
-            display_text = f"{enc.started_at.strftime('%d.%m.%Y %H:%M')} - {enc.doctor.full_name if enc.doctor else 'Без врача'}"
-            self.encounter_combo.addItem(display_text, enc.id)
-        form_layout.addRow("Связанная встреча", self.encounter_combo)
-
+        self._apply_form_styles(colors)
         form_group.setLayout(form_layout)
         layout.addWidget(form_group)
 
@@ -158,12 +155,63 @@ class DocumentFormDialog(QDialog):
 
         self.setLayout(layout)
         self.setStyleSheet(
-            f"background-color: {colors['bg']}; color: {colors['text']}; QGroupBox {{ color: {colors['text']}; }}"
+            f"""
+            background-color: {colors['bg']};
+            color: {colors['text']};
+            QGroupBox {{
+                color: {colors['text']};
+            }}
+            QLabel {{
+                font-size: 9pt;
+            }}
+            QLineEdit, QComboBox, QDateEdit {{
+                font-size: 9pt;
+                padding: 4px 8px;
+                min-height: 24px;
+            }}
+            QTextEdit {{
+                font-size: 9pt;
+                padding: 6px 8px;
+            }}
+            """
         )
 
         # Заполнение данными при редактировании
         if self.is_edit:
             self._fill_data()
+
+    def _apply_form_styles(self, colors):
+        """Локально фиксирует читаемость полей формы документа."""
+        input_style = f"""
+            background-color: {colors['surface']};
+            color: {colors['text']};
+            border: 1px solid {colors['line']};
+            border-radius: {RADIUS['md']}px;
+            padding: 4px 8px;
+            selection-background-color: {colors['accent']};
+            selection-color: {colors['surface']};
+        """
+        text_edit_style = f"""
+            background-color: {colors['surface']};
+            color: {colors['text']};
+            border: 1px solid {colors['line']};
+            border-radius: {RADIUS['md']}px;
+            padding: 6px 8px;
+            selection-background-color: {colors['accent']};
+            selection-color: {colors['surface']};
+        """
+
+        for widget in (
+            self.classification_combo,
+            self.doc_date_input,
+            self.doc_number_input,
+            self.doc_type_selector,
+            self.doc_type_input,
+            self.location_input,
+        ):
+            widget.setStyleSheet(input_style)
+
+        self.summary_input.setStyleSheet(text_edit_style)
 
     def _on_doc_type_changed(self, index):
         """Обработка изменения типа документа"""
@@ -214,19 +262,7 @@ class DocumentFormDialog(QDialog):
         self.summary_input.setPlainText(self.document.summary or "")
 
         # Куда приобщён
-        self.location_input.setText(self.document.location or "")
-
-        # Личный номер пациента (всегда из карточки пациента)
-        if self.patient.personal_number:
-            self.patient_personal_number_input.setText(self.patient.personal_number)
-        else:
-            self.patient_personal_number_input.setText("Не присвоен")
-
-        # Связанная встреча
-        if self.document.encounter_id:
-            encounter_index = self.encounter_combo.findData(self.document.encounter_id)
-            if encounter_index >= 0:
-                self.encounter_combo.setCurrentIndex(encounter_index)
+        self.location_input.setPlainText(self.document.location or "")
 
     def _save(self):
         """Сохранение документа"""
@@ -245,10 +281,6 @@ class DocumentFormDialog(QDialog):
         else:
             doc_type = selected_type
 
-        if not self.location_input.text().strip():
-            QMessageBox.warning(self, "Ошибка", "Введите, куда приобщён документ")
-            return
-
         # Создание/обновление документа
         if not self.document:
             self.document = Document()
@@ -259,16 +291,15 @@ class DocumentFormDialog(QDialog):
         self.document.author_id = self.user.id
         self.document.doc_type = doc_type
         self.document.summary = self.summary_input.toPlainText().strip()
-        self.document.location = self.location_input.text().strip()
+        self.document.location = self.location_input.toPlainText().strip()
         self.document.patient_personal_number = self.patient.personal_number or ""
 
         # Номер документа (пустая строка сохраняется как None)
         doc_number_str = self.doc_number_input.text().strip()
         self.document.doc_number = doc_number_str if doc_number_str else None
 
-        # Связанная встреча
-        encounter_id = self.encounter_combo.currentData()
-        self.document.encounter_id = encounter_id if encounter_id else None
+        if not self.is_edit:
+            self.document.encounter_id = None
 
         self.document.save()
 

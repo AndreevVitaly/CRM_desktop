@@ -140,7 +140,19 @@ class PlanWorkFormDialog(QDialog):
 
         self.setLayout(layout)
         self.setStyleSheet(
-            f"background-color: {colors['bg']}; color: {colors['text']}; QGroupBox {{ color: {colors['text']}; }}"
+            f"""
+            background-color: {colors['bg']};
+            color: {colors['text']};
+            QGroupBox {{
+                color: {colors['text']};
+            }}
+            QLabel {{
+                font-size: 9pt;
+            }}
+            QTextEdit, QDateEdit, QTableWidget {{
+                font-size: 9pt;
+            }}
+            """
         )
 
         # Заполнение при редактировании

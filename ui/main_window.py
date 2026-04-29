@@ -259,32 +259,32 @@ class MainWindow(QMainWindow):
             f"""
             QPushButton#navButton {{
                 background-color: transparent;
-                border: 2px solid transparent;
+                border: 1px solid transparent;
                 border-radius: {RADIUS['md']}px;
-                padding: 8px 14px;
+                padding: 6px 12px;
                 font-size: {FONTS['size_small']}pt;
                 font-weight: 600;
                 color: {colors['text']};
             }}
             QPushButton#navButton:hover {{
                 background-color: {colors['surface_muted']};
-                border: 2px solid {colors['line']};
+                border: 1px solid {colors['line']};
                 color: {colors['accent']};
             }}
             QPushButton#navButton#active {{
                 background-color: #3B82F6;
-                border: 2px solid #3B82F6;
+                border: 1px solid #3B82F6;
                 color: #FFFFFF;
                 font-weight: 700;
             }}
             QPushButton#navButton:pressed {{
                 background-color: #3B82F6;
-                border: 2px solid #3B82F6;
+                border: 1px solid #3B82F6;
                 color: #FFFFFF;
             }}
             QPushButton#navButton:disabled {{
                 background-color: transparent;
-                border: 2px solid {colors['line']};
+                border: 1px solid {colors['line']};
                 color: {colors['text_muted']};
             }}
         """
@@ -572,32 +572,32 @@ class MainWindow(QMainWindow):
                 f"""
                 QPushButton#navButton {{
                     background-color: transparent;
-                    border: 2px solid transparent;
+                    border: 1px solid transparent;
                     border-radius: {RADIUS['md']}px;
-                    padding: 8px 14px;
+                    padding: 6px 12px;
                     font-size: {FONTS['size_small']}pt;
                     font-weight: 600;
                     color: {colors['text']};
                 }}
                 QPushButton#navButton:hover {{
                     background-color: {colors['surface_muted']};
-                    border: 2px solid {colors['line']};
+                    border: 1px solid {colors['line']};
                     color: {colors['accent']};
                 }}
                 QPushButton#navButton#active {{
                     background-color: #3B82F6;
-                    border: 2px solid #3B82F6;
+                    border: 1px solid #3B82F6;
                     color: #FFFFFF;
                     font-weight: 700;
                 }}
                 QPushButton#navButton:pressed {{
                     background-color: #3B82F6;
-                    border: 2px solid #3B82F6;
+                    border: 1px solid #3B82F6;
                     color: #FFFFFF;
                 }}
                 QPushButton#navButton:disabled {{
                     background-color: transparent;
-                    border: 2px solid {colors['line']};
+                    border: 1px solid {colors['line']};
                     color: {colors['text_muted']};
                 }}
             """

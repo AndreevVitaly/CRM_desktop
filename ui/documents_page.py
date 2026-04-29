@@ -101,7 +101,7 @@ class DocumentsPage(QWidget):
 
     def _create_table(self) -> QTableWidget:
         table = QTableWidget()
-        table.setColumnCount(11)
+        table.setColumnCount(10)
         table.setHorizontalHeaderLabels(
             [
                 "ID",
@@ -114,7 +114,6 @@ class DocumentsPage(QWidget):
                 "Краткое содержание",
                 "Куда приобщён",
                 "Автор",
-                "Связанная встреча",
             ]
         )
 
@@ -129,7 +128,6 @@ class DocumentsPage(QWidget):
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(10, QHeaderView.ResizeMode.ResizeToContents)
 
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -150,23 +148,20 @@ class DocumentsPage(QWidget):
         for doc in documents:
             patient = doc.patient
             author = doc.author
-            encounter = doc.encounter
 
             search_blob = " ".join(
-                [
-                    str(doc.id or ""),
+                str(part or "")
+                for part in [
+                    doc.id,
                     patient.callsign if patient else "",
                     patient.personal_number if patient else "",
-                    doc.patient_personal_number or "",
-                    doc.doc_number or "",
-                    doc.classification_display or "",
+                    doc.patient_personal_number,
+                    doc.doc_number,
+                    doc.classification_display,
                     self._get_doc_type_display(doc),
-                    doc.summary or "",
-                    doc.location or "",
+                    doc.summary,
+                    doc.location,
                     author.full_name if author else "",
-                    encounter.started_at.strftime("%d.%m.%Y %H:%M")
-                    if encounter and encounter.started_at
-                    else "",
                 ]
             ).lower()
 
@@ -178,7 +173,6 @@ class DocumentsPage(QWidget):
         for row, doc in enumerate(self.filtered_documents):
             patient = doc.patient
             author = doc.author
-            encounter = doc.encounter
 
             self.table.insertRow(row)
 
@@ -212,11 +206,6 @@ class DocumentsPage(QWidget):
             self.table.setItem(
                 row, 9, QTableWidgetItem(author.full_name if author else "—")
             )
-            self.table.setItem(
-                row,
-                10,
-                QTableWidgetItem(self._get_encounter_display(encounter)),
-            )
 
         self.count_label.setText(f"Документов найдено: {len(self.filtered_documents)}")
 
@@ -226,12 +215,6 @@ class DocumentsPage(QWidget):
         if doc.doc_type == DOCUMENT_TYPE_MEETING:
             return "Встреча"
         return doc.doc_type or "—"
-
-    def _get_encounter_display(self, encounter) -> str:
-        if not encounter or not encounter.started_at:
-            return "—"
-        doctor_name = encounter.doctor.full_name if encounter.doctor else "без врача"
-        return f"{encounter.started_at.strftime('%d.%m.%Y %H:%M')} | {doctor_name}"
 
     def _get_selected_document(self):
         selected = self.table.selectedItems()

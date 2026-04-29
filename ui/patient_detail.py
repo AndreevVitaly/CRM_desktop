@@ -895,7 +895,13 @@ class PatientDetailDialog(QDialog):
         layout.setContentsMargins(16, 16, 16, 16)
 
         # Кнопка добавления документа
-        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_REGISTRAR):
+        if self.user.role in (
+            User.ROLE_ADMIN,
+            User.ROLE_LEAD,
+            User.ROLE_REGISTRAR,
+            User.ROLE_DOCTOR,
+            User.ROLE_NURSE,
+        ):
             add_btn = QPushButton("Добавить документ")
             add_btn.setFixedHeight(36)
             add_btn.clicked.connect(self._add_document)
@@ -945,13 +951,20 @@ class PatientDetailDialog(QDialog):
         buttons_layout = QHBoxLayout()
         buttons_layout.setContentsMargins(0, 8, 0, 0)
 
-        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_REGISTRAR):
+        if self.user.role in (
+            User.ROLE_ADMIN,
+            User.ROLE_LEAD,
+            User.ROLE_REGISTRAR,
+            User.ROLE_DOCTOR,
+            User.ROLE_NURSE,
+        ):
             edit_btn = QPushButton("Редактировать")
             edit_btn.setObjectName("secondaryBtn")
             edit_btn.setFixedHeight(36)
             edit_btn.clicked.connect(self._edit_document)
             buttons_layout.addWidget(edit_btn)
 
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_REGISTRAR):
             delete_btn = QPushButton("Удалить")
             delete_btn.setObjectName("dangerBtn")
             delete_btn.setFixedHeight(36)
@@ -1100,10 +1113,17 @@ class PatientDetailDialog(QDialog):
         view_action.triggered.connect(lambda: self._open_document_at_row(row))
 
         # Действия для редактирования (только для авторизованных ролей)
-        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_REGISTRAR):
+        if self.user.role in (
+            User.ROLE_ADMIN,
+            User.ROLE_LEAD,
+            User.ROLE_REGISTRAR,
+            User.ROLE_DOCTOR,
+            User.ROLE_NURSE,
+        ):
             edit_action = menu.addAction("Редактировать")
             edit_action.triggered.connect(lambda: self._edit_document_at_row(row))
 
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_REGISTRAR):
             menu.addSeparator()
 
             delete_action = menu.addAction("Удалить")
@@ -1139,11 +1159,14 @@ class PatientDetailDialog(QDialog):
             QFrame,
             QPushButton,
             QFormLayout,
+            QScrollArea,
         )
 
         dialog = QDialog(self)
-        dialog.setWindowTitle(f"Документ №{doc.id}")
-        dialog.setMinimumSize(600, 400)
+        doc_title_number = doc.doc_number or f"ID {doc.id}"
+        dialog.setWindowTitle(f"Документ №{doc_title_number}")
+        dialog.resize(700, 520)
+        dialog.setMinimumSize(600, 420)
 
         colors = get_colors()
         layout = QVBoxLayout(dialog)
@@ -1151,7 +1174,7 @@ class PatientDetailDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
 
         # Заголовок
-        title = QLabel(f"Документ №{doc.id}")
+        title = QLabel(f"Документ №{doc_title_number}")
         title.setStyleSheet(f"font-size: {FONTS['size_title']}pt; font-weight: bold;")
         title.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         layout.addWidget(title)
@@ -1168,10 +1191,20 @@ class PatientDetailDialog(QDialog):
         """
         )
         info_layout = QFormLayout(info_frame)
-        info_layout.setSpacing(8)
+        info_layout.setSpacing(4)
+        info_layout.setHorizontalSpacing(12)
+        info_layout.setVerticalSpacing(4)
+        info_layout.setLabelAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight
+        )
+
+        current_patient_number = (
+            (doc.patient.personal_number if doc.patient else "")
+            or doc.patient_personal_number
+            or "—"
+        )
 
         fields = [
-            ("Номер по порядку:", str(doc.id)),
             ("Номер документа:", str(doc.doc_number) if doc.doc_number else "—"),
             ("Гриф секретности:", doc.classification_display),
             ("Дата:", doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"),
@@ -1179,18 +1212,34 @@ class PatientDetailDialog(QDialog):
             ("Вид документа:", doc.doc_type or "—"),
             ("Краткое содержание:", doc.summary or "—"),
             ("Куда приобщён:", doc.location or "—"),
-            ("Личный номер пациента:", doc.patient_personal_number or "—"),
+            ("Личный номер пациента:", current_patient_number),
         ]
 
         for label, value in fields:
             lbl = QLabel(label)
-            lbl.setStyleSheet("font-weight: bold;")
+            lbl.setStyleSheet(
+                f"font-weight: bold; color: {colors['text']}; background-color: transparent; padding: 2px 0;"
+            )
+            lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+            lbl.setContentsMargins(0, 0, 0, 0)
             val = QLabel(value)
-            val.setStyleSheet(f"color: {colors['text']};")
-            val.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+            val.setStyleSheet(
+                f"color: {colors['text']}; background-color: transparent; padding: 2px 0;"
+            )
+            val.setWordWrap(True)
+            val.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            val.setContentsMargins(0, 0, 0, 0)
+            val.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+            )
             info_layout.addRow(lbl, val)
 
-        layout.addWidget(info_frame)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background: transparent; border: none;")
+        scroll.setWidget(info_frame)
+        layout.addWidget(scroll, 1)
 
         # Кнопки
         button_layout = QHBoxLayout()
@@ -1202,9 +1251,16 @@ class PatientDetailDialog(QDialog):
         close_btn.clicked.connect(dialog.accept)
         button_layout.addWidget(close_btn)
 
-        layout.addLayout(button_layout)
+        layout.addLayout(button_layout, 0)
         dialog.setStyleSheet(
-            f"background-color: {colors['bg']}; color: {colors['text']};"
+            f"""
+            background-color: {colors['bg']};
+            color: {colors['text']};
+            QLabel {{
+                color: {colors['text']};
+                background-color: transparent;
+            }}
+            """
         )
         dialog.exec()
 
@@ -1216,9 +1272,14 @@ class PatientDetailDialog(QDialog):
 
         doc = documents[row]
 
-        from ui.document_form import DocumentFormDialog
+        if doc.doc_type == DOCUMENT_TYPE_PLAN:
+            from ui.plan_work_form import PlanWorkFormDialog
 
-        dialog = DocumentFormDialog(self.user, self.patient, doc)
+            dialog = PlanWorkFormDialog(self.user, self.patient, doc)
+        else:
+            from ui.document_form import DocumentFormDialog
+
+            dialog = DocumentFormDialog(self.user, self.patient, doc)
 
         if dialog.exec():
             self._load_documents()

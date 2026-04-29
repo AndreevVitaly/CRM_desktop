@@ -115,6 +115,26 @@ class Database:
         """
         )
 
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS departments (
+                code TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+        )
+
+        for code, name in DEPARTMENTS:
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO departments (code, name, is_active)
+                VALUES (?, ?, 1)
+            """,
+                (code, name),
+            )
+
         # Таблица мест размещения
         cursor.execute(
             """
@@ -710,6 +730,47 @@ class User:
 
 
 @dataclass
+class Department:
+    code: str = ""
+    name: str = ""
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+
+    def save(self):
+        db.execute(
+            """
+            INSERT OR REPLACE INTO departments (code, name, is_active)
+            VALUES (?, ?, ?)
+        """,
+            (self.code, self.name, self.is_active),
+        )
+        db.commit()
+
+    @classmethod
+    def get_all(cls, include_inactive: bool = False) -> List["Department"]:
+        query = "SELECT * FROM departments"
+        if not include_inactive:
+            query += " WHERE is_active = 1"
+        query += " ORDER BY name"
+        rows = db.fetchall(query)
+        return [cls(**dict(row)) for row in rows]
+
+    @classmethod
+    def get_choices(cls, include_inactive: bool = False) -> List[tuple[str, str]]:
+        return [
+            (department.code, department.name)
+            for department in cls.get_all(include_inactive)
+        ]
+
+    @classmethod
+    def get_by_code(cls, code: str) -> Optional["Department"]:
+        row = db.fetchone("SELECT * FROM departments WHERE code = ?", (code,))
+        if row:
+            return cls(**dict(row))
+        return None
+
+
+@dataclass
 class Facility:
     id: Optional[int] = None
     name: str = ""
@@ -877,6 +938,12 @@ class Patient:
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
+        if self.id is not None:
+            db.execute(
+                "UPDATE documents SET patient_personal_number = ? WHERE patient_id = ?",
+                (self.personal_number or "", self.id),
+            )
+            db.commit()
 
     @classmethod
     def _from_row(cls, row: dict) -> "Patient":
