@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QFont, QColor
 
-from models.db_models import User, Patient, Encounter, DEPARTMENTS, StatsCache
+from models.db_models import User, Patient, Encounter, StatsCache, get_department_choices
 from ui.styles import get_colors, FONTS, RADIUS
 from datetime import datetime
 
@@ -181,7 +181,7 @@ class StatsPage(QWidget):
             self.dept_combo.addItem(self.user.department_display, self.user.department)
             self.dept_combo.setEnabled(False)
         else:
-            for value, label in DEPARTMENTS:
+            for value, label in get_department_choices():
                 self.dept_combo.addItem(label, value)
 
         self.dept_combo.setFixedWidth(200)
@@ -204,7 +204,7 @@ class StatsPage(QWidget):
             return [(self.user.department, self.user.department_display)]
         if self.user.role == User.ROLE_DOCTOR:
             return [("__own__", "Свои данные")]
-        return DEPARTMENTS
+        return get_department_choices()
 
     def _create_dept_stats_table(self) -> QTableWidget:
         """Таблица статистики по отделениям"""
@@ -212,12 +212,13 @@ class StatsPage(QWidget):
 
         table = QTableWidget()
         # Колонки: Показатель + каждое отделение + Всего
-        num_cols = 1 + len(DEPARTMENTS) + 1  # Показатель + отделения + Всего
+        departments = self._get_dept_stats_columns()
+        num_cols = 1 + len(departments) + 1  # Показатель + отделения + Всего
         table.setColumnCount(num_cols)
 
         # Заголовки
         headers = ["Показатель"]
-        for dept_code, dept_name in DEPARTMENTS:
+        for dept_code, dept_name in departments:
             headers.append(dept_name)
         headers.append("Всего")
         table.setHorizontalHeaderLabels(headers)

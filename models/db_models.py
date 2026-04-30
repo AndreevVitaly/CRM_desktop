@@ -15,7 +15,7 @@ from dataclasses import dataclass
 # КОНСТАНТЫ
 # ============================================================================
 
-DEPARTMENTS = [
+DEFAULT_DEPARTMENT_SEED = [
     ("cardiology", "Кардиология"),
     ("therapy", "Терапия"),
     ("psychiatry", "Психиатрия"),
@@ -126,7 +126,7 @@ class Database:
         """
         )
 
-        for code, name in DEPARTMENTS:
+        for code, name in DEFAULT_DEPARTMENT_SEED:
             cursor.execute(
                 """
                 INSERT OR IGNORE INTO departments (code, name, is_active)
@@ -639,8 +639,7 @@ class User:
     def department_display(self) -> str:
         if not self.department:
             return ""
-        dept_dict = dict(DEPARTMENTS)
-        return dept_dict.get(self.department, self.department)
+        return get_department_name(self.department, "")
 
     def is_clinician(self) -> bool:
         return self.role in (self.ROLE_DOCTOR, self.ROLE_NURSE)
@@ -770,6 +769,21 @@ class Department:
         return None
 
 
+def get_department_name(department_code: str, default: str = "") -> str:
+    if not department_code:
+        return default
+
+    department = Department.get_by_code(department_code)
+    if department:
+        return department.name
+
+    return department_code
+
+
+def get_department_choices(include_inactive: bool = False) -> List[tuple[str, str]]:
+    return Department.get_choices(include_inactive)
+
+
 @dataclass
 class Facility:
     id: Optional[int] = None
@@ -863,8 +877,7 @@ class Patient:
 
     @property
     def department_display(self) -> str:
-        dept_dict = dict(DEPARTMENTS)
-        return dept_dict.get(self.department, self.department)
+        return get_department_name(self.department, self.department)
 
     @property
     def doctor(self) -> Optional[User]:
@@ -1830,8 +1843,7 @@ class Event:
     def department_display(self) -> str:
         if not self.department:
             return "Общее"
-        dept_dict = dict(DEPARTMENTS)
-        return dept_dict.get(self.department, self.department)
+        return get_department_name(self.department, self.department)
 
     @property
     def responsible(self) -> Optional[User]:
@@ -2062,7 +2074,7 @@ class StatsCache:
         cls.rebuild(department="", month=None, year=None)
 
         # Обновляем для каждого отделения
-        for dept_code, _ in DEPARTMENTS:
+        for dept_code, _ in get_department_choices(include_inactive=True):
             cls.rebuild(department=dept_code, month=None, year=None)
 
 

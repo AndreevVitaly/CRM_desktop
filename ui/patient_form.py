@@ -24,7 +24,7 @@ from models.db_models import (
     User,
     Patient,
     Facility,
-    DEPARTMENTS,
+    get_department_choices,
     GENDER_CHOICES,
     PATIENT_TYPE_CHOICES,
 )
@@ -168,7 +168,7 @@ class PatientFormDialog(QDialog):
         # Отделение
         self.dept_combo = QComboBox()
         self.dept_combo.setFrame(False)
-        for value, label in DEPARTMENTS:
+        for value, label in get_department_choices():
             self.dept_combo.addItem(label, value)
 
         # Ограничение по отделению для LEAD

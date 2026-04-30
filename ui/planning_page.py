@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-from models.db_models import User, Event, DEPARTMENTS, EVENT_TYPES
+from models.db_models import User, Event, EVENT_TYPES, get_department_choices
 from ui.styles import get_colors, FONTS, RADIUS
 from datetime import date
 
@@ -126,7 +126,7 @@ class PlanningPage(QWidget):
         elif self.user.role in (User.ROLE_DOCTOR, User.ROLE_NURSE):
             self.dept_combo.addItem(self.user.department_display, self.user.department)
         else:
-            for value, label in DEPARTMENTS:
+            for value, label in get_department_choices():
                 self.dept_combo.addItem(label, value)
 
         self.dept_combo.setFixedWidth(180)

@@ -14,6 +14,9 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLineEdit,
     QMessageBox,
+    QDialog,
+    QFormLayout,
+    QScrollArea,
 )
 from PyQt6.QtCore import Qt
 
@@ -85,11 +88,12 @@ class DocumentsPage(QWidget):
 
         layout.addStretch()
 
-        edit_btn = QPushButton("Редактировать")
-        edit_btn.setObjectName("actionButton")
-        edit_btn.setFixedHeight(36)
-        edit_btn.clicked.connect(self._edit_selected_document)
-        layout.addWidget(edit_btn)
+        if self.user.role != User.ROLE_NURSE:
+            edit_btn = QPushButton("Редактировать")
+            edit_btn.setObjectName("actionButton")
+            edit_btn.setFixedHeight(36)
+            edit_btn.clicked.connect(self._edit_selected_document)
+            layout.addWidget(edit_btn)
 
         refresh_btn = QPushButton("Обновить")
         refresh_btn.setObjectName("actionButton")
@@ -134,7 +138,7 @@ class DocumentsPage(QWidget):
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
-        table.doubleClicked.connect(lambda *_: self._edit_selected_document())
+        table.doubleClicked.connect(lambda *_: self._open_selected_document())
 
         return table
 
@@ -228,6 +232,10 @@ class DocumentsPage(QWidget):
         return self.filtered_documents[row]
 
     def _edit_selected_document(self):
+        if self.user.role == User.ROLE_NURSE:
+            self._open_selected_document()
+            return
+
         doc = self._get_selected_document()
         if not doc:
             QMessageBox.warning(
@@ -255,6 +263,98 @@ class DocumentsPage(QWidget):
 
         if dialog.exec():
             self._load_documents()
+
+    def _open_selected_document(self):
+        doc = self._get_selected_document()
+        if not doc:
+            QMessageBox.warning(
+                self, "Предупреждение", "Выберите документ в таблице"
+            )
+            return
+
+        self._open_document_dialog(doc)
+
+    def _open_document_dialog(self, doc: Document):
+        patient = doc.patient
+        author = doc.author
+
+        dialog = QDialog(self)
+        doc_title_number = doc.doc_number or f"ID {doc.id}"
+        dialog.setWindowTitle(f"Документ №{doc_title_number}")
+        dialog.resize(700, 520)
+        dialog.setMinimumSize(600, 420)
+
+        colors = get_colors()
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel(f"Документ №{doc_title_number}")
+        layout.addWidget(title)
+
+        info_frame = QFrame()
+        info_frame.setStyleSheet(
+            f"""
+            QFrame {{
+                background-color: {colors['surface_muted']};
+                border-radius: {RADIUS['md']}px;
+                padding: 12px;
+            }}
+        """
+        )
+        info_layout = QFormLayout(info_frame)
+        info_layout.setSpacing(4)
+        info_layout.setHorizontalSpacing(12)
+        info_layout.setVerticalSpacing(4)
+        info_layout.setLabelAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight
+        )
+
+        current_patient_number = (
+            (patient.personal_number if patient else "")
+            or doc.patient_personal_number
+            or "—"
+        )
+
+        fields = [
+            ("Пациент:", patient.callsign if patient else "—"),
+            ("Номер документа:", str(doc.doc_number) if doc.doc_number else "—"),
+            ("Гриф секретности:", doc.classification_display),
+            ("Дата:", doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"),
+            ("Автор:", author.full_name if author else "—"),
+            ("Вид документа:", self._get_doc_type_display(doc)),
+            ("Краткое содержание:", doc.summary or "—"),
+            ("Куда приобщён:", doc.location or "—"),
+            ("Личный номер пациента:", current_patient_number),
+        ]
+
+        for label, value in fields:
+            lbl = QLabel(label)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+            val = QLabel(value)
+            val.setWordWrap(True)
+            val.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            info_layout.addRow(lbl, val)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background: transparent; border: none;")
+        scroll.setWidget(info_frame)
+        layout.addWidget(scroll, 1)
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        close_btn = QPushButton("Закрыть")
+        close_btn.setObjectName("actionButton")
+        close_btn.setFixedHeight(40)
+        close_btn.clicked.connect(dialog.accept)
+        button_layout.addWidget(close_btn)
+
+        layout.addLayout(button_layout)
+        dialog.exec()
 
     def update_styles(self):
         colors = get_colors()

@@ -16,7 +16,6 @@ from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QFont, QEnterEvent
 
 from models.db_models import User, Patient, Encounter, Event, Facility
-from models.db_models import DEPARTMENTS
 from ui.styles import get_colors, FONTS, RADIUS
 
 

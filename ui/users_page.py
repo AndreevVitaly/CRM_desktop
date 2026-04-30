@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 
-from models.db_models import User, DEPARTMENTS
+from models.db_models import User, get_department_choices
 from ui.styles import get_colors, FONTS, RADIUS
 
 
@@ -108,7 +108,7 @@ class UsersPage(QWidget):
         self.dept_combo = QComboBox()
         self.dept_combo.setFrame(False)
         self.dept_combo.addItem("Все отделения", "")
-        for value, label in DEPARTMENTS:
+        for value, label in get_department_choices():
             self.dept_combo.addItem(label, value)
         if self.user.role == User.ROLE_LEAD:
             dept_index = self.dept_combo.findData(self.user.department)

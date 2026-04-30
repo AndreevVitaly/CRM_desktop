@@ -39,7 +39,6 @@ from models.db_models import (
     TreatmentPlanItem,
     PatientInteraction,
     Facility,
-    DEPARTMENTS,
     Document,
     DOCUMENT_CLASSIFICATION_CHOICES,
     DOCUMENT_TYPE_PLAN,
@@ -900,7 +899,6 @@ class PatientDetailDialog(QDialog):
             User.ROLE_LEAD,
             User.ROLE_REGISTRAR,
             User.ROLE_DOCTOR,
-            User.ROLE_NURSE,
         ):
             add_btn = QPushButton("Добавить документ")
             add_btn.setFixedHeight(36)
@@ -956,7 +954,6 @@ class PatientDetailDialog(QDialog):
             User.ROLE_LEAD,
             User.ROLE_REGISTRAR,
             User.ROLE_DOCTOR,
-            User.ROLE_NURSE,
         ):
             edit_btn = QPushButton("Редактировать")
             edit_btn.setObjectName("secondaryBtn")
@@ -1118,7 +1115,6 @@ class PatientDetailDialog(QDialog):
             User.ROLE_LEAD,
             User.ROLE_REGISTRAR,
             User.ROLE_DOCTOR,
-            User.ROLE_NURSE,
         ):
             edit_action = menu.addAction("Редактировать")
             edit_action.triggered.connect(lambda: self._edit_document_at_row(row))

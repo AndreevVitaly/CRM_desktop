@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
-from models.db_models import User, DEPARTMENTS, hash_password
+from models.db_models import User, get_department_choices, hash_password
 from ui.styles import get_colors, FONTS, RADIUS
 
 
@@ -117,7 +117,7 @@ class RegistrationDialog(QDialog):
         self.dept_combo = QComboBox()
         self.dept_combo.setFrame(False)
         self.dept_combo.addItem("Не выбрано", "")
-        for value, label in DEPARTMENTS:
+        for value, label in get_department_choices():
             self.dept_combo.addItem(label, value)
         self.dept_combo.setFixedHeight(44)
         self.dept_combo.setVisible(False)

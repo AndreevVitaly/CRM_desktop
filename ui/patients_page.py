@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
-from models.db_models import User, Patient, Facility, DEPARTMENTS
+from models.db_models import User, Patient, Facility
 from ui.styles import get_colors, FONTS, RADIUS, get_main_stylesheet
 
 
