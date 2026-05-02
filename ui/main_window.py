@@ -271,7 +271,7 @@ class MainWindow(QMainWindow):
                 border: 1px solid {colors['line']};
                 color: {colors['accent']};
             }}
-            QPushButton#navButton#active {{
+            QPushButton#navButton[active="true"] {{
                 background-color: #3B82F6;
                 border: 1px solid #3B82F6;
                 color: #FFFFFF;

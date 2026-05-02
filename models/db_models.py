@@ -84,6 +84,12 @@ class Database:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.db_path = db_path
+        elif cls._instance.db_path != db_path:
+            if cls._connection is not None:
+                cls._connection.close()
+                cls._connection = None
+                cls._last_cursor = None
+            cls._instance.db_path = db_path
         return cls._instance
 
     def connect(self) -> sqlite3.Connection:
@@ -2068,14 +2074,14 @@ class StatsCache:
         return metrics
 
     @classmethod
-    def rebuild_all(cls):
+    def rebuild_all(cls, month: int = None, year: int = None):
         """Пересчёт кэша для всех отделений"""
         # Обновляем для всех без фильтра (пустое department)
-        cls.rebuild(department="", month=None, year=None)
+        cls.rebuild(department="", month=month, year=year)
 
         # Обновляем для каждого отделения
         for dept_code, _ in get_department_choices(include_inactive=True):
-            cls.rebuild(department=dept_code, month=None, year=None)
+            cls.rebuild(department=dept_code, month=month, year=year)
 
 
 @dataclass
@@ -2525,10 +2531,9 @@ def create_test_data():
     ]
 
     for fn, ln, mn, bd, gender, ptype, dept, doc_id, fac_id, phone in patients_data:
+        callsign = " ".join(part for part in (ln, fn, mn) if part).strip()
         patient = Patient(
-            first_name=fn,
-            last_name=ln,
-            middle_name=mn,
+            callsign=callsign,
             birth_date=datetime.strptime(bd, "%Y-%m-%d").date(),
             gender=gender,
             patient_type=ptype,

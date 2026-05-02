@@ -265,7 +265,7 @@ class StatsPage(QWidget):
         self.selected_year = self.year_combo.currentData()
 
         # Пересчитываем кэш для актуальных данных
-        StatsCache.rebuild_all()
+        StatsCache.rebuild_all(month=self.selected_month, year=self.selected_year)
 
         # Загрузка таблицы по отделениям
         self._load_dept_stats()
