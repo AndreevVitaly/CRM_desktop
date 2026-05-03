@@ -54,6 +54,12 @@ class PatientDetailDialog(QDialog):
         self.user = user
         self.patient = Patient.get_by_id(patient_id)
         self.setWindowTitle(f"Пациент: {self.patient.full_name}")
+        self.setWindowFlags(
+            self.windowFlags()
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self.setMinimumSize(1000, 700)
         self._init_ui()
         self.showMaximized()
@@ -91,12 +97,16 @@ class PatientDetailDialog(QDialog):
                 edit_btn = QPushButton("Редактировать")
                 edit_btn.setObjectName("secondaryBtn")
                 edit_btn.setFixedHeight(40)
+                edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                edit_btn.setStyleSheet(self._get_dialog_button_style(colors))
                 edit_btn.clicked.connect(self._edit_patient)
                 buttons_layout.addWidget(edit_btn)
 
             close_btn = QPushButton("Закрыть")
             close_btn.setObjectName("secondaryBtn")
             close_btn.setFixedHeight(40)
+            close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            close_btn.setStyleSheet(self._get_dialog_button_style(colors))
             close_btn.clicked.connect(self.accept)
             buttons_layout.addWidget(close_btn)
 
@@ -185,6 +195,28 @@ class PatientDetailDialog(QDialog):
         layout.addWidget(status_label)
 
         return header
+
+    def _get_dialog_button_style(self, colors) -> str:
+        return f"""
+            QPushButton#secondaryBtn {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 8px 18px;
+                font-weight: 600;
+                color: {colors['text']};
+            }}
+            QPushButton#secondaryBtn:hover {{
+                background-color: {colors['surface_muted']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#secondaryBtn:pressed {{
+                background-color: {colors['accent']};
+                border: 2px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
 
     def _create_info_tab(self) -> QWidget:
         """Вкладка информации"""
@@ -572,7 +604,9 @@ class PatientDetailDialog(QDialog):
 
             # Дата документа
             date_str = doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"
-            self.encounters_table.setItem(row, 0, QTableWidgetItem(date_str))
+            date_item = QTableWidgetItem(date_str)
+            date_item.setData(Qt.ItemDataRole.UserRole, doc.id)
+            self.encounters_table.setItem(row, 0, date_item)
 
             # Автор документа (врач)
             author_name = doc.author.full_name if doc.author else "—"
@@ -987,7 +1021,9 @@ class PatientDetailDialog(QDialog):
                 self.documents_table.insertRow(row)
 
                 # Номер по порядку
-                self.documents_table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
+                row_number_item = QTableWidgetItem(str(row + 1))
+                row_number_item.setData(Qt.ItemDataRole.UserRole, doc.id)
+                self.documents_table.setItem(row, 0, row_number_item)
 
                 # Номер документа
                 doc_number_str = str(doc.doc_number) if doc.doc_number else "—"
@@ -1046,31 +1082,7 @@ class PatientDetailDialog(QDialog):
             return
 
         row = selected[0].row()
-        documents = Document.get_by_patient(self.patient.id)
-        if row >= len(documents):
-            return
-
-        doc = documents[row]
-
-        # Для плана работы — открываем специальную форму
-        if doc.doc_type == DOCUMENT_TYPE_PLAN:
-            from ui.plan_work_form import PlanWorkFormDialog
-
-            dialog = PlanWorkFormDialog(self.user, self.patient, doc)
-        else:
-            from ui.document_form import DocumentFormDialog
-
-            dialog = DocumentFormDialog(self.user, self.patient, doc)
-
-        if dialog.exec():
-            self._load_documents()
-            self._load_plans()
-            # Если редактировали план, обновляем и пункты
-            if doc.doc_type == DOCUMENT_TYPE_PLAN:
-                selected = self.plans_table.selectionModel().selectedRows()
-                if selected:
-                    self._load_plan_items_for_row(selected[0].row())
-            self._log_interaction("document_edit", f"Изменён документ №{doc.id}")
+        self._edit_document_at_row(row)
 
     def _open_document(self, index):
         """Открытие документа"""
@@ -1098,10 +1110,9 @@ class PatientDetailDialog(QDialog):
             return
 
         # Определяем тип документа
-        documents = Document.get_by_patient(self.patient.id)
-        if row >= len(documents):
+        doc = self._get_document_by_row(row)
+        if not doc:
             return
-        doc = documents[row]
 
         menu = QMenu(self)
 
@@ -1129,11 +1140,9 @@ class PatientDetailDialog(QDialog):
 
     def _open_document_at_row(self, row):
         """Открыть документ по строке"""
-        documents = Document.get_by_patient(self.patient.id)
-        if row >= len(documents):
+        doc = self._get_document_by_row(row)
+        if not doc:
             return
-
-        doc = documents[row]
 
         # Для плана работы — переключаемся на вкладку "План лечения" и выбираем план
         if doc.doc_type == DOCUMENT_TYPE_PLAN:
@@ -1262,11 +1271,29 @@ class PatientDetailDialog(QDialog):
 
     def _edit_document_at_row(self, row):
         """Редактировать документ по строке"""
-        documents = Document.get_by_patient(self.patient.id)
-        if row >= len(documents):
+        doc = self._get_document_by_row(row)
+        if not doc:
             return
 
-        doc = documents[row]
+        self._open_document_edit_dialog(doc)
+
+    def _get_document_by_row(self, row):
+        """Получение документа из таблицы по сохранённому id строки."""
+        if row < 0:
+            return None
+
+        id_item = self.documents_table.item(row, 0)
+        doc_id = id_item.data(Qt.ItemDataRole.UserRole) if id_item else None
+        if not doc_id:
+            documents = Document.get_by_patient(self.patient.id)
+            if row >= len(documents):
+                return None
+            return documents[row]
+
+        return Document.get_by_id(doc_id)
+
+    def _open_document_edit_dialog(self, doc):
+        """Единая точка редактирования документов пациента."""
 
         if doc.doc_type == DOCUMENT_TYPE_PLAN:
             from ui.plan_work_form import PlanWorkFormDialog
@@ -1280,6 +1307,10 @@ class PatientDetailDialog(QDialog):
         if dialog.exec():
             self._load_documents()
             self._load_plans()
+            if doc.doc_type == DOCUMENT_TYPE_PLAN:
+                selected = self.plans_table.selectionModel().selectedRows()
+                if selected:
+                    self._load_plan_items_for_row(selected[0].row())
             self._log_interaction("document_edit", f"Изменён документ №{doc.id}")
 
     def _delete_document_at_row(self, row):
@@ -1292,18 +1323,19 @@ class PatientDetailDialog(QDialog):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            documents = Document.get_by_patient(self.patient.id)
-            if row < len(documents):
-                doc = documents[row]
-                # Если это план, сначала удаляем его пункты
-                if doc.doc_type == DOCUMENT_TYPE_PLAN:
-                    items = TreatmentPlanItem.get_by_plan(doc.id)
-                    for item in items:
-                        item.delete()
-                doc.delete()
-                self._load_documents()
-                self._load_plans()
-                self._log_interaction("document_delete", f"Удалён документ №{doc.id}")
+            doc = self._get_document_by_row(row)
+            if not doc:
+                return
+
+            # Если это план, сначала удаляем его пункты
+            if doc.doc_type == DOCUMENT_TYPE_PLAN:
+                items = TreatmentPlanItem.get_by_plan(doc.id)
+                for item in items:
+                    item.delete()
+            doc.delete()
+            self._load_documents()
+            self._load_plans()
+            self._log_interaction("document_delete", f"Удалён документ №{doc.id}")
 
     def _create_log_tab(self) -> QWidget:
         """Вкладка журнала взаимодействий"""
@@ -1400,14 +1432,14 @@ class PatientDetailDialog(QDialog):
 
         from models.db_models import Document, DOCUMENT_TYPE_MEETING, Encounter
 
-        # Получаем документы типа "Встреча"
-        documents = Document.get_by_patient(self.patient.id)
-        encounter_docs = [d for d in documents if d.doc_type == DOCUMENT_TYPE_MEETING]
-
-        if row >= len(encounter_docs):
+        doc_id_item = self.encounters_table.item(row, 0)
+        doc_id = doc_id_item.data(Qt.ItemDataRole.UserRole) if doc_id_item else None
+        if not doc_id:
             return
 
-        doc = encounter_docs[row]
+        doc = Document.get_by_id(doc_id)
+        if not doc or doc.doc_type != DOCUMENT_TYPE_MEETING:
+            return
 
         # Получаем или создаём запись Encounter
         encounter = None

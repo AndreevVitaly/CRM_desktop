@@ -26,6 +26,29 @@ from models.db_models import (
 from ui.styles import get_colors, FONTS, RADIUS
 
 
+def get_dialog_button_style(colors) -> str:
+    return f"""
+        QPushButton#secondaryBtn {{
+            background-color: transparent;
+            border: 2px solid {colors['line']};
+            border-radius: {RADIUS['md']}px;
+            padding: 6px 14px;
+            font-weight: 600;
+            color: {colors['text']};
+        }}
+        QPushButton#secondaryBtn:hover {{
+            background-color: {colors['surface_muted']};
+            border: 2px solid {colors['accent']};
+            color: {colors['accent']};
+        }}
+        QPushButton#secondaryBtn:pressed {{
+            background-color: {colors['accent']};
+            border: 2px solid {colors['accent']};
+            color: #FFFFFF;
+        }}
+    """
+
+
 class PlanWorkItemsFormDialog(QDialog):
     """Диалог формы работы с пунктами плана работы"""
 
@@ -86,19 +109,26 @@ class PlanWorkItemsFormDialog(QDialog):
         buttons_layout = QHBoxLayout()
 
         add_btn = QPushButton("Добавить пункт")
+        add_btn.setObjectName("secondaryBtn")
         add_btn.setFixedHeight(36)
+        add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_btn.setStyleSheet(get_dialog_button_style(colors))
         add_btn.clicked.connect(self._add_item)
         buttons_layout.addWidget(add_btn)
 
         edit_btn = QPushButton("Редактировать")
         edit_btn.setObjectName("secondaryBtn")
         edit_btn.setFixedHeight(36)
+        edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_btn.setStyleSheet(get_dialog_button_style(colors))
         edit_btn.clicked.connect(self._edit_item)
         buttons_layout.addWidget(edit_btn)
 
         toggle_btn = QPushButton("Переключить статус")
         toggle_btn.setObjectName("secondaryBtn")
         toggle_btn.setFixedHeight(36)
+        toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        toggle_btn.setStyleSheet(get_dialog_button_style(colors))
         toggle_btn.clicked.connect(self._toggle_item)
         buttons_layout.addWidget(toggle_btn)
 
@@ -262,13 +292,18 @@ class PlanItemEditDialog(QDialog):
         buttons_layout.addStretch()
 
         save_btn = QPushButton("Сохранить")
+        save_btn.setObjectName("secondaryBtn")
         save_btn.setFixedHeight(36)
+        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_btn.setStyleSheet(get_dialog_button_style(colors))
         save_btn.clicked.connect(self._save)
         buttons_layout.addWidget(save_btn)
 
         cancel_btn = QPushButton("Отмена")
         cancel_btn.setObjectName("secondaryBtn")
         cancel_btn.setFixedHeight(36)
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn.setStyleSheet(get_dialog_button_style(colors))
         cancel_btn.clicked.connect(self.reject)
         buttons_layout.addWidget(cancel_btn)
 

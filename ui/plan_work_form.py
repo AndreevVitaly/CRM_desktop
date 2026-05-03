@@ -95,7 +95,10 @@ class PlanWorkFormDialog(QDialog):
 
         # Кнопка добавления пункта
         add_item_btn = QPushButton("Добавить пункт")
+        add_item_btn.setObjectName("secondaryBtn")
         add_item_btn.setFixedHeight(32)
+        add_item_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_item_btn.setStyleSheet(self._get_dialog_button_style(colors))
         add_item_btn.clicked.connect(self._add_plan_item_row)
         items_layout.addWidget(add_item_btn)
 
@@ -125,14 +128,19 @@ class PlanWorkFormDialog(QDialog):
         buttons_layout = QHBoxLayout()
         buttons_layout.addStretch()
 
-        save_btn = QPushButton("💾 Сохранить")
+        save_btn = QPushButton("Сохранить")
+        save_btn.setObjectName("secondaryBtn")
         save_btn.setFixedHeight(40)
+        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_btn.setStyleSheet(self._get_dialog_button_style(colors))
         save_btn.clicked.connect(self._save)
         buttons_layout.addWidget(save_btn)
 
         cancel_btn = QPushButton("Отмена")
         cancel_btn.setObjectName("secondaryBtn")
         cancel_btn.setFixedHeight(40)
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn.setStyleSheet(self._get_dialog_button_style(colors))
         cancel_btn.clicked.connect(self.reject)
         buttons_layout.addWidget(cancel_btn)
 
@@ -193,8 +201,11 @@ class PlanWorkFormDialog(QDialog):
             self.items_table.setItem(row, 1, due_item)
 
             # Кнопка удаления
-            delete_btn = QPushButton("✕")
-            delete_btn.setFixedWidth(30)
+            delete_btn = QPushButton("Удалить")
+            delete_btn.setObjectName("secondaryBtn")
+            delete_btn.setFixedWidth(76)
+            delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            delete_btn.setStyleSheet(self._get_dialog_button_style(get_colors()))
             delete_btn.clicked.connect(lambda checked, r=row: self._remove_item_row(r))
             self.items_table.setCellWidget(row, 2, delete_btn)
 
@@ -213,8 +224,11 @@ class PlanWorkFormDialog(QDialog):
         self.items_table.setItem(row, 1, due_item)
 
         # Кнопка удаления
-        delete_btn = QPushButton("✕")
-        delete_btn.setFixedWidth(30)
+        delete_btn = QPushButton("Удалить")
+        delete_btn.setObjectName("secondaryBtn")
+        delete_btn.setFixedWidth(76)
+        delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        delete_btn.setStyleSheet(self._get_dialog_button_style(get_colors()))
         delete_btn.clicked.connect(lambda checked, r=row: self._remove_item_row(r))
         self.items_table.setCellWidget(row, 2, delete_btn)
 
@@ -224,6 +238,28 @@ class PlanWorkFormDialog(QDialog):
     def _remove_item_row(self, row):
         """Удаление строки пункта плана"""
         self.items_table.removeRow(row)
+
+    def _get_dialog_button_style(self, colors) -> str:
+        return f"""
+            QPushButton#secondaryBtn {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 6px 14px;
+                font-weight: 600;
+                color: {colors['text']};
+            }}
+            QPushButton#secondaryBtn:hover {{
+                background-color: {colors['surface_muted']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#secondaryBtn:pressed {{
+                background-color: {colors['accent']};
+                border: 2px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
 
     def _save(self):
         """Сохранение плана работы"""

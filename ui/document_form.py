@@ -142,12 +142,16 @@ class DocumentFormDialog(QDialog):
         save_btn = QPushButton("Сохранить")
         save_btn.setObjectName("secondaryBtn")
         save_btn.setFixedHeight(40)
+        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_btn.setStyleSheet(self._get_dialog_button_style(colors))
         save_btn.clicked.connect(self._save)
         buttons_layout.addWidget(save_btn)
 
         cancel_btn = QPushButton("Отмена")
         cancel_btn.setObjectName("secondaryBtn")
         cancel_btn.setFixedHeight(40)
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn.setStyleSheet(self._get_dialog_button_style(colors))
         cancel_btn.clicked.connect(self.reject)
         buttons_layout.addWidget(cancel_btn)
 
@@ -212,6 +216,28 @@ class DocumentFormDialog(QDialog):
             widget.setStyleSheet(input_style)
 
         self.summary_input.setStyleSheet(text_edit_style)
+
+    def _get_dialog_button_style(self, colors) -> str:
+        return f"""
+            QPushButton#secondaryBtn {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 8px 18px;
+                font-weight: 600;
+                color: {colors['text']};
+            }}
+            QPushButton#secondaryBtn:hover {{
+                background-color: {colors['surface_muted']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#secondaryBtn:pressed {{
+                background-color: {colors['accent']};
+                border: 2px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
 
     def _on_doc_type_changed(self, index):
         """Обработка изменения типа документа"""

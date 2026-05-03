@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
 
 from models.db_models import (
     User,
@@ -350,16 +350,92 @@ class EncounterEditDialog(QDialog):
         patient_measures_layout = QVBoxLayout()
         patient_measures_layout.setSpacing(8)
 
+        plan_items_header_layout = QHBoxLayout()
+        plan_items_header_layout.setSpacing(8)
+
+        self.plan_items_count_label = QLabel("")
+        self.plan_items_count_label.setObjectName("muted")
+        plan_items_header_layout.addWidget(self.plan_items_count_label)
+        plan_items_header_layout.addStretch()
+
+        self.change_plan_item_btn = QPushButton("Изменить")
+        self.change_plan_item_btn.setObjectName("secondaryBtn")
+        self.change_plan_item_btn.setFixedHeight(32)
+        self.change_plan_item_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.change_plan_item_btn.clicked.connect(self._show_all_plan_items)
+        self.change_plan_item_btn.hide()
+        self.change_plan_item_btn.setStyleSheet(
+            f"""
+            QPushButton#secondaryBtn {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 4px 14px;
+                font-weight: 600;
+                color: {colors['text']};
+            }}
+            QPushButton#secondaryBtn:hover {{
+                background-color: {colors['surface_muted']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#secondaryBtn:pressed {{
+                background-color: {colors['accent']};
+                border: 2px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+            """
+        )
+        plan_items_header_layout.addWidget(self.change_plan_item_btn)
+        patient_measures_layout.addLayout(plan_items_header_layout)
+
         # Таблица пунктов плана
         self.plan_items_table = QTableWidget()
-        self.plan_items_table.setColumnCount(3)
-        self.plan_items_table.setHorizontalHeaderLabels(["✓", "Мероприятие", "Срок"])
+        self.plan_items_table.setColumnCount(4)
+        self.plan_items_table.setHorizontalHeaderLabels(
+            ["Выбор", "Мероприятие", "Срок", "Статус"]
+        )
+        self.plan_items_table.setAlternatingRowColors(True)
+        self.plan_items_table.setShowGrid(True)
         self.plan_items_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
         )
         self.plan_items_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.plan_items_table.doubleClicked.connect(self._toggle_plan_item_selection)
         self.plan_items_table.verticalHeader().setVisible(False)
-        self.plan_items_table.setMaximumHeight(150)
+        self.plan_items_table.setMinimumHeight(220)
+        self.plan_items_table.setMaximumHeight(320)
+        plan_header = self.plan_items_table.horizontalHeader()
+        plan_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        plan_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        plan_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        plan_header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.plan_items_table.setStyleSheet(
+            f"""
+            QTableWidget {{
+                background-color: {colors['surface']};
+                alternate-background-color: {colors['surface_muted']};
+                color: {colors['text']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                gridline-color: {colors['line']};
+                selection-background-color: {colors['accent_light']};
+                selection-color: {colors['text']};
+            }}
+            QHeaderView::section {{
+                background-color: {colors['surface_muted']};
+                color: {colors['text']};
+                border: none;
+                border-bottom: 1px solid {colors['line']};
+                padding: 8px;
+                font-weight: 600;
+            }}
+            QTableWidget::item {{
+                padding: 8px;
+                color: {colors['text']};
+            }}
+            """
+        )
         patient_measures_layout.addWidget(self.plan_items_table)
 
         # Загрузка пунктов плана
@@ -510,30 +586,142 @@ class EncounterEditDialog(QDialog):
         """Загрузка пунктов плана лечения пациента"""
         self.plan_items_table.setRowCount(0)
 
-        # Получаем все планы пациента
         from models.db_models import Document, DOCUMENT_TYPE_PLAN
 
-        plans = Document.get_by_patient(self.patient.id)
-        plan_docs = [d for d in plans if d.doc_type == DOCUMENT_TYPE_PLAN]
+        current_year = QDate.currentDate().year()
+        plans = {
+            d.id: d
+            for d in Document.get_by_patient(self.patient.id)
+            if d.id is not None and d.doc_type == DOCUMENT_TYPE_PLAN
+        }
 
-        # Загружаем все пункты из всех планов
         all_items = []
-        for plan_doc in plan_docs:
-            items = TreatmentPlanItem.get_by_plan(plan_doc.id)
-            all_items.extend(items)
+        seen_item_ids = set()
+        for item in TreatmentPlanItem.get_by_patient(self.patient.id):
+            if item.id in seen_item_ids:
+                continue
+
+            plan_doc = plans.get(item.plan_document_id)
+            is_current_year_plan_item = (
+                plan_doc is not None
+                and item.due_date is not None
+                and item.due_date.year == current_year
+            )
+
+            if is_current_year_plan_item:
+                all_items.append(item)
+                if item.id is not None:
+                    seen_item_ids.add(item.id)
+
+        all_items.sort(
+            key=lambda item: (
+                item.due_date is None,
+                item.due_date or QDate.currentDate().toPyDate(),
+                item.order_num,
+                item.id or 0,
+            )
+        )
+
+        if not all_items:
+            self.plan_items_count_label.setText(
+                "Мероприятия плана за текущий год не найдены"
+            )
+            self.plan_items_table.insertRow(0)
+            empty_item = QTableWidgetItem("Нет мероприятий плана за текущий год")
+            empty_item.setFlags(empty_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            self.plan_items_table.setSpan(0, 0, 1, 4)
+            self.plan_items_table.setItem(0, 0, empty_item)
+            return
+
+        self.plan_items_count_label.setText(
+            f"Найдено мероприятий: {len(all_items)}. Двойной клик выбирает или снимает выбор."
+        )
+        selected_events = {
+            line.strip()
+            for line in (self.encounter.patient_measures or "").splitlines()
+            if line.strip()
+        }
+        selected_row = None
 
         for item in all_items:
             row = self.plan_items_table.rowCount()
             self.plan_items_table.insertRow(row)
 
-            check_item = QTableWidgetItem("✓" if item.is_completed else "")
-            check_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.plan_items_table.setItem(row, 0, check_item)
+            is_selected = item.event in selected_events and selected_row is None
+            if is_selected and selected_row is None:
+                selected_row = row
+            select_item = QTableWidgetItem("✓" if is_selected else "")
+            select_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            select_item.setData(Qt.ItemDataRole.UserRole, is_selected)
+            self.plan_items_table.setItem(row, 0, select_item)
 
-            self.plan_items_table.setItem(row, 1, QTableWidgetItem(item.event))
+            event_item = QTableWidgetItem(item.event)
+            event_item.setData(Qt.ItemDataRole.UserRole, item.id)
+            self.plan_items_table.setItem(row, 1, event_item)
 
             due_date = item.due_date.strftime("%d.%m.%Y") if item.due_date else "—"
             self.plan_items_table.setItem(row, 2, QTableWidgetItem(due_date))
+
+            status = "Выполнено" if item.is_completed else "В ожидании"
+            self.plan_items_table.setItem(row, 3, QTableWidgetItem(status))
+            self._apply_plan_item_row_selection(row, is_selected)
+
+        if selected_row is not None:
+            self._collapse_plan_items_to_row(selected_row)
+
+    def _toggle_plan_item_selection(self, index):
+        """Выбор одного пункта плана двойным кликом."""
+        row = index.row()
+        check_item = self.plan_items_table.item(row, 0)
+        event_item = self.plan_items_table.item(row, 1)
+        if not check_item or not event_item:
+            return
+
+        for current_row in range(self.plan_items_table.rowCount()):
+            current_check_item = self.plan_items_table.item(current_row, 0)
+            if current_check_item:
+                current_check_item.setText("")
+                current_check_item.setData(Qt.ItemDataRole.UserRole, False)
+                self._apply_plan_item_row_selection(current_row, False)
+
+        check_item.setText("✓")
+        check_item.setData(Qt.ItemDataRole.UserRole, True)
+        self._apply_plan_item_row_selection(row, True)
+        self._collapse_plan_items_to_row(row)
+
+    def _collapse_plan_items_to_row(self, selected_row: int):
+        """Показывает только выбранное мероприятие."""
+        for row in range(self.plan_items_table.rowCount()):
+            self.plan_items_table.setRowHidden(row, row != selected_row)
+        self.plan_items_count_label.setText("Выбрано мероприятие плана")
+        self.change_plan_item_btn.show()
+
+    def _show_all_plan_items(self):
+        """Возвращает на экран все мероприятия для изменения выбора."""
+        visible_count = 0
+        for row in range(self.plan_items_table.rowCount()):
+            self.plan_items_table.setRowHidden(row, False)
+            visible_count += 1
+        self.plan_items_count_label.setText(
+            f"Найдено мероприятий: {visible_count}. Двойной клик выбирает мероприятие."
+        )
+        self.change_plan_item_btn.hide()
+
+    def _apply_plan_item_row_selection(self, row: int, is_selected: bool):
+        """Визуальная отметка выбранной строки мероприятий плана."""
+        colors = get_colors()
+        bg_color = colors["accent_light"] if is_selected else colors["surface"]
+        text_color = colors["accent"] if is_selected else colors["text"]
+        for col in range(self.plan_items_table.columnCount()):
+            item = self.plan_items_table.item(row, col)
+            if item:
+                item.setBackground(QColor(bg_color))
+                item.setForeground(QColor(text_color))
+                item.setToolTip(
+                    "Двойной клик снимет выбор"
+                    if is_selected
+                    else "Двойной клик выберет мероприятие"
+                )
 
     def _load_informants(self):
         """Загрузка информаторов в таблицу"""

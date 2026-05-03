@@ -958,11 +958,7 @@ class Patient:
         if self.id is None:
             self.id = db.lastrowid()
         if self.id is not None:
-            db.execute(
-                "UPDATE documents SET patient_personal_number = ? WHERE patient_id = ?",
-                (self.personal_number or "", self.id),
-            )
-            db.commit()
+            sync_patient_denormalized_fields(self.id)
 
     @classmethod
     def _from_row(cls, row: dict) -> "Patient":
@@ -1976,6 +1972,88 @@ class Event:
             db.commit()
 
 
+def sync_patient_denormalized_fields(patient_id: Optional[int] = None):
+    """Refresh patient snapshots stored in related tables."""
+    params = (patient_id,) if patient_id is not None else ()
+    patient_filter = "WHERE patient_id = ?" if patient_id is not None else ""
+
+    db.execute(
+        f"""
+        UPDATE documents
+        SET patient_personal_number = COALESCE(
+            (
+                SELECT p.personal_number
+                FROM patients p
+                WHERE p.id = documents.patient_id
+            ),
+            ''
+        )
+        {patient_filter}
+        """,
+        params,
+    )
+
+    km_filter = ""
+    km_params = ()
+    if patient_id is not None:
+        km_filter = """
+        WHERE EXISTS (
+            SELECT 1
+            FROM encounters e
+            WHERE e.id = km_records.encounter_id
+              AND e.patient_id = ?
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM documents d
+            WHERE d.id = km_records.document_id
+              AND d.patient_id = ?
+        )
+        """
+        km_params = (patient_id, patient_id)
+
+    db.execute(
+        f"""
+        UPDATE km_records
+        SET
+            callsign = COALESCE(
+                (
+                    SELECT p.callsign
+                    FROM encounters e
+                    JOIN patients p ON p.id = e.patient_id
+                    WHERE e.id = km_records.encounter_id
+                ),
+                (
+                    SELECT p.callsign
+                    FROM documents d
+                    JOIN patients p ON p.id = d.patient_id
+                    WHERE d.id = km_records.document_id
+                ),
+                callsign
+            ),
+            personal_number = COALESCE(
+                (
+                    SELECT p.personal_number
+                    FROM encounters e
+                    JOIN patients p ON p.id = e.patient_id
+                    WHERE e.id = km_records.encounter_id
+                ),
+                (
+                    SELECT p.personal_number
+                    FROM documents d
+                    JOIN patients p ON p.id = d.patient_id
+                    WHERE d.id = km_records.document_id
+                ),
+                personal_number,
+                ''
+            )
+        {km_filter}
+        """,
+        km_params,
+    )
+    db.commit()
+
+
 # ============================================================================
 # КЭШ СТАТИСТИКИ
 # ============================================================================
@@ -2352,6 +2430,7 @@ def init_db(db_path: str = "medcrm.db"):
     global db
     db = Database(db_path)
     db.connect()
+    sync_patient_denormalized_fields()
 
     # Проверка наличия пользователей
     users_count = db.fetchone("SELECT COUNT(*) as cnt FROM users")["cnt"]
