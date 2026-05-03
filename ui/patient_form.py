@@ -142,7 +142,7 @@ class PatientFormDialog(QDialog):
         self.personal_number_input.setInputMethodHints(
             Qt.InputMethodHint.ImhDigitsOnly | Qt.InputMethodHint.ImhPreferNumbers
         )
-        layout.addRow("Личный номер", self.personal_number_input)
+        layout.addRow("Личный номер*", self.personal_number_input)
 
         # Дата рождения
         self.birth_date_input = QDateEdit()
@@ -353,7 +353,7 @@ class PatientFormDialog(QDialog):
             for doc in doctors:
                 self.doctor_combo.addItem(doc.full_name, doc.id)
 
-            layout.addRow("Лечащий врач", self.doctor_combo)
+            layout.addRow("Лечащий врач*", self.doctor_combo)
 
         group.setLayout(layout)
         return group
@@ -460,6 +460,14 @@ class PatientFormDialog(QDialog):
         # Валидация
         if not self.callsign_input.text().strip():
             QMessageBox.warning(self, "Ошибка", "Введите позывной")
+            return
+
+        if not self.personal_number_input.text().strip():
+            QMessageBox.warning(self, "Ошибка", "Введите личный номер")
+            return
+
+        if hasattr(self, "doctor_combo") and not self.doctor_combo.currentData():
+            QMessageBox.warning(self, "Ошибка", "Выберите лечащего врача")
             return
 
         # Создание/обновление пациента

@@ -272,10 +272,10 @@ class MainWindow(QMainWindow):
                 color: {colors['accent']};
             }}
             QPushButton#navButton[active="true"] {{
-                background-color: #3B82F6;
-                border: 1px solid #3B82F6;
-                color: #FFFFFF;
-                font-weight: 700;
+                background-color: transparent;
+                border: 1px solid transparent;
+                color: {colors['text']};
+                font-weight: 600;
             }}
             QPushButton#navButton:pressed {{
                 background-color: #3B82F6;
@@ -330,12 +330,16 @@ class MainWindow(QMainWindow):
         self._update_logo(logo_path, colors)
         logo_layout.addWidget(self.logo_label)
 
+        title_layout = QVBoxLayout()
+        title_layout.setSpacing(2)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+
         title_label = QLabel("PULSAR")
         title_label.setObjectName("title")
         title_label.setStyleSheet(
             f"font-size: {FONTS['size_xlarge']}pt; font-weight: 700; color: {colors['accent']};"
         )
-        logo_layout.addWidget(title_label)
+        title_layout.addWidget(title_label)
 
         # Подзаголовок
         subtitle_label = QLabel("Фундамент стабильной работы")
@@ -343,7 +347,10 @@ class MainWindow(QMainWindow):
         subtitle_label.setStyleSheet(
             f"font-size: {FONTS['size_xs']}pt; color: {colors['text_muted']};"
         )
-        logo_layout.addWidget(subtitle_label)
+        title_layout.addWidget(subtitle_label)
+        title_layout.addStretch()
+
+        logo_layout.addLayout(title_layout)
 
         layout.addLayout(logo_layout)
 
