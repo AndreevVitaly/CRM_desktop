@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtGui import QFont, QEnterEvent
+from datetime import datetime, timedelta
 
 from models.db_models import User, Patient, Encounter, Event, Facility
 from ui.styles import get_colors, FONTS, RADIUS
@@ -158,17 +159,8 @@ class DashboardPage(QWidget):
         layout.addWidget(greeting)
 
         # KPI карточки
-        kpi_layout = QGridLayout()
-        kpi_layout.setSpacing(16)
-
-        kpi_cards = self._get_kpi_data()
-        for i, (title, value, subtitle) in enumerate(kpi_cards):
-            card = self._create_kpi_card(title, value, subtitle)
-            row = i // 4
-            col = i % 4
-            kpi_layout.addWidget(card, row, col)
-
-        layout.addLayout(kpi_layout)
+        stats_list = self._create_stats_list(self._get_kpi_data())
+        layout.addWidget(stats_list)
 
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(12)
@@ -212,7 +204,13 @@ class DashboardPage(QWidget):
         if user.role == User.ROLE_ADMIN:
             total_patients = Patient.get_all(include_inactive=False)
             total_doctors = len(User.get_by_role(User.ROLE_DOCTOR))
-            visits_today = len(Encounter.get_all())
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            visits_today = len(
+                Encounter.get_unique_meetings(
+                    start_date=today,
+                    end_date=today + timedelta(days=1),
+                )
+            )
             events_today = len(Event.get_all(include_completed=False))
 
             return [
@@ -247,9 +245,7 @@ class DashboardPage(QWidget):
 
         elif user.role == User.ROLE_DOCTOR:
             my_patients = Patient.get_all(user=user)
-            my_encounters = (
-                Encounter.get_by_patient(my_patients[0].id) if my_patients else []
-            )
+            my_encounters = Encounter.get_unique_meetings(user=user)
 
             return [
                 ("Моих пациентов", str(len(my_patients)), ""),
@@ -278,6 +274,49 @@ class DashboardPage(QWidget):
     def _create_kpi_card(self, title: str, value: str, subtitle: str) -> KPICard:
         """Создание KPI карточки"""
         return KPICard(title, value, subtitle)
+
+    def _create_stats_list(self, items: list) -> QWidget:
+        colors = get_colors()
+
+        container = QWidget()
+        container.setObjectName("statsList")
+        container.setMaximumWidth(520)
+        container.setStyleSheet("background-color: transparent;")
+
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 6, 0, 6)
+        layout.setSpacing(0)
+
+        for title, value, subtitle in items:
+            row = QWidget()
+            row.setObjectName("statsRow")
+            row.setStyleSheet("background-color: transparent;")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 7, 0, 7)
+            row_layout.setSpacing(18)
+
+            label_text = f"{title} {str(subtitle).lower()}" if subtitle else title
+            title_label = QLabel(label_text)
+            title_label.setObjectName("statsLabel")
+            title_label.setStyleSheet(
+                f"font-size: {FONTS['size_medium']}pt; color: {colors['text_muted']}; background-color: transparent;"
+            )
+
+            value_label = QLabel(value)
+            value_label.setObjectName("statsValue")
+            value_label.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            value_label.setMinimumWidth(70)
+            value_label.setStyleSheet(
+                f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['accent']}; background-color: transparent;"
+            )
+
+            row_layout.addWidget(title_label, 1)
+            row_layout.addWidget(value_label)
+            layout.addWidget(row)
+
+        return container
 
     def update_styles(self):
         """Обновить стили при смене темы"""
@@ -312,6 +351,14 @@ class DashboardPage(QWidget):
             elif label.objectName() == "sectionTitle":
                 label.setStyleSheet(
                     f"font-size: {FONTS['size_title']}pt; font-weight: 700; color: {colors['text']}; margin: 10px 0; background-color: transparent;"
+                )
+            elif label.objectName() == "statsLabel":
+                label.setStyleSheet(
+                    f"font-size: {FONTS['size_medium']}pt; color: {colors['text_muted']}; background-color: transparent;"
+                )
+            elif label.objectName() == "statsValue":
+                label.setStyleSheet(
+                    f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['accent']}; background-color: transparent;"
                 )
 
         # Обновляем все KPI карточки

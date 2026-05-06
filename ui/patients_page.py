@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
-from models.db_models import User, Patient, Facility
+from models.db_models import User, Patient, Facility, get_department_choices
 from ui.styles import get_colors, FONTS, RADIUS, get_main_stylesheet
 
 
@@ -33,6 +33,8 @@ class PatientsPage(QWidget):
         self.current_filter = ""
         self.type_filter = ""
         self.facility_filter = 0
+        self.department_filter = ""
+        self.doctor_filter = 0
         self._init_ui()
 
     def _init_ui(self):
@@ -71,7 +73,7 @@ class PatientsPage(QWidget):
 
         panel = QFrame()
         panel.setObjectName("card")
-        panel.setFixedHeight(80)
+        panel.setFixedHeight(128)
         panel.setStyleSheet(
             f"""
             QFrame#card {{
@@ -83,16 +85,22 @@ class PatientsPage(QWidget):
         """
         )
 
-        layout = QHBoxLayout(panel)
-        layout.setSpacing(12)
+        layout = QVBoxLayout(panel)
+        layout.setSpacing(10)
+
+        filters_layout = QHBoxLayout()
+        filters_layout.setSpacing(12)
+
+        actions_layout = QHBoxLayout()
+        actions_layout.setSpacing(12)
 
         # Поиск
         self.search_input = QLineEdit()
         self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText("Поиск по позывному, личному номеру...")
-        self.search_input.setFixedWidth(350)
+        self.search_input.setFixedWidth(300)
         self.search_input.textChanged.connect(self._on_search_changed)
-        layout.addWidget(self.search_input)
+        filters_layout.addWidget(self.search_input)
 
         # Тип пациента
         self.type_combo = QComboBox()
@@ -102,9 +110,9 @@ class PatientsPage(QWidget):
         self.type_combo.addItem("Взрослые", "adult")
         self.type_combo.addItem("Дети", "child")
         self.type_combo.addItem("Неопределённые", "undefined")
-        self.type_combo.setFixedWidth(150)
+        self.type_combo.setFixedWidth(140)
         self.type_combo.currentIndexChanged.connect(self._on_filter_changed)
-        layout.addWidget(self.type_combo)
+        filters_layout.addWidget(self.type_combo)
 
         # Место размещения
         self.facility_combo = QComboBox()
@@ -113,17 +121,33 @@ class PatientsPage(QWidget):
         facilities = Facility.get_all()
         for f in facilities:
             self.facility_combo.addItem(f.name, f.id)
-        self.facility_combo.setFixedWidth(200)
+        self.facility_combo.setFixedWidth(180)
         self.facility_combo.currentIndexChanged.connect(self._on_filter_changed)
-        layout.addWidget(self.facility_combo)
+        filters_layout.addWidget(self.facility_combo)
+
+        self.department_combo = QComboBox()
+        self.department_combo.setFrame(False)
+        self.department_combo.addItem("Все отделения", "")
+        for dept_code, dept_name in get_department_choices(include_inactive=False):
+            self.department_combo.addItem(dept_name, dept_code)
+        self.department_combo.setFixedWidth(190)
+        self.department_combo.currentIndexChanged.connect(self._on_department_changed)
+        filters_layout.addWidget(self.department_combo)
+
+        self.doctor_combo = QComboBox()
+        self.doctor_combo.setFrame(False)
+        self.doctor_combo.setFixedWidth(210)
+        self.doctor_combo.currentIndexChanged.connect(self._on_filter_changed)
+        filters_layout.addWidget(self.doctor_combo)
+        self._populate_doctor_filter()
 
         # Отделение (для LEAD, NUR)
         if self.user.role == User.ROLE_LEAD:
             dept_label = QLabel(self.user.department_display)
             dept_label.setStyleSheet("font-weight: bold;")
-            layout.addWidget(dept_label)
+            filters_layout.addWidget(dept_label)
 
-        layout.addStretch()
+        filters_layout.addStretch()
 
         # Кнопка добавления (ADMIN, REG, LEAD)
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
@@ -155,7 +179,7 @@ class PatientsPage(QWidget):
             """
             )
             add_btn.clicked.connect(self._add_patient)
-            layout.addWidget(add_btn)
+            actions_layout.addWidget(add_btn)
 
         # Кнопка справки (ADMIN, REG, LEAD)
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
@@ -187,7 +211,7 @@ class PatientsPage(QWidget):
             """
             )
             cert_btn.clicked.connect(self._generate_certificate_selected)
-            layout.addWidget(cert_btn)
+            actions_layout.addWidget(cert_btn)
 
         # Кнопка сброса
         reset_btn = QPushButton("🔄 Сброс")
@@ -195,7 +219,11 @@ class PatientsPage(QWidget):
         reset_btn.setFixedHeight(36)
         reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         reset_btn.clicked.connect(self._reset_filters)
-        layout.addWidget(reset_btn)
+        actions_layout.addWidget(reset_btn)
+        actions_layout.addStretch()
+
+        layout.addLayout(filters_layout)
+        layout.addLayout(actions_layout)
 
         return panel
 
@@ -270,6 +298,12 @@ class PatientsPage(QWidget):
                 or (p.document_id and p.document_id.lower().startswith(search_lower))
             ]
 
+        if self.department_filter:
+            patients = [p for p in patients if p.department == self.department_filter]
+
+        if self.doctor_filter:
+            patients = [p for p in patients if p.doctor_id == self.doctor_filter]
+
         for patient in patients:
             row = self.table.rowCount()
             self.table.insertRow(row)
@@ -322,16 +356,58 @@ class PatientsPage(QWidget):
         """Изменение фильтра"""
         self.type_filter = self.type_combo.currentData()
         self.facility_filter = self.facility_combo.currentData()
+        self.department_filter = self.department_combo.currentData()
+        self.doctor_filter = self.doctor_combo.currentData()
         self._load_patients()
+
+    def _on_department_changed(self):
+        self.department_filter = self.department_combo.currentData()
+        self._populate_doctor_filter()
+        self.doctor_filter = self.doctor_combo.currentData()
+        self._load_patients()
+
+    def _populate_doctor_filter(self):
+        selected_dept = (
+            self.department_combo.currentData()
+            if hasattr(self, "department_combo")
+            else ""
+        )
+        current_doctor = (
+            self.doctor_combo.currentData() if hasattr(self, "doctor_combo") else 0
+        )
+
+        self.doctor_combo.blockSignals(True)
+        self.doctor_combo.clear()
+        self.doctor_combo.addItem("Все врачи", 0)
+
+        doctors = User.get_by_role(User.ROLE_DOCTOR)
+        if selected_dept:
+            doctors = [d for d in doctors if d.department == selected_dept]
+        if self.user.role in (User.ROLE_LEAD, User.ROLE_NURSE):
+            doctors = [d for d in doctors if d.department == self.user.department]
+        elif self.user.role == User.ROLE_DOCTOR:
+            doctors = [d for d in doctors if d.id == self.user.id]
+
+        for doctor in doctors:
+            self.doctor_combo.addItem(doctor.full_name or doctor.username, doctor.id)
+
+        index = self.doctor_combo.findData(current_doctor)
+        self.doctor_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.doctor_combo.blockSignals(False)
 
     def _reset_filters(self):
         """Сброс фильтров"""
         self.search_input.clear()
         self.type_combo.setCurrentIndex(0)
         self.facility_combo.setCurrentIndex(0)
+        self.department_combo.setCurrentIndex(0)
+        self._populate_doctor_filter()
+        self.doctor_combo.setCurrentIndex(0)
         self.current_filter = ""
         self.type_filter = ""
         self.facility_filter = 0
+        self.department_filter = ""
+        self.doctor_filter = 0
         self._load_patients()
 
     def _show_context_menu(self, pos):

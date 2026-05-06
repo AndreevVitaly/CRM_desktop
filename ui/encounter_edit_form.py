@@ -33,6 +33,7 @@ from models.db_models import (
     EncounterInformant,
     TreatmentPlanItem,
     KmRecord,
+    Document,
 )
 from ui.styles import get_colors, FONTS, RADIUS
 
@@ -172,10 +173,23 @@ class EncounterEditDialog(QDialog):
         # Флаг для отслеживания изменений в информаторах
         self.informants_modified = False
 
-        title = f"Редактирование встречи от {encounter.started_at.strftime('%d.%m.%Y %H:%M')}"
-        self.setWindowTitle(title)
+        self.setWindowTitle(self._get_window_title())
         self.setMinimumSize(800, 700)
         self._init_ui()
+
+    def _get_window_title(self) -> str:
+        doc_number = "б/н"
+        if self.encounter.document_id:
+            doc = Document.get_by_id(self.encounter.document_id)
+            if doc and doc.doc_number:
+                doc_number = str(doc.doc_number)
+
+        date_text = (
+            self.encounter.started_at.strftime("%d.%m.%Y %H:%M")
+            if self.encounter.started_at
+            else "без даты"
+        )
+        return f"Редактирование встречи № {doc_number} от {date_text}"
 
     def _init_ui(self):
         colors = get_colors()
@@ -219,6 +233,9 @@ class EncounterEditDialog(QDialog):
         # Выпадающий список результата встречи
         self.meeting_result_combo = QComboBox()
         self.meeting_result_combo.setFrame(False)
+        self.meeting_result_combo.setMinimumHeight(36)
+        self.meeting_result_combo.setMaximumWidth(420)
+        self.meeting_result_combo.setMaxVisibleItems(4)
         self.meeting_result_combo.addItem("Выберите результат", "")
         for value, label in Encounter.MEETING_RESULT_CHOICES:
             self.meeting_result_combo.addItem(label, value)
@@ -261,7 +278,8 @@ class EncounterEditDialog(QDialog):
 
         self.patient_info_input = QTextEdit()
         self.patient_info_input.setPlaceholderText("Введите информацию от пациента")
-        self.patient_info_input.setMaximumHeight(100)
+        self.patient_info_input.setMinimumHeight(92)
+        self.patient_info_input.setMaximumHeight(120)
         patient_info_layout.addWidget(self.patient_info_input)
 
         patient_info_group.setLayout(patient_info_layout)
@@ -290,7 +308,8 @@ class EncounterEditDialog(QDialog):
 
         self.meeting_description_input = QTextEdit()
         self.meeting_description_input.setPlaceholderText("Введите описание встречи")
-        self.meeting_description_input.setMaximumHeight(100)
+        self.meeting_description_input.setMinimumHeight(92)
+        self.meeting_description_input.setMaximumHeight(120)
         description_layout.addWidget(self.meeting_description_input)
 
         description_group.setLayout(description_layout)
@@ -319,7 +338,8 @@ class EncounterEditDialog(QDialog):
 
         self.patient_tasks_input = QTextEdit()
         self.patient_tasks_input.setPlaceholderText("Мероприятия и способ исполнения")
-        self.patient_tasks_input.setMaximumHeight(100)
+        self.patient_tasks_input.setMinimumHeight(92)
+        self.patient_tasks_input.setMaximumHeight(120)
         patient_tasks_layout.addRow(
             "Мероприятия и способ исполнения", self.patient_tasks_input
         )
@@ -469,7 +489,8 @@ class EncounterEditDialog(QDialog):
         self.general_measures_input.setPlaceholderText(
             "Введите мероприятия общего формата"
         )
-        self.general_measures_input.setMaximumHeight(100)
+        self.general_measures_input.setMinimumHeight(92)
+        self.general_measures_input.setMaximumHeight(120)
         general_measures_layout.addWidget(self.general_measures_input)
 
         general_measures_group.setLayout(general_measures_layout)
@@ -555,7 +576,7 @@ class EncounterEditDialog(QDialog):
 
         content_widget.setLayout(layout)
         scroll.setWidget(content_widget)
-        main_layout.addWidget(scroll)
+        main_layout.addWidget(scroll, 1)
 
         # Кнопки сохранения/отмены
         buttons_layout = QHBoxLayout()
@@ -575,12 +596,82 @@ class EncounterEditDialog(QDialog):
 
         main_layout.addLayout(buttons_layout)
         self.setLayout(main_layout)
+        self._polish_controls(colors)
         self.setStyleSheet(
             f"background-color: {colors['bg']}; color: {colors['text']}; QGroupBox {{ color: {colors['text']}; }}"
         )
 
         # Заполнение при редактировании
         self._fill_data()
+
+    def _polish_controls(self, colors):
+        input_style = f"""
+            background-color: {colors['surface']};
+            color: {colors['text']};
+            border: 1px solid {colors['line']};
+            border-radius: {RADIUS['md']}px;
+            padding: 6px 10px;
+            selection-background-color: {colors['accent']};
+            selection-color: {colors['surface']};
+        """
+        combo_style = input_style + f"""
+            QComboBox::drop-down {{
+                border: none;
+                width: 28px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                border: 1px solid {colors['line']};
+                selection-background-color: {colors['accent_light']};
+                selection-color: {colors['text']};
+                padding: 4px;
+                outline: none;
+            }}
+        """
+        text_style = f"""
+            background-color: {colors['surface']};
+            color: {colors['text']};
+            border: 1px solid {colors['line']};
+            border-radius: {RADIUS['md']}px;
+            padding: 8px 10px;
+            selection-background-color: {colors['accent']};
+            selection-color: {colors['surface']};
+        """
+        table_style = f"""
+            QTableWidget {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                gridline-color: {colors['line_light']};
+                selection-background-color: {colors['table_row_selected']};
+                selection-color: {colors['text']};
+            }}
+            QHeaderView::section {{
+                background-color: {colors['table_header_bg']};
+                color: {colors['text_muted']};
+                border: none;
+                border-bottom: 1px solid {colors['line']};
+                padding: 8px;
+                font-weight: 600;
+            }}
+            QTableWidget::item {{
+                padding: 6px 8px;
+            }}
+        """
+
+        self.meeting_result_combo.setStyleSheet(combo_style)
+        for text_edit in (
+            self.patient_info_input,
+            self.meeting_description_input,
+            self.patient_tasks_input,
+            self.general_measures_input,
+        ):
+            text_edit.setStyleSheet(text_style)
+
+        self.plan_items_table.setStyleSheet(table_style)
+        self.informants_table.setStyleSheet(table_style)
 
     def _load_plan_items(self):
         """Загрузка пунктов плана лечения пациента"""

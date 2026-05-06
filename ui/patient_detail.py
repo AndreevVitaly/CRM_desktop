@@ -1295,14 +1295,9 @@ class PatientDetailDialog(QDialog):
     def _open_document_edit_dialog(self, doc):
         """Единая точка редактирования документов пациента."""
 
-        if doc.doc_type == DOCUMENT_TYPE_PLAN:
-            from ui.plan_work_form import PlanWorkFormDialog
+        from ui.document_form import DocumentFormDialog
 
-            dialog = PlanWorkFormDialog(self.user, self.patient, doc)
-        else:
-            from ui.document_form import DocumentFormDialog
-
-            dialog = DocumentFormDialog(self.user, self.patient, doc)
+        dialog = DocumentFormDialog(self.user, self.patient, doc)
 
         if dialog.exec():
             self._load_documents()

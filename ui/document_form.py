@@ -15,6 +15,8 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QMessageBox,
     QTextEdit,
+    QScrollArea,
+    QWidget,
 )
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QFont
@@ -42,7 +44,7 @@ class DocumentFormDialog(QDialog):
 
         title = "Редактирование документа" if self.is_edit else "Новый документ"
         self.setWindowTitle(title)
-        self.setMinimumSize(500, 500)
+        self.setMinimumSize(800, 700)
         self._init_ui()
 
     def _init_ui(self):
@@ -50,12 +52,23 @@ class DocumentFormDialog(QDialog):
         colors = get_colors()
         compact_font = QFont("Segoe UI", 9)
 
+        main_layout = QVBoxLayout()
+        main_layout.setSpacing(16)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.Box)
+        scroll.setStyleSheet("border: none; background-color: transparent;")
+
+        content_widget = QWidget()
         layout = QVBoxLayout()
         layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         # Основная форма
         form_group = QGroupBox("Информация о документе")
+        form_group.setStyleSheet(self._get_group_style(colors))
         form_layout = QFormLayout()
         form_layout.setSpacing(10)
         form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
@@ -134,6 +147,11 @@ class DocumentFormDialog(QDialog):
         self._apply_form_styles(colors)
         form_group.setLayout(form_layout)
         layout.addWidget(form_group)
+        layout.addStretch()
+
+        content_widget.setLayout(layout)
+        scroll.setWidget(content_widget)
+        main_layout.addWidget(scroll, 1)
 
         # Кнопки
         buttons_layout = QHBoxLayout()
@@ -155,9 +173,9 @@ class DocumentFormDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
         buttons_layout.addWidget(cancel_btn)
 
-        layout.addLayout(buttons_layout)
+        main_layout.addLayout(buttons_layout)
 
-        self.setLayout(layout)
+        self.setLayout(main_layout)
         self.setStyleSheet(
             f"""
             background-color: {colors['bg']};
@@ -183,6 +201,22 @@ class DocumentFormDialog(QDialog):
         # Заполнение данными при редактировании
         if self.is_edit:
             self._fill_data()
+
+    def _get_group_style(self, colors) -> str:
+        return f"""
+            QGroupBox {{
+                font-weight: bold;
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                margin-top: 8px;
+                padding-top: 16px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 8px;
+            }}
+        """
 
     def _apply_form_styles(self, colors):
         """Локально фиксирует читаемость полей формы документа."""

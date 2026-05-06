@@ -1217,11 +1217,11 @@ class Encounter:
 
         if start_date:
             query += " AND started_at >= ?"
-            params.append(start_date.isoformat())
+            params.append(start_date.date().isoformat())
 
         if end_date:
-            query += " AND started_at <= ?"
-            params.append(end_date.isoformat())
+            query += " AND started_at < ?"
+            params.append(end_date.date().isoformat())
 
         # Ограничение по ролям
         if user:
@@ -1245,6 +1245,55 @@ class Encounter:
         query += " ORDER BY started_at DESC"
         rows = db.fetchall(query, tuple(params))
         return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    def get_unique_meetings(
+        cls,
+        user: Optional[User] = None,
+        start_date: datetime = None,
+        end_date: datetime = None,
+        department: str = "",
+    ) -> List[dict]:
+        """Получение реальных встреч без дублей технических строк."""
+        query = """
+            SELECT
+                COALESCE(e.document_id, -e.id) AS meeting_key,
+                MIN(COALESCE(d.doc_date, e.started_at)) AS started_at,
+                MIN(e.patient_id) AS patient_id
+            FROM encounters e
+            LEFT JOIN patients p ON p.id = e.patient_id
+            LEFT JOIN documents d ON d.id = e.document_id
+            WHERE e.status != 'CANCELLED'
+              AND (e.document_id IS NULL OR d.doc_type = ? OR d.id IS NULL)
+        """
+        params = [DOCUMENT_TYPE_MEETING]
+
+        if start_date:
+            query += " AND date(COALESCE(d.doc_date, e.started_at)) >= date(?)"
+            params.append(start_date.date().isoformat())
+
+        if end_date:
+            query += " AND date(COALESCE(d.doc_date, e.started_at)) < date(?)"
+            params.append(end_date.date().isoformat())
+
+        if department:
+            query += " AND p.department = ?"
+            params.append(department)
+
+        if user:
+            if user.role == User.ROLE_LEAD:
+                query += " AND p.department = ?"
+                params.append(user.department)
+            elif user.role == User.ROLE_DOCTOR:
+                query += " AND e.doctor_id = ?"
+                params.append(user.id)
+            elif user.role == User.ROLE_NURSE:
+                query += " AND p.department = ?"
+                params.append(user.department)
+
+        query += " GROUP BY COALESCE(e.document_id, -e.id)"
+        rows = db.fetchall(query, tuple(params))
+        return [dict(row) for row in rows]
 
     @classmethod
     def get_by_id(cls, encounter_id: int) -> Optional["Encounter"]:
@@ -2134,16 +2183,14 @@ class StatsCache:
             ),
         }
 
-        # Визиты за месяц
-        visits = Encounter.get_all(
-            user=None,
-            start_date=from_date,
-            end_date=to_date,
+        metrics["visits"] = len(
+            Encounter.get_unique_meetings(
+                user=None,
+                start_date=from_date,
+                end_date=to_date,
+                department=department,
+            )
         )
-        if department:
-            dept_patient_ids = {p.id for p in dept_patients}
-            visits = [v for v in visits if v.patient_id in dept_patient_ids]
-        metrics["visits"] = len(visits)
 
         # Сохраняем в кэш
         for metric, value in metrics.items():

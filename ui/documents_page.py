@@ -138,7 +138,10 @@ class DocumentsPage(QWidget):
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
-        table.doubleClicked.connect(lambda *_: self._open_selected_document())
+        if self.user.role == User.ROLE_NURSE:
+            table.doubleClicked.connect(lambda *_: self._open_selected_document())
+        else:
+            table.doubleClicked.connect(lambda *_: self._edit_selected_document())
 
         return table
 
@@ -252,14 +255,9 @@ class DocumentsPage(QWidget):
             )
             return
 
-        if doc.doc_type == DOCUMENT_TYPE_PLAN:
-            from ui.plan_work_form import PlanWorkFormDialog
+        from ui.document_form import DocumentFormDialog
 
-            dialog = PlanWorkFormDialog(self.user, patient, doc)
-        else:
-            from ui.document_form import DocumentFormDialog
-
-            dialog = DocumentFormDialog(self.user, patient, doc)
+        dialog = DocumentFormDialog(self.user, patient, doc)
 
         if dialog.exec():
             self._load_documents()

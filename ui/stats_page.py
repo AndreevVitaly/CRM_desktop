@@ -290,7 +290,7 @@ class StatsPage(QWidget):
             else:
                 to_date = datetime(self.selected_year, self.selected_month + 1, 1)
             return len(
-                Encounter.get_all(
+                Encounter.get_unique_meetings(
                     user=self.user,
                     start_date=from_date,
                     end_date=to_date,
@@ -436,7 +436,7 @@ class StatsPage(QWidget):
         else:
             to_date = datetime(self.selected_year, self.selected_month + 1, 1)
 
-        visits = Encounter.get_all(
+        visits = Encounter.get_unique_meetings(
             user=(
                 self.user
                 if self.user.role not in (User.ROLE_ADMIN, User.ROLE_REGISTRAR)
@@ -449,17 +449,18 @@ class StatsPage(QWidget):
         # Подсчёт по дням
         visits_by_day = {}
         for visit in visits:
-            if visit.started_at:
+            started_at = visit.get("started_at")
+            if started_at:
                 # Если started_at — строка, конвертируем в datetime
-                if isinstance(visit.started_at, str):
+                if isinstance(started_at, str):
                     from datetime import datetime as dt
 
                     try:
-                        started_dt = dt.strptime(visit.started_at, "%Y-%m-%d")
+                        started_dt = dt.strptime(started_at[:10], "%Y-%m-%d")
                     except ValueError:
                         continue
-                elif hasattr(visit.started_at, "day"):
-                    started_dt = visit.started_at
+                elif hasattr(started_at, "day"):
+                    started_dt = started_at
                 else:
                     continue
 
