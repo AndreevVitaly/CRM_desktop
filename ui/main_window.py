@@ -24,6 +24,7 @@ from PyQt6.QtGui import QFont, QPainter, QColor, QBrush, QPen, QPixmap, QPainter
 import os
 
 from models.db_models import User
+from ui.brand_title import BrandTitleLabel
 from ui.styles import get_colors, FONTS, RADIUS, get_main_stylesheet
 from utils.app_paths import get_resource_path
 
@@ -334,11 +335,8 @@ class MainWindow(QMainWindow):
         title_layout.setSpacing(2)
         title_layout.setContentsMargins(0, 0, 0, 0)
 
-        title_label = QLabel("PULSAR")
+        title_label = BrandTitleLabel("PULSAR")
         title_label.setObjectName("title")
-        title_label.setStyleSheet(
-            f"font-size: {FONTS['size_xlarge']}pt; font-weight: 700; color: {colors['accent']};"
-        )
         title_layout.addWidget(title_label)
 
         # Подзаголовок
@@ -530,9 +528,7 @@ class MainWindow(QMainWindow):
             # Обновляем логотип
             title_label = top_bar.findChild(QLabel, "title")
             if title_label:
-                title_label.setStyleSheet(
-                    f"font-size: {FONTS['size_xlarge']}pt; font-weight: 700; color: {colors['accent']};"
-                )
+                title_label.update()
             if hasattr(self, "logo_label"):
                 self._update_logo(self._get_logo_path(), colors)
             # Обновляем кнопку выхода

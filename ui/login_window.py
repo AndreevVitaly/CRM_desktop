@@ -17,6 +17,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QRectF
 from PyQt6.QtGui import QFont, QPainter, QPainterPath, QColor, QLinearGradient, QPen
 
 from models.db_models import User, init_db
+from ui.brand_title import BrandTitleLabel
 from ui.styles import get_colors, FONTS, RADIUS
 
 
@@ -45,16 +46,9 @@ class LoginWindow(QWidget):
         main_layout.setContentsMargins(40, 40, 40, 40)
 
         # Заголовок
-        title_label = QLabel("PULSAR")
+        title_label = BrandTitleLabel("PULSAR")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setObjectName("title")
-        title_label.setStyleSheet(
-            f"""
-            font-size: {FONTS['size_xlarge']}pt;
-            font-weight: bold;
-            color: {colors['accent']};
-        """
-        )
         main_layout.addWidget(title_label)
 
         subtitle_label = QLabel("Фундамент стабильной работы")
