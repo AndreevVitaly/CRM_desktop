@@ -11,6 +11,8 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QFrame,
     QStackedWidget,
+    QMessageBox,
+    QFileDialog,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -299,6 +301,45 @@ class MainWindow(QMainWindow):
 
         return btn
 
+    def _get_sync_button_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QPushButton#syncButton {{
+                background-color: transparent;
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 6px 12px;
+                font-size: {FONTS['size_small']}pt;
+                font-weight: 600;
+                color: {colors['text']};
+            }}
+            QPushButton#syncButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 1px solid {colors['accent']};
+                color: {colors['accent_strong']};
+            }}
+            QPushButton#syncButton:pressed {{
+                background-color: {colors['accent']};
+                border: 1px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+            QPushButton#syncButton:disabled {{
+                background-color: transparent;
+                border: 1px solid {colors['line']};
+                color: {colors['text_muted']};
+            }}
+        """
+
+    def _create_sync_button(self, text: str, enabled: bool) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setObjectName("syncButton")
+        btn.setFixedHeight(36)
+        btn.setMinimumWidth(84)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setStyleSheet(self._get_sync_button_style())
+        btn.setEnabled(enabled)
+        return btn
+
     def _create_top_bar(self) -> QFrame:
         """Создание верхней панели"""
         colors = get_colors()
@@ -367,6 +408,30 @@ class MainWindow(QMainWindow):
 
         layout.addStretch()
 
+        can_export = self.user.role in (
+            User.ROLE_ADMIN,
+            User.ROLE_REGISTRAR,
+            User.ROLE_LEAD,
+            User.ROLE_DOCTOR,
+        )
+        can_import = self.user.role in (
+            User.ROLE_ADMIN,
+            User.ROLE_REGISTRAR,
+            User.ROLE_LEAD,
+        )
+
+        self.export_btn = self._create_sync_button("Экспорт", can_export)
+        self.export_btn.setToolTip("Выгрузить пакет данных для объединения")
+        self.export_btn.clicked.connect(self._export_data)
+        layout.addWidget(self.export_btn)
+
+        self.import_btn = self._create_sync_button("Импорт", can_import)
+        self.import_btn.setToolTip("Загрузить пакет данных от другого пользователя")
+        self.import_btn.clicked.connect(self._import_data)
+        layout.addWidget(self.import_btn)
+
+        layout.addSpacing(12)
+
         # Переключатель темы (toggle switch)
         self.theme_switch = ThemeSwitch(self)
         self.theme_switch.clicked.connect(self._toggle_theme)
@@ -405,6 +470,132 @@ class MainWindow(QMainWindow):
         layout.addWidget(logout_btn)
 
         return top_bar
+
+    def _export_data(self):
+        from utils.sync_exchange import build_export_filename, export_sync_package
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Экспорт данных",
+            build_export_filename(self.user),
+            "Пакет обмена PULSAR (*.pulsarzip)",
+        )
+        if not file_path:
+            return
+
+        try:
+            result = export_sync_package(self.user, file_path)
+        except Exception as exc:
+            QMessageBox.critical(self, "Ошибка экспорта", str(exc))
+            return
+
+        counts = result["manifest"]["counts"]
+        QMessageBox.information(
+            self,
+            "Экспорт завершен",
+            (
+                f"Пакет сохранен:\n{result['path']}\n\n"
+                f"Пациенты: {counts.get('patients', 0)}\n"
+                f"Документы: {counts.get('documents', 0)}\n"
+                f"Встречи: {counts.get('encounters', 0)}\n"
+                f"Пункты планов: {counts.get('treatment_plan_items', 0)}"
+            ),
+        )
+
+    def _import_data(self):
+        from utils.sync_exchange import apply_patient_import, preview_sync_import
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Импорт данных",
+            "",
+            "Пакет обмена PULSAR (*.pulsarzip)",
+        )
+        if not file_path:
+            return
+
+        try:
+            result = preview_sync_import(file_path)
+        except Exception as exc:
+            QMessageBox.critical(self, "Ошибка импорта", str(exc))
+            return
+
+        manifest = result["manifest"]
+        preview = result["preview"]
+        exported_by = manifest.get("exported_by", {})
+        labels = {
+            "patients": "Пациенты",
+            "documents": "Документы",
+            "encounters": "Встречи",
+            "treatment_plan_items": "Пункты планов",
+        }
+        preview_lines = []
+        for table_name in ("patients", "documents", "encounters", "treatment_plan_items"):
+            item = preview.get(table_name, {})
+            preview_lines.append(
+                f"{labels[table_name]}: всего {item.get('incoming', 0)}, "
+                f"новых {item.get('new', 0)}, "
+                f"свежее в пакете {item.get('package_newer', 0)}, "
+                f"свежее локально {item.get('local_newer', 0)}"
+            )
+        QMessageBox.information(
+            self,
+            "Пакет проверен",
+            (
+                "Пакет прочитан, запись в базу пока не выполнялась.\n\n"
+                f"Автор: {exported_by.get('full_name', '')}\n"
+                f"Роль: {exported_by.get('role', '')}\n"
+                f"Дата экспорта: {manifest.get('exported_at', '')}\n\n"
+                + "\n".join(preview_lines)
+            ),
+        )
+
+        patient_preview = preview.get("patients", {})
+        apply_count = patient_preview.get("new", 0) + patient_preview.get(
+            "package_newer", 0
+        )
+        if apply_count <= 0:
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Применить импорт пациентов?",
+            (
+                "Сейчас будут импортированы только пациенты.\n\n"
+                f"Новых: {patient_preview.get('new', 0)}\n"
+                f"Обновлений: {patient_preview.get('package_newer', 0)}\n\n"
+                "Документы, встречи и планы пока не записываются."
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            import_result = apply_patient_import(file_path, self.user)
+        except Exception as exc:
+            QMessageBox.critical(self, "Ошибка импорта", str(exc))
+            return
+
+        summary = import_result["summary"]
+        QMessageBox.information(
+            self,
+            "Импорт пациентов завершен",
+            (
+                f"Добавлено: {summary.get('new', 0)}\n"
+                f"Обновлено: {summary.get('updated', 0)}\n"
+                f"Пропущено, локально свежее: {summary.get('skipped_local_newer', 0)}\n"
+                f"Пропущено без изменений: {summary.get('skipped_same_or_unknown', 0)}\n"
+                f"Пропущено без uuid: {summary.get('skipped_without_uuid', 0)}\n"
+                f"Пропущено без врача в локальной базе: {summary.get('skipped_unmapped_doctor', 0)}"
+            ),
+        )
+        current_page = self.stacked_widget.currentWidget()
+        if hasattr(current_page, "_safe_load_patients"):
+            current_page._safe_load_patients()
+        elif hasattr(current_page, "_load_patients"):
+            current_page._load_patients()
 
     def _navigate(self, page_id: str):
         """Навигация к странице"""
@@ -556,6 +747,12 @@ class MainWindow(QMainWindow):
                     }}
                 """
                 )
+
+            for sync_btn_name in ("export_btn", "import_btn"):
+                if hasattr(self, sync_btn_name):
+                    getattr(self, sync_btn_name).setStyleSheet(
+                        self._get_sync_button_style()
+                    )
 
         # Обновляем стили области контента
         content_area = self.findChild(QWidget, "contentArea")

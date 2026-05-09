@@ -6,6 +6,7 @@
 import sqlite3
 import hashlib
 import os
+import uuid as uuid_lib
 from datetime import datetime, date
 from typing import Optional, List, Any
 from dataclasses import dataclass
@@ -158,6 +159,7 @@ class Database:
             """
             CREATE TABLE IF NOT EXISTS patients (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT,
                 callsign TEXT NOT NULL,
                 personal_number TEXT,
                 birth_date DATE NOT NULL,
@@ -175,6 +177,7 @@ class Database:
                 emergency_contact TEXT,
                 is_active BOOLEAN DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (doctor_id) REFERENCES users(id),
                 FOREIGN KEY (facility_id) REFERENCES facilities(id)
             )
@@ -186,6 +189,7 @@ class Database:
             """
             CREATE TABLE IF NOT EXISTS encounters (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT,
                 patient_id INTEGER NOT NULL,
                 doctor_id INTEGER NOT NULL,
                 started_at TIMESTAMP NOT NULL,
@@ -200,6 +204,7 @@ class Database:
                 patient_tasks TEXT,
                 patient_measures TEXT,
                 general_measures TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (patient_id) REFERENCES patients(id),
                 FOREIGN KEY (doctor_id) REFERENCES users(id),
                 FOREIGN KEY (document_id) REFERENCES documents(id)
@@ -330,6 +335,7 @@ class Database:
             """
             CREATE TABLE IF NOT EXISTS treatment_plan_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT,
                 patient_id INTEGER NOT NULL,
                 order_num INTEGER DEFAULT 1,
                 event TEXT NOT NULL,
@@ -477,6 +483,7 @@ class Database:
             """
             CREATE TABLE IF NOT EXISTS documents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT,
                 patient_id INTEGER NOT NULL,
                 classification TEXT NOT NULL DEFAULT 'NS',
                 doc_date DATE NOT NULL,
@@ -488,6 +495,7 @@ class Database:
                 doc_number TEXT,
                 encounter_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (patient_id) REFERENCES patients(id),
                 FOREIGN KEY (author_id) REFERENCES users(id),
                 FOREIGN KEY (encounter_id) REFERENCES encounters(id)
@@ -509,6 +517,46 @@ class Database:
                 pass  # Колонка уже существует
 
         # Таблица кэша статистики
+        sync_columns = {
+            "patients": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
+            "encounters": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
+            "documents": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
+            "treatment_plan_items": [("uuid", "TEXT")],
+        }
+        for table_name, columns in sync_columns.items():
+            for col_name, col_type in columns:
+                try:
+                    cursor.execute(
+                        f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
+                    )
+                except Exception:
+                    pass
+
+        for table_name in sync_columns:
+            try:
+                rows = cursor.execute(
+                    f"SELECT id FROM {table_name} WHERE uuid IS NULL OR uuid = ''"
+                ).fetchall()
+                for row in rows:
+                    cursor.execute(
+                        f"UPDATE {table_name} SET uuid = ? WHERE id = ?",
+                        (str(uuid_lib.uuid4()), row["id"]),
+                    )
+            except Exception:
+                pass
+
+        for table_name in ("patients", "encounters", "documents"):
+            try:
+                cursor.execute(
+                    f"""
+                    UPDATE {table_name}
+                    SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)
+                    WHERE updated_at IS NULL OR updated_at = ''
+                    """
+                )
+            except Exception:
+                pass
+
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS stats_cache (
@@ -835,6 +883,7 @@ class Facility:
 @dataclass
 class Patient:
     id: Optional[int] = None
+    uuid: str = ""
     callsign: str = ""
     personal_number: str = ""
     birth_date: date = None
@@ -863,10 +912,17 @@ class Patient:
     arrival_sanction_date: Optional[date] = None
     is_active: bool = True
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     def __post_init__(self):
         if self.birth_date is None:
             self.birth_date = date.today()
+        if not self.uuid:
+            self.uuid = str(uuid_lib.uuid4())
+        if self.created_at is None:
+            self.created_at = datetime.now()
+        if self.updated_at is None:
+            self.updated_at = self.created_at
 
     @property
     def full_name(self) -> str:
@@ -898,20 +954,22 @@ class Patient:
         return None
 
     def save(self):
+        self.updated_at = datetime.now()
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO patients
-            (id, callsign, personal_number, birth_date, gender, patient_type,
+            (id, uuid, callsign, personal_number, birth_date, gender, patient_type,
              department, doctor_id, facility_id, phone, email, document_id, insurance_number,
              employer, address, emergency_contact,
              study_case_number, study_sheet_numbers,
              admission_report_number, admission_report_date, admission_sanction_date,
              arrival_report_number, arrival_report_date, arrival_sanction_date,
-             is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
+                self.uuid,
                 self.callsign,
                 self.personal_number,
                 self.birth_date.isoformat(),
@@ -952,6 +1010,8 @@ class Patient:
                     else None
                 ),
                 self.is_active,
+                self.created_at.isoformat() if self.created_at else None,
+                self.updated_at.isoformat() if self.updated_at else None,
             ),
         )
         db.commit()
@@ -986,18 +1046,19 @@ class Patient:
                     except ValueError:
                         data[field] = None
 
-        if data.get("created_at") and isinstance(data["created_at"], str):
-            for fmt in [
-                "%Y-%m-%d %H:%M:%S.%f",
-                "%Y-%m-%d %H:%M:%S",
-                "%Y-%m-%dT%H:%M:%S.%f",
-                "%Y-%m-%dT%H:%M:%S",
-            ]:
-                try:
-                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
-                    break
-                except ValueError:
-                    continue
+        for field in ("created_at", "updated_at"):
+            if data.get(field) and isinstance(data[field], str):
+                for fmt in [
+                    "%Y-%m-%d %H:%M:%S.%f",
+                    "%Y-%m-%d %H:%M:%S",
+                    "%Y-%m-%dT%H:%M:%S.%f",
+                    "%Y-%m-%dT%H:%M:%S",
+                ]:
+                    try:
+                        data[field] = datetime.strptime(data[field], fmt)
+                        break
+                    except ValueError:
+                        continue
         return cls(**data)
 
     @classmethod
@@ -1053,13 +1114,19 @@ class Patient:
     def delete(self):
         """Мягкое удаление (скрытие)"""
         if self.id:
-            db.execute("UPDATE patients SET is_active = 0 WHERE id = ?", (self.id,))
+            db.execute(
+                "UPDATE patients SET is_active = 0, updated_at = ? WHERE id = ?",
+                (datetime.now().isoformat(), self.id),
+            )
             db.commit()
 
     def restore(self):
         """Восстановление"""
         if self.id:
-            db.execute("UPDATE patients SET is_active = 1 WHERE id = ?", (self.id,))
+            db.execute(
+                "UPDATE patients SET is_active = 1, updated_at = ? WHERE id = ?",
+                (datetime.now().isoformat(), self.id),
+            )
             db.commit()
 
     def hard_delete(self):
@@ -1072,6 +1139,7 @@ class Patient:
 @dataclass
 class Encounter:
     id: Optional[int] = None
+    uuid: str = ""
     patient_id: int = 0
     doctor_id: int = 0
     started_at: datetime = None
@@ -1087,6 +1155,8 @@ class Encounter:
     patient_measures: str = ""  # Мероприятия в отношении пациента
     general_measures: str = ""  # Мероприятия общего формата
 
+    updated_at: Optional[datetime] = None
+
     STATUS_PLANNED = "PLANNED"
     STATUS_INPROGRESS = "INPROGRESS"
     STATUS_FINISHED = "FINISHED"
@@ -1100,6 +1170,10 @@ class Encounter:
     def __post_init__(self):
         if self.started_at is None:
             self.started_at = datetime.now()
+        if not self.uuid:
+            self.uuid = str(uuid_lib.uuid4())
+        if self.updated_at is None:
+            self.updated_at = datetime.now()
 
     @property
     def status_display(self) -> str:
@@ -1130,15 +1204,17 @@ class Encounter:
         return None
 
     def save(self):
+        self.updated_at = datetime.now()
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO encounters
-            (id, patient_id, doctor_id, started_at, finished_at, reason, status, treatment_plan_item_id,
-             document_id, meeting_result, patient_info, meeting_description, patient_tasks, patient_measures, general_measures)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, uuid, patient_id, doctor_id, started_at, finished_at, reason, status, treatment_plan_item_id,
+             document_id, meeting_result, patient_info, meeting_description, patient_tasks, patient_measures, general_measures, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
+                self.uuid,
                 self.patient_id,
                 self.doctor_id,
                 self.started_at.isoformat() if self.started_at else None,
@@ -1153,6 +1229,7 @@ class Encounter:
                 self.patient_tasks,
                 self.patient_measures,
                 self.general_measures,
+                self.updated_at.isoformat() if self.updated_at else None,
             ),
         )
         db.commit()
@@ -1187,6 +1264,18 @@ class Encounter:
             ]:
                 try:
                     data["finished_at"] = datetime.strptime(data["finished_at"], fmt)
+                    break
+                except ValueError:
+                    continue
+        if data.get("updated_at") and isinstance(data["updated_at"], str):
+            for fmt in [
+                "%Y-%m-%d %H:%M:%S.%f",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%dT%H:%M:%S",
+            ]:
+                try:
+                    data["updated_at"] = datetime.strptime(data["updated_at"], fmt)
                     break
                 except ValueError:
                     continue
@@ -1356,18 +1445,19 @@ class Note:
     def _from_row(cls, row: dict) -> "Note":
         """Создание объекта из строки БД с конвертацией дат"""
         data = dict(row)
-        if data.get("created_at") and isinstance(data["created_at"], str):
-            for fmt in [
-                "%Y-%m-%d %H:%M:%S.%f",
-                "%Y-%m-%d %H:%M:%S",
-                "%Y-%m-%dT%H:%M:%S.%f",
-                "%Y-%m-%dT%H:%M:%S",
-            ]:
-                try:
-                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
-                    break
-                except ValueError:
-                    continue
+        for field in ("created_at", "updated_at"):
+            if data.get(field) and isinstance(data[field], str):
+                for fmt in [
+                    "%Y-%m-%d %H:%M:%S.%f",
+                    "%Y-%m-%d %H:%M:%S",
+                    "%Y-%m-%dT%H:%M:%S.%f",
+                    "%Y-%m-%dT%H:%M:%S",
+                ]:
+                    try:
+                        data[field] = datetime.strptime(data[field], fmt)
+                        break
+                    except ValueError:
+                        continue
         return cls(**data)
 
     @classmethod
@@ -1527,6 +1617,7 @@ class Attachment:
 @dataclass
 class TreatmentPlanItem:
     id: Optional[int] = None
+    uuid: str = ""
     patient_id: int = 0
     plan_document_id: Optional[int] = None  # FK к Document (план работы)
     order_num: int = 1
@@ -1538,6 +1629,8 @@ class TreatmentPlanItem:
 
     def __post_init__(self):
         now = datetime.now()
+        if not self.uuid:
+            self.uuid = str(uuid_lib.uuid4())
         if self.created_at is None:
             self.created_at = now
         if self.updated_at is None:
@@ -1552,11 +1645,12 @@ class TreatmentPlanItem:
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO treatment_plan_items
-            (id, patient_id, plan_document_id, order_num, event, due_date, is_completed, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, uuid, patient_id, plan_document_id, order_num, event, due_date, is_completed, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
+                self.uuid,
                 self.patient_id,
                 self.plan_document_id,
                 self.order_num,
@@ -1719,6 +1813,7 @@ class PatientInteraction:
 @dataclass
 class Document:
     id: Optional[int] = None
+    uuid: str = ""
     patient_id: int = 0
     classification: str = "NS"
     doc_date: Optional[date] = None
@@ -1730,12 +1825,17 @@ class Document:
     doc_number: Optional[str] = None
     encounter_id: Optional[int] = None  # Связь с встречей
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     def __post_init__(self):
+        if not self.uuid:
+            self.uuid = str(uuid_lib.uuid4())
         if self.doc_date is None:
             self.doc_date = date.today()
         if self.created_at is None:
             self.created_at = datetime.now()
+        if self.updated_at is None:
+            self.updated_at = self.created_at
 
     @property
     def patient(self) -> Optional[Patient]:
@@ -1757,14 +1857,16 @@ class Document:
         return class_dict.get(self.classification, self.classification)
 
     def save(self):
+        self.updated_at = datetime.now()
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO documents
-            (id, patient_id, classification, doc_date, author_id, doc_type, summary, location, patient_personal_number, doc_number, encounter_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, uuid, patient_id, classification, doc_date, author_id, doc_type, summary, location, patient_personal_number, doc_number, encounter_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
+                self.uuid,
                 self.patient_id,
                 self.classification,
                 self.doc_date.isoformat() if self.doc_date else None,
@@ -1776,6 +1878,7 @@ class Document:
                 self.doc_number,
                 self.encounter_id,
                 self.created_at.isoformat() if self.created_at else None,
+                self.updated_at.isoformat() if self.updated_at else None,
             ),
         )
         db.commit()
