@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (
     QStackedWidget,
     QMessageBox,
     QFileDialog,
+    QInputDialog,
+    QLineEdit,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -246,6 +248,9 @@ class MainWindow(QMainWindow):
 
         if user.role in (User.ROLE_DOCTOR, User.ROLE_NURSE):
             items["documents"] = ("Документы", True)
+
+        if user.role == User.ROLE_ADMIN:
+            items["admin"] = ("Администрирование", True)
 
         return items
 
@@ -483,8 +488,31 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
 
+        password, ok = QInputDialog.getText(
+            self,
+            "Пароль пакета",
+            "Введите пароль для шифрования пакета:",
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return
+        if not password:
+            QMessageBox.warning(self, "Экспорт", "Пароль не может быть пустым")
+            return
+        password_repeat, ok = QInputDialog.getText(
+            self,
+            "Пароль пакета",
+            "Повторите пароль:",
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return
+        if password != password_repeat:
+            QMessageBox.warning(self, "Экспорт", "Пароли не совпадают")
+            return
+
         try:
-            result = export_sync_package(self.user, file_path)
+            result = export_sync_package(self.user, file_path, password)
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка экспорта", str(exc))
             return
@@ -503,7 +531,7 @@ class MainWindow(QMainWindow):
         )
 
     def _import_data(self):
-        from utils.sync_exchange import apply_patient_import, preview_sync_import
+        from utils.sync_exchange import apply_sync_import, preview_sync_import
 
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -514,8 +542,17 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
 
+        password, ok = QInputDialog.getText(
+            self,
+            "Пароль пакета",
+            "Введите пароль пакета:",
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return
+
         try:
-            result = preview_sync_import(file_path)
+            result = preview_sync_import(file_path, password)
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка импорта", str(exc))
             return
@@ -550,13 +587,17 @@ class MainWindow(QMainWindow):
             ),
         )
 
-        patient_preview = preview.get("patients", {})
-        apply_count = patient_preview.get("new", 0) + patient_preview.get(
-            "package_newer", 0
-        )
+        apply_count = 0
+        for table_name in ("patients", "documents", "encounters", "treatment_plan_items"):
+            item = preview.get(table_name, {})
+            apply_count += item.get("new", 0) + item.get("package_newer", 0)
         if apply_count <= 0:
             return
 
+        patient_preview = {
+            "new": apply_count,
+            "package_newer": 0,
+        }
         reply = QMessageBox.question(
             self,
             "Применить импорт пациентов?",
@@ -573,7 +614,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            import_result = apply_patient_import(file_path, self.user)
+            import_result = apply_sync_import(file_path, self.user, password)
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка импорта", str(exc))
             return
@@ -596,6 +637,8 @@ class MainWindow(QMainWindow):
             current_page._safe_load_patients()
         elif hasattr(current_page, "_load_patients"):
             current_page._load_patients()
+        if hasattr(current_page, "_load_import_logs"):
+            current_page._load_import_logs()
 
     def _navigate(self, page_id: str):
         """Навигация к странице"""
@@ -625,6 +668,7 @@ class MainWindow(QMainWindow):
         from ui.km_page import KmPage
         from ui.stats_page import StatsPage
         from ui.documents_page import DocumentsPage
+        from ui.admin_page import AdminPage
 
         # Очищаем текущий виджет
         widget = self.stacked_widget.currentWidget()
@@ -647,6 +691,12 @@ class MainWindow(QMainWindow):
             page = StatsPage(self.user)
         elif page_id == "documents":
             page = DocumentsPage(self.user)
+        elif page_id == "admin":
+            page = AdminPage(
+                self.user,
+                on_export=self._export_data,
+                on_import=self._import_data,
+            )
         else:
             page = DashboardPage(self.user)
 

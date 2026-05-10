@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import base64
+import os
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +13,69 @@ from models.db_models import Patient, User, db
 PACKAGE_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 DATA_NAME = "data.json"
+SECURE_CONTAINER_NAME = "pulsar_secure_package.json"
+KDF_ITERATIONS = 390000
+
+
+class CryptoUnavailableError(RuntimeError):
+    pass
+
+
+def _crypto_modules():
+    try:
+        from cryptography.fernet import Fernet, InvalidToken
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    except ImportError as exc:
+        raise CryptoUnavailableError(
+            "Для защищенных пакетов установите зависимость cryptography: pip install -r requirements.txt"
+        ) from exc
+    return Fernet, InvalidToken, hashes, PBKDF2HMAC
+
+
+def _derive_key(password: str, salt: bytes) -> bytes:
+    if not password:
+        raise ValueError("Для защищенного пакета нужен пароль")
+    _, _, hashes, PBKDF2HMAC = _crypto_modules()
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=KDF_ITERATIONS,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(password.encode("utf-8")))
+
+
+def _encrypt_payload(payload: dict[str, Any], password: str) -> dict[str, Any]:
+    Fernet, _, _, _ = _crypto_modules()
+    salt = os.urandom(16)
+    key = _derive_key(password, salt)
+    token = Fernet(key).encrypt(
+        json.dumps(payload, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+    )
+    return {
+        "app": "PULSAR",
+        "container_version": 1,
+        "encrypted": True,
+        "kdf": "PBKDF2HMAC-SHA256",
+        "iterations": KDF_ITERATIONS,
+        "salt": base64.b64encode(salt).decode("ascii"),
+        "cipher": "Fernet",
+        "token": token.decode("ascii"),
+    }
+
+
+def _decrypt_payload(container: dict[str, Any], password: str | None) -> dict[str, Any]:
+    if not password:
+        raise ValueError("Этот пакет защищен паролем")
+    Fernet, InvalidToken, _, _ = _crypto_modules()
+    salt = base64.b64decode(container["salt"])
+    key = _derive_key(password, salt)
+    try:
+        decrypted = Fernet(key).decrypt(container["token"].encode("ascii"))
+    except InvalidToken as exc:
+        raise ValueError("Неверный пароль или пакет был изменен") from exc
+    return json.loads(decrypted.decode("utf-8"))
 
 
 def _rows(query: str, params: tuple = ()) -> list[dict[str, Any]]:
@@ -99,7 +164,9 @@ def build_export_filename(user: User) -> str:
     return f"pulsar_export_{safe_username}_{stamp}.pulsarzip"
 
 
-def export_sync_package(user: User, file_path: str | Path) -> dict[str, Any]:
+def export_sync_package(
+    user: User, file_path: str | Path, password: str | None = None
+) -> dict[str, Any]:
     path = Path(file_path)
     if path.suffix.lower() != ".pulsarzip":
         path = path.with_suffix(".pulsarzip")
@@ -110,6 +177,7 @@ def export_sync_package(user: User, file_path: str | Path) -> dict[str, Any]:
     manifest = {
         "app": "PULSAR",
         "package_version": PACKAGE_VERSION,
+        "encrypted": True,
         "exported_at": exported_at,
         "scope": _patient_scope_label(user),
         "exported_by": {
@@ -129,36 +197,45 @@ def export_sync_package(user: User, file_path: str | Path) -> dict[str, Any]:
     }
 
     payload = {"manifest": manifest, "data": data}
+    secure_container = _encrypt_payload(payload, password or "")
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(
-            MANIFEST_NAME,
-            json.dumps(manifest, ensure_ascii=False, indent=2),
-        )
-        archive.writestr(
-            DATA_NAME,
-            json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+            SECURE_CONTAINER_NAME,
+            json.dumps(secure_container, ensure_ascii=False, indent=2),
         )
 
     return {"path": str(path), "manifest": manifest}
 
 
-def inspect_sync_package(file_path: str | Path) -> dict[str, Any]:
-    manifest, payload = _read_package(file_path)
+def inspect_sync_package(
+    file_path: str | Path, password: str | None = None
+) -> dict[str, Any]:
+    manifest, payload = _read_package(file_path, password)
 
     data = payload.get("data", {})
     counts = {key: len(value) for key, value in data.items() if isinstance(value, list)}
     return {"manifest": manifest, "counts": counts}
 
 
-def _read_package(file_path: str | Path) -> tuple[dict[str, Any], dict[str, Any]]:
+def _read_package(
+    file_path: str | Path, password: str | None = None
+) -> tuple[dict[str, Any], dict[str, Any]]:
     path = Path(file_path)
     with zipfile.ZipFile(path, "r") as archive:
         names = set(archive.namelist())
-        if MANIFEST_NAME not in names or DATA_NAME not in names:
+        if SECURE_CONTAINER_NAME in names:
+            container = json.loads(
+                archive.read(SECURE_CONTAINER_NAME).decode("utf-8")
+            )
+            payload = _decrypt_payload(container, password)
+            manifest = payload.get("manifest", {})
+        elif MANIFEST_NAME in names and DATA_NAME in names:
+            manifest = json.loads(archive.read(MANIFEST_NAME).decode("utf-8"))
+            payload = json.loads(archive.read(DATA_NAME).decode("utf-8"))
+            manifest["encrypted"] = False
+        else:
             raise ValueError("Файл не похож на пакет обмена PULSAR")
-        manifest = json.loads(archive.read(MANIFEST_NAME).decode("utf-8"))
-        payload = json.loads(archive.read(DATA_NAME).decode("utf-8"))
 
     if manifest.get("app") != "PULSAR":
         raise ValueError("Пакет создан не приложением PULSAR")
@@ -186,8 +263,10 @@ def _parse_timestamp(value: Any) -> datetime | None:
     return None
 
 
-def preview_sync_import(file_path: str | Path) -> dict[str, Any]:
-    manifest, payload = _read_package(file_path)
+def preview_sync_import(
+    file_path: str | Path, password: str | None = None
+) -> dict[str, Any]:
+    manifest, payload = _read_package(file_path, password)
     data = payload.get("data", {})
     preview = {}
     for table_name in (
@@ -282,11 +361,13 @@ def _prepare_patient_row(
     return prepared
 
 
-def apply_patient_import(file_path: str | Path, current_user: User) -> dict[str, Any]:
+def apply_patient_import(
+    file_path: str | Path, current_user: User, password: str | None = None
+) -> dict[str, Any]:
     if current_user.role not in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
         raise PermissionError("Импорт доступен только ADMIN, REG и LEAD")
 
-    manifest, payload = _read_package(file_path)
+    manifest, payload = _read_package(file_path, password)
     data = payload.get("data", {})
     incoming_patients = data.get("patients", [])
     patient_columns = set(_table_columns("patients"))
@@ -369,3 +450,285 @@ def apply_patient_import(file_path: str | Path, current_user: User) -> dict[str,
         raise
 
     return {"manifest": manifest, "summary": summary}
+
+
+def _empty_import_summary() -> dict[str, int]:
+    return {
+        "new": 0,
+        "updated": 0,
+        "skipped_local_newer": 0,
+        "skipped_same_or_unknown": 0,
+        "skipped_without_uuid": 0,
+        "skipped_unmapped_reference": 0,
+    }
+
+
+def _remote_to_local_id_map(table_name: str, incoming_rows: list[dict[str, Any]]) -> dict[int, int]:
+    result = {}
+    for row in incoming_rows:
+        remote_id = row.get("id")
+        row_uuid = row.get("uuid")
+        if remote_id is None or not row_uuid:
+            continue
+        local = db.fetchone(f"SELECT id FROM {table_name} WHERE uuid = ?", (row_uuid,))
+        if local:
+            result[remote_id] = local["id"]
+    return result
+
+
+def _insert_or_update_by_uuid(
+    table_name: str,
+    prepared: dict[str, Any],
+    columns: list[str],
+    summary: dict[str, int],
+):
+    if not prepared.get("uuid"):
+        summary["skipped_without_uuid"] += 1
+        return
+
+    local = db.fetchone(
+        f"SELECT id, updated_at FROM {table_name} WHERE uuid = ?",
+        (prepared["uuid"],),
+    )
+    insert_columns = [column for column in columns if column != "id"]
+    writable_columns = [
+        column
+        for column in insert_columns
+        if column != "uuid" and column in prepared
+    ]
+
+    if local:
+        incoming_ts = _parse_timestamp(prepared.get("updated_at"))
+        local_ts = _parse_timestamp(local["updated_at"])
+        if incoming_ts and local_ts and incoming_ts > local_ts:
+            values = [prepared.get(column) for column in writable_columns]
+            values.append(local["id"])
+            db.execute(
+                f"UPDATE {table_name} SET "
+                + ", ".join(f"{column} = ?" for column in writable_columns)
+                + " WHERE id = ?",
+                tuple(values),
+            )
+            summary["updated"] += 1
+        elif local_ts and incoming_ts and local_ts > incoming_ts:
+            summary["skipped_local_newer"] += 1
+        else:
+            summary["skipped_same_or_unknown"] += 1
+        return
+
+    columns_to_insert = [
+        column for column in insert_columns if column in prepared
+    ]
+    db.execute(
+        f"INSERT INTO {table_name} ("
+        + ", ".join(columns_to_insert)
+        + ") VALUES ("
+        + ", ".join("?" for _ in columns_to_insert)
+        + ")",
+        tuple(prepared.get(column) for column in columns_to_insert),
+    )
+    summary["new"] += 1
+
+
+def _apply_documents(
+    documents: list[dict[str, Any]],
+    patient_map: dict[int, int],
+    encounter_map: dict[int, int],
+    user_map: dict[int, int | None],
+) -> dict[str, int]:
+    summary = _empty_import_summary()
+    columns = _table_columns("documents")
+    for row in documents:
+        prepared = dict(row)
+        patient_id = prepared.get("patient_id")
+        author_id = prepared.get("author_id")
+        if patient_id not in patient_map or author_id not in user_map or user_map[author_id] is None:
+            summary["skipped_unmapped_reference"] += 1
+            continue
+        prepared["patient_id"] = patient_map[patient_id]
+        prepared["author_id"] = user_map[author_id]
+        remote_encounter_id = prepared.get("encounter_id")
+        prepared["encounter_id"] = encounter_map.get(remote_encounter_id)
+        _insert_or_update_by_uuid("documents", prepared, columns, summary)
+    return summary
+
+
+def _apply_treatment_plan_items(
+    plan_items: list[dict[str, Any]],
+    patient_map: dict[int, int],
+    document_map: dict[int, int],
+) -> dict[str, int]:
+    summary = _empty_import_summary()
+    columns = _table_columns("treatment_plan_items")
+    for row in plan_items:
+        prepared = dict(row)
+        patient_id = prepared.get("patient_id")
+        if patient_id not in patient_map:
+            summary["skipped_unmapped_reference"] += 1
+            continue
+        prepared["patient_id"] = patient_map[patient_id]
+        remote_doc_id = prepared.get("plan_document_id")
+        prepared["plan_document_id"] = document_map.get(remote_doc_id)
+        _insert_or_update_by_uuid("treatment_plan_items", prepared, columns, summary)
+    return summary
+
+
+def _apply_encounters(
+    encounters: list[dict[str, Any]],
+    patient_map: dict[int, int],
+    user_map: dict[int, int | None],
+    document_map: dict[int, int],
+    plan_item_map: dict[int, int],
+) -> dict[str, int]:
+    summary = _empty_import_summary()
+    columns = _table_columns("encounters")
+    for row in encounters:
+        prepared = dict(row)
+        patient_id = prepared.get("patient_id")
+        doctor_id = prepared.get("doctor_id")
+        if patient_id not in patient_map or doctor_id not in user_map or user_map[doctor_id] is None:
+            summary["skipped_unmapped_reference"] += 1
+            continue
+        prepared["patient_id"] = patient_map[patient_id]
+        prepared["doctor_id"] = user_map[doctor_id]
+        prepared["document_id"] = document_map.get(prepared.get("document_id"))
+        prepared["treatment_plan_item_id"] = plan_item_map.get(
+            prepared.get("treatment_plan_item_id")
+        )
+        _insert_or_update_by_uuid("encounters", prepared, columns, summary)
+    return summary
+
+
+def _relink_document_encounters(
+    documents: list[dict[str, Any]], encounter_map: dict[int, int]
+) -> int:
+    updated = 0
+    for document in documents:
+        remote_encounter_id = document.get("encounter_id")
+        if not remote_encounter_id or remote_encounter_id not in encounter_map:
+            continue
+        local_doc = db.fetchone(
+            "SELECT id, encounter_id FROM documents WHERE uuid = ?",
+            (document.get("uuid"),),
+        )
+        if not local_doc or local_doc["encounter_id"] == encounter_map[remote_encounter_id]:
+            continue
+        db.execute(
+            "UPDATE documents SET encounter_id = ? WHERE id = ?",
+            (encounter_map[remote_encounter_id], local_doc["id"]),
+        )
+        updated += 1
+    return updated
+
+
+def apply_sync_import(
+    file_path: str | Path, current_user: User, password: str | None = None
+) -> dict[str, Any]:
+    if current_user.role not in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
+        raise PermissionError("Импорт доступен только ADMIN, REG и LEAD")
+
+    manifest, payload = _read_package(file_path, password)
+    data = payload.get("data", {})
+
+    patient_result = apply_patient_import(file_path, current_user, password)
+    user_map = _user_id_map(data.get("users", []))
+
+    summaries = {
+        "patients": patient_result["summary"],
+        "documents": _empty_import_summary(),
+        "treatment_plan_items": _empty_import_summary(),
+        "encounters": _empty_import_summary(),
+        "relinked_documents": 0,
+    }
+
+    conn = db.connect()
+    try:
+        patients = data.get("patients", [])
+        documents = data.get("documents", [])
+        plan_items = data.get("treatment_plan_items", [])
+        encounters = data.get("encounters", [])
+
+        patient_map = _remote_to_local_id_map("patients", patients)
+        encounter_map = _remote_to_local_id_map("encounters", encounters)
+
+        summaries["documents"] = _apply_documents(
+            documents,
+            patient_map,
+            encounter_map,
+            user_map,
+        )
+        document_map = _remote_to_local_id_map("documents", documents)
+
+        summaries["treatment_plan_items"] = _apply_treatment_plan_items(
+            plan_items,
+            patient_map,
+            document_map,
+        )
+        plan_item_map = _remote_to_local_id_map("treatment_plan_items", plan_items)
+
+        summaries["encounters"] = _apply_encounters(
+            encounters,
+            patient_map,
+            user_map,
+            document_map,
+            plan_item_map,
+        )
+        encounter_map = _remote_to_local_id_map("encounters", encounters)
+        summaries["relinked_documents"] = _relink_document_encounters(
+            documents, encounter_map
+        )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    aggregate = _empty_import_summary()
+    aggregate["skipped_unmapped_doctor"] = 0
+    for table_name in ("patients", "documents", "treatment_plan_items", "encounters"):
+        table_summary = summaries.get(table_name, {})
+        for key, value in table_summary.items():
+            aggregate[key] = aggregate.get(key, 0) + value
+    aggregate["details"] = summaries
+    aggregate["relinked_documents"] = summaries["relinked_documents"]
+    _write_import_log(file_path, current_user, manifest, aggregate)
+    return {"manifest": manifest, "summary": aggregate}
+
+
+def _write_import_log(
+    file_path: str | Path,
+    current_user: User,
+    manifest: dict[str, Any],
+    summary: dict[str, Any],
+):
+    exported_by = manifest.get("exported_by", {})
+    db.execute(
+        """
+        INSERT INTO import_logs
+        (imported_by_id, package_author, package_role, package_exported_at, package_path, summary_json)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            current_user.id,
+            exported_by.get("full_name", ""),
+            exported_by.get("role", ""),
+            manifest.get("exported_at", ""),
+            str(file_path),
+            json.dumps(summary, ensure_ascii=False, default=str),
+        ),
+    )
+    db.commit()
+
+
+def get_import_logs(limit: int = 20) -> list[dict[str, Any]]:
+    rows = db.fetchall(
+        """
+        SELECT l.*, u.username AS imported_by_username
+        FROM import_logs l
+        LEFT JOIN users u ON u.id = l.imported_by_id
+        ORDER BY l.imported_at DESC, l.id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    return [dict(row) for row in rows]

@@ -81,22 +81,47 @@ class Database:
     _connection = None
     _last_cursor = None  # Сохраняем последний курсор для lastrowid
 
-    def __new__(cls, db_path: str = "medcrm.db"):
+    def __new__(cls, db_path: str = "medcrm.db", password: str = ""):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.db_path = db_path
-        elif cls._instance.db_path != db_path:
+            cls._instance.password = password
+        elif cls._instance.db_path != db_path or cls._instance.password != password:
             if cls._connection is not None:
                 cls._connection.close()
                 cls._connection = None
                 cls._last_cursor = None
             cls._instance.db_path = db_path
+            cls._instance.password = password
         return cls._instance
 
-    def connect(self) -> sqlite3.Connection:
+    @staticmethod
+    def _pragma_quote(value: str) -> str:
+        return "'" + value.replace("'", "''") + "'"
+
+    def _connect_sqlcipher(self):
+        try:
+            import sqlcipher3
+        except ImportError as exc:
+            raise RuntimeError(
+                "SQLCipher не установлен. Установите sqlcipher3 для защищенной базы."
+            ) from exc
+
+        conn = sqlcipher3.connect(self.db_path, check_same_thread=False)
+        conn.row_factory = sqlcipher3.Row
+        conn.execute(f"PRAGMA key = {self._pragma_quote(self.password)}")
+        conn.execute("SELECT count(*) FROM sqlite_master")
+        return conn
+
+    def connect(self):
         if self._connection is None:
-            self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
-            self._connection.row_factory = sqlite3.Row
+            if getattr(self, "password", ""):
+                self._connection = self._connect_sqlcipher()
+            else:
+                self._connection = sqlite3.connect(
+                    self.db_path, check_same_thread=False
+                )
+                self._connection.row_factory = sqlite3.Row
             self._create_tables()
         return self._connection
 
@@ -568,6 +593,22 @@ class Database:
                 value INTEGER NOT NULL DEFAULT 0,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(metric, department, month, year)
+            )
+        """
+        )
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS import_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                imported_by_id INTEGER,
+                package_author TEXT,
+                package_role TEXT,
+                package_exported_at TEXT,
+                package_path TEXT,
+                summary_json TEXT,
+                FOREIGN KEY (imported_by_id) REFERENCES users(id)
             )
         """
         )
@@ -2575,10 +2616,10 @@ class KmRecord:
 # ============================================================================
 
 
-def init_db(db_path: str = "medcrm.db"):
+def init_db(db_path: str = "medcrm.db", password: str = ""):
     """Инициализация БД и создание тестовых данных"""
     global db
-    db = Database(db_path)
+    db = Database(db_path, password)
     db.connect()
     sync_patient_denormalized_fields()
 
