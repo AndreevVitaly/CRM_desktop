@@ -3,6 +3,7 @@
 """
 
 from PyQt6.QtWidgets import (
+    QApplication,
     QMainWindow,
     QWidget,
     QVBoxLayout,
@@ -15,6 +16,8 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QInputDialog,
     QLineEdit,
+    QMenu,
+    QToolButton,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -24,12 +27,12 @@ from PyQt6.QtCore import (
     QEasingCurve,
     QPoint,
 )
-from PyQt6.QtGui import QFont, QPainter, QColor, QBrush, QPen, QPixmap, QPainterPath
+from PyQt6.QtGui import QAction, QFont, QPainter, QColor, QBrush, QPen, QPixmap, QPainterPath
 import os
 
 from models.db_models import User
 from ui.brand_title import BrandTitleLabel
-from ui.styles import get_colors, FONTS, RADIUS, get_main_stylesheet
+from ui.styles import FONTS, RADIUS, get_colors, get_main_stylesheet, scaled
 from utils.app_paths import get_resource_path
 
 
@@ -40,7 +43,7 @@ class ThemeSwitch(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(52, 28)
+        self.setFixedSize(scaled(52, 44), scaled(28, 24))
         self.current_theme_light = True
         self._offset = 0
         self.animation = QPropertyAnimation(self, b"offset")
@@ -60,7 +63,7 @@ class ThemeSwitch(QWidget):
     def set_theme(self, is_light: bool):
         """Установить тему"""
         self.current_theme_light = is_light
-        target = 0 if is_light else 24
+        target = 0 if is_light else max(0, self.width() - scaled(28, 24))
         self.animation.setStartValue(self._offset)
         self.animation.setEndValue(target)
         self.animation.start()
@@ -68,7 +71,7 @@ class ThemeSwitch(QWidget):
     def toggle(self):
         """Переключить тему"""
         self.current_theme_light = not self.current_theme_light
-        target = 0 if self.current_theme_light else 24
+        target = 0 if self.current_theme_light else max(0, self.width() - scaled(28, 24))
         self.animation.setStartValue(self._offset)
         self.animation.setEndValue(target)
         self.animation.start()
@@ -81,28 +84,32 @@ class ThemeSwitch(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        center_y = self.height() // 2
+        radius = max(8, (self.height() - 6) // 2)
+        left_x = center_y
+        right_x = self.width() - center_y
 
         # Фон переключателя
         bg_color = QColor("#E2E8F0" if self.current_theme_light else "#334155")
         painter.setBrush(QBrush(bg_color))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(2, 2, self.width() - 4, self.height() - 4, 14, 14)
+        painter.drawRoundedRect(2, 2, self.width() - 4, self.height() - 4, center_y, center_y)
 
         # Тень под кружком
         shadow_color = QColor(0, 0, 0, 40 if self.current_theme_light else 80)
         painter.setBrush(QBrush(shadow_color))
-        painter.drawEllipse(QPoint(int(14 + self._offset), 14), 11, 11)
+        painter.drawEllipse(QPoint(int(left_x + self._offset), center_y), radius + 1, radius + 1)
 
         # Кружок переключателя
         dot_color = QColor("#FFFFFF")
         painter.setBrush(QBrush(dot_color))
-        painter.drawEllipse(QPoint(int(14 + self._offset), 14), 10, 10)
+        painter.drawEllipse(QPoint(int(left_x + self._offset), center_y), radius, radius)
 
         # Иконки
         if self.current_theme_light:
             # Солнце (жёлтое)
             painter.setPen(QPen(QColor("#F59E0B"), 1.5))
-            center = QPoint(8, 14)
+            center = QPoint(max(7, left_x - 6), center_y)
             # Лучи солнца
             painter.drawLine(
                 QPoint(center.x() - 4, center.y()), QPoint(center.x() - 2, center.y())
@@ -121,7 +128,7 @@ class ThemeSwitch(QWidget):
         else:
             # Луна (белая)
             painter.setPen(QPen(QColor("#94A3B8"), 1.5))
-            center = QPoint(44, 14)
+            center = QPoint(min(self.width() - 7, right_x + 6), center_y)
             painter.drawEllipse(center, 3, 3)
 
 
@@ -136,10 +143,20 @@ class MainWindow(QMainWindow):
         self.current_theme_light = True
 
         self.setWindowTitle(f"PULSAR - {user.full_name}")
-        self.setMinimumSize(1200, 800)
+        self._apply_adaptive_minimum_size()
         self.setStyleSheet(get_main_stylesheet())
 
         self._init_ui()
+
+    def _apply_adaptive_minimum_size(self):
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            self.setMinimumSize(scaled(1200), scaled(800))
+            return
+        geometry = screen.availableGeometry()
+        width = min(scaled(1200), int(geometry.width() * 0.92))
+        height = min(scaled(800), int(geometry.height() * 0.9))
+        self.setMinimumSize(max(900, width), max(620, height))
 
     def _update_logo(self, logo_path: str, colors: dict):
         """Обновление логотипа (PNG) со скруглёнными углами"""
@@ -149,6 +166,14 @@ class MainWindow(QMainWindow):
             pixmap = QPixmap(logo_path)
             if pixmap.isNull():
                 return
+
+            max_logo_size = scaled(78, 56)
+            pixmap = pixmap.scaled(
+                max_logo_size,
+                max_logo_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
 
             w, h = pixmap.width(), pixmap.height()
             rounded = QPixmap(w, h)
@@ -260,8 +285,8 @@ class MainWindow(QMainWindow):
 
         btn = QPushButton(text)
         btn.setObjectName("navButton")
-        btn.setFixedHeight(40)
-        btn.setMinimumWidth(104)
+        btn.setFixedHeight(scaled(34, 28))
+        btn.setMinimumWidth(scaled(112, 92))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(
             f"""
@@ -269,8 +294,8 @@ class MainWindow(QMainWindow):
                 background-color: transparent;
                 border: 1px solid transparent;
                 border-radius: {RADIUS['md']}px;
-                padding: 6px 12px;
-                font-size: {FONTS['size_small']}pt;
+                padding: 5px 14px;
+                font-size: {FONTS['size_xs']}pt;
                 font-weight: 600;
                 color: {colors['text']};
             }}
@@ -306,6 +331,90 @@ class MainWindow(QMainWindow):
 
         return btn
 
+    def _get_navigation_menu_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QToolButton#navigationMenuButton {{
+                background-color: transparent;
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 6px 14px;
+                font-size: {FONTS['size_medium']}pt;
+                font-weight: 600;
+                color: {colors['text']};
+            }}
+            QToolButton#navigationMenuButton:hover {{
+                background-color: {colors['surface_muted']};
+                border: 1px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QToolButton#navigationMenuButton::menu-indicator {{
+                image: none;
+            }}
+            QMenu {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 6px;
+                color: {colors['text']};
+            }}
+            QMenu::item {{
+                padding: 8px 28px 8px 14px;
+                border-radius: {RADIUS['sm']}px;
+                font-size: {FONTS['size_medium']}pt;
+            }}
+            QMenu::item:selected {{
+                background-color: {colors['accent_light']};
+                color: {colors['accent_strong']};
+            }}
+            QMenu::item:disabled {{
+                color: {colors['text_muted']};
+            }}
+        """
+
+    def _create_navigation_menu(self) -> QToolButton:
+        button = QToolButton()
+        button.setObjectName("navigationMenuButton")
+        button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setFixedHeight(scaled(34, 28))
+        button.setMinimumWidth(scaled(190, 150))
+        button.setStyleSheet(self._get_navigation_menu_style())
+
+        self.nav_menu = QMenu(button)
+        self.nav_menu.setStyleSheet(self._get_navigation_menu_style())
+        button.setMenu(self.nav_menu)
+        self.nav_menu_button = button
+        self.nav_actions = {}
+        self._rebuild_navigation_menu()
+        return button
+
+    def _rebuild_navigation_menu(self):
+        if not hasattr(self, "nav_menu"):
+            return
+        self.nav_menu.clear()
+        self.nav_actions = {}
+        for nav_id, (text, enabled) in self._get_nav_items().items():
+            action = QAction(text, self)
+            action.setCheckable(True)
+            action.setEnabled(enabled)
+            action.triggered.connect(
+                lambda checked=False, page_id=nav_id: self._navigate(page_id)
+            )
+            self.nav_menu.addAction(action)
+            self.nav_actions[nav_id] = action
+        self._set_active_navigation(getattr(self, "current_page_id", "dashboard"))
+
+    def _set_active_navigation(self, page_id: str):
+        self.current_page_id = page_id
+        nav_items = self._get_nav_items()
+        current_text = nav_items.get(page_id, ("Разделы", True))[0]
+        if hasattr(self, "nav_menu_button"):
+            self.nav_menu_button.setText(current_text)
+        if hasattr(self, "nav_actions"):
+            for nav_id, action in self.nav_actions.items():
+                action.setChecked(nav_id == page_id)
+
     def _get_sync_button_style(self) -> str:
         colors = get_colors()
         return f"""
@@ -313,8 +422,10 @@ class MainWindow(QMainWindow):
                 background-color: transparent;
                 border: 1px solid {colors['line']};
                 border-radius: {RADIUS['md']}px;
-                padding: 6px 12px;
-                font-size: {FONTS['size_small']}pt;
+                padding: 0px 14px;
+                min-height: 0px;
+                max-height: {scaled(34, 28)}px;
+                font-size: {FONTS['size_medium']}pt;
                 font-weight: 600;
                 color: {colors['text']};
             }}
@@ -338,8 +449,8 @@ class MainWindow(QMainWindow):
     def _create_sync_button(self, text: str, enabled: bool) -> QPushButton:
         btn = QPushButton(text)
         btn.setObjectName("syncButton")
-        btn.setFixedHeight(36)
-        btn.setMinimumWidth(84)
+        btn.setFixedHeight(scaled(34, 28))
+        btn.setMinimumWidth(scaled(190, 150))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(self._get_sync_button_style())
         btn.setEnabled(enabled)
@@ -351,7 +462,7 @@ class MainWindow(QMainWindow):
 
         top_bar = QFrame()
         top_bar.setObjectName("topBar")
-        top_bar.setFixedHeight(88)
+        top_bar.setFixedHeight(scaled(108, 88))
         top_bar.setStyleSheet(
             f"""
             QFrame#topBar {{
@@ -362,12 +473,12 @@ class MainWindow(QMainWindow):
         )
 
         layout = QHBoxLayout(top_bar)
-        layout.setContentsMargins(16, 8, 16, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(scaled(16), scaled(10), scaled(16), scaled(10))
+        layout.setSpacing(scaled(16))
 
         # Логотип и название слева
         logo_layout = QHBoxLayout()
-        logo_layout.setSpacing(12)
+        logo_layout.setSpacing(scaled(12))
 
         # Логотип
         logo_path = self._get_logo_path()
@@ -398,20 +509,12 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(logo_layout)
 
-        layout.addSpacing(24)
+        layout.addSpacing(scaled(20))
 
-        layout.addStretch()
-
-        # Кнопки навигации (в обратном порядке)
         self.nav_buttons = {}
-        nav_items = list(self._get_nav_items().items())
-        for nav_id, (text, enabled) in nav_items:
-            btn = self._create_nav_button(text, nav_id, enabled)
-            btn.setFixedHeight(40)
-            self.nav_buttons[nav_id] = btn
-            layout.addWidget(btn)
-
+        self.current_page_id = "dashboard"
         layout.addStretch()
+        layout.addWidget(self._create_navigation_menu())
 
         can_export = self.user.role in (
             User.ROLE_ADMIN,
@@ -435,34 +538,37 @@ class MainWindow(QMainWindow):
         self.import_btn.clicked.connect(self._import_data)
         layout.addWidget(self.import_btn)
 
-        layout.addSpacing(12)
+        layout.addSpacing(scaled(12))
 
         # Переключатель темы (toggle switch)
         self.theme_switch = ThemeSwitch(self)
         self.theme_switch.clicked.connect(self._toggle_theme)
         layout.addWidget(self.theme_switch)
 
-        layout.addSpacing(16)
+        layout.addSpacing(scaled(16))
 
         # Кнопка выхода в общем стиле
         logout_btn = QPushButton("Выход")
         logout_btn.setObjectName("logoutBtn")
-        logout_btn.setFixedHeight(40)
+        logout_btn.setFixedHeight(scaled(34, 28))
+        logout_btn.setMinimumWidth(scaled(190, 150))
         logout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         logout_btn.setStyleSheet(
             f"""
             QPushButton#logoutBtn {{
                 background-color: transparent;
-                border: 2px solid {colors['line']};
+                border: 1px solid {colors['line']};
                 border-radius: {RADIUS['md']}px;
-                padding: 8px 16px;
+                padding: 0px 14px;
+                min-height: 0px;
+                max-height: {scaled(34, 28)}px;
                 font-weight: 600;
                 font-size: {FONTS['size_medium']}pt;
                 color: {colors['text_muted']};
             }}
             QPushButton#logoutBtn:hover {{
                 background-color: {colors['danger_bg']};
-                border: 2px solid {colors['danger']};
+                border: 1px solid {colors['danger']};
                 color: {colors['danger']};
             }}
             QPushButton#logoutBtn:pressed {{
@@ -646,15 +752,7 @@ class MainWindow(QMainWindow):
             return
 
         # Обновляем активную кнопку
-        for btn_id, btn in self.nav_buttons.items():
-            if btn_id == page_id:
-                btn.setProperty("active", True)
-                btn.style().unpolish(btn)
-                btn.style().polish(btn)
-            else:
-                btn.setProperty("active", False)
-                btn.style().unpolish(btn)
-                btn.style().polish(btn)
+        self._set_active_navigation(page_id)
 
         # Загружаем страницу
         self._load_page(page_id)
@@ -855,11 +953,11 @@ class MainWindow(QMainWindow):
 
         # Обновляем все страницы
         # Сохраняем текущий page_id
-        current_page_id = "dashboard"
-        for nav_id, btn in self.nav_buttons.items():
-            if btn.property("active"):
-                current_page_id = nav_id
-                break
+        if hasattr(self, "nav_menu_button"):
+            self.nav_menu_button.setStyleSheet(self._get_navigation_menu_style())
+        if hasattr(self, "nav_menu"):
+            self.nav_menu.setStyleSheet(self._get_navigation_menu_style())
+        current_page_id = getattr(self, "current_page_id", "dashboard")
 
         # Пересоздаём все страницы для полного обновления стилей
         if self.user is not None:
@@ -905,10 +1003,7 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
 
             # Обновляем активную кнопку
-            for btn_id, btn in self.nav_buttons.items():
-                btn.setProperty("active", btn_id == current_page_id)
-                btn.style().unpolish(btn)
-                btn.style().polish(btn)
+            self._set_active_navigation(current_page_id)
 
         # Принудительная перерисовка главного окна
         self.update()
@@ -929,11 +1024,8 @@ class MainWindow(QMainWindow):
             widget.deleteLater()
 
         # Отключаем все кнопки навигации
-        for btn in self.nav_buttons.values():
-            btn.setEnabled(False)
-            btn.setProperty("active", False)
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
+        if hasattr(self, "nav_menu_button"):
+            self.nav_menu_button.setEnabled(False)
 
         # Сбрасываем заголовок
         self.setWindowTitle("PULSAR - Вход")
@@ -973,15 +1065,14 @@ class MainWindow(QMainWindow):
         self._rebuild_navigation()
 
         # Обновляем активную кнопку
-        for btn in self.nav_buttons.values():
-            btn.setProperty("active", False)
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-
         # Загружаем главную страницу
         self._navigate("dashboard")
 
     def _rebuild_navigation(self):
+        if hasattr(self, "nav_menu_button"):
+            self.nav_menu_button.setEnabled(True)
+        self._rebuild_navigation_menu()
+        return
         """Обновление навигации для текущего пользователя"""
         nav_items = self._get_nav_items()
 

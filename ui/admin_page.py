@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
@@ -24,7 +25,7 @@ from PyQt6.QtWidgets import (
 )
 
 from models.db_models import User, db
-from ui.styles import FONTS, RADIUS, get_colors
+from ui.styles import FONTS, RADIUS, get_colors, scaled
 from utils.app_paths import get_db_path
 from utils.db_encryption import (
     has_sqlite_header,
@@ -44,9 +45,19 @@ class AdminPage(QWidget):
 
     def _init_ui(self):
         colors = get_colors()
-        layout = QVBoxLayout()
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(16)
+        page_layout = QVBoxLayout(self)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("background-color: transparent; border: none;")
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(scaled(20), scaled(20), scaled(20), scaled(20))
+        layout.setSpacing(scaled(16))
 
         title = QLabel("Администрирование")
         title.setStyleSheet(
@@ -57,8 +68,10 @@ class AdminPage(QWidget):
         layout.addWidget(self._create_database_card())
         layout.addWidget(self._create_exchange_card())
         layout.addWidget(self._create_import_log_card(), 1)
+        layout.addStretch()
 
-        self.setLayout(layout)
+        scroll.setWidget(content)
+        page_layout.addWidget(scroll)
         self.setStyleSheet(
             f"background-color: {colors['bg']}; color: {colors['text']};"
         )
@@ -77,8 +90,8 @@ class AdminPage(QWidget):
             """
         )
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(16, 14, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(scaled(16), scaled(14), scaled(16), scaled(16))
+        layout.setSpacing(scaled(12))
 
         label = QLabel(title)
         label.setStyleSheet(
@@ -90,27 +103,27 @@ class AdminPage(QWidget):
     def _button(self, text: str) -> QPushButton:
         colors = get_colors()
         btn = QPushButton(text)
-        btn.setFixedHeight(38)
+        btn.setFixedHeight(scaled(28, 24))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(
             f"""
             QPushButton {{
                 background-color: transparent;
-                border: 2px solid {colors['line']};
-                border-radius: {RADIUS['md']}px;
-                padding: 7px 14px;
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: {scaled(3)}px {scaled(10)}px;
                 font-weight: 600;
-                font-size: {FONTS['size_small']}pt;
+                font-size: {FONTS['size_xs']}pt;
                 color: {colors['text']};
             }}
             QPushButton:hover {{
                 background-color: {colors['accent_light']};
-                border: 2px solid {colors['accent']};
+                border: 1px solid {colors['accent']};
                 color: {colors['accent']};
             }}
             QPushButton:pressed {{
                 background-color: {colors['accent']};
-                border: 2px solid {colors['accent']};
+                border: 1px solid {colors['accent']};
                 color: #FFFFFF;
             }}
             """
@@ -119,30 +132,54 @@ class AdminPage(QWidget):
 
     def _create_database_card(self) -> QFrame:
         card, layout = self._card("База данных")
+        card.setMinimumHeight(scaled(136, 116))
         colors = get_colors()
         db_path = get_db_path()
         encrypted = db_path.exists() and not has_sqlite_header(db_path)
         status = "зашифрована" if encrypted else "обычная SQLite"
 
         grid = QGridLayout()
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(8)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(scaled(16))
+        grid.setVerticalSpacing(scaled(8))
         rows = [
             ("Статус", status),
-            ("SQLCipher", "доступен" if is_sqlcipher_available() else "не установлен"),
+            (
+                "SQLCipher",
+                "доступен" if is_sqlcipher_available() else "не установлен",
+            ),
             ("Путь", str(db_path)),
         ]
         for row, (name, value) in enumerate(rows):
+            grid.setRowMinimumHeight(row, scaled(22, 18))
+
             name_label = QLabel(name)
-            name_label.setStyleSheet(f"color: {colors['text_muted']};")
-            value_label = QLabel(value)
+            name_label.setFixedWidth(scaled(110, 92))
+            name_label.setMinimumHeight(scaled(22, 18))
+            name_label.setAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+            )
+            name_label.setStyleSheet(
+                f"color: {colors['text_muted']}; font-size: {FONTS['size_small']}pt; font-weight: 600; background-color: transparent;"
+            )
+
+            value_label = QLabel(str(value))
+            value_label.setMinimumHeight(scaled(22, 18))
+            value_label.setWordWrap(True)
             value_label.setTextInteractionFlags(
                 Qt.TextInteractionFlag.TextSelectableByMouse
             )
-            value_label.setStyleSheet(f"color: {colors['text']};")
+            value_label.setAlignment(
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+            )
+            value_label.setStyleSheet(
+                f"color: {colors['text']}; font-size: {FONTS['size_medium']}pt; font-weight: 500; background-color: transparent;"
+            )
+
             grid.addWidget(name_label, row, 0)
             grid.addWidget(value_label, row, 1)
         layout.addLayout(grid)
+        layout.addSpacing(scaled(6))
 
         actions = QHBoxLayout()
         backup_btn = self._button("Создать резервную копию")

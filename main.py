@@ -12,7 +12,7 @@ from PyQt6.QtGui import QFont
 from models.db_models import init_db, db
 from ui.login_window import LoginWindow
 from ui.main_window import MainWindow
-from ui.styles import get_main_stylesheet
+from ui.styles import FONTS, configure_ui_scale, get_main_stylesheet
 from utils.app_paths import get_db_path
 from utils.db_encryption import (
     encrypt_existing_database,
@@ -51,6 +51,13 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("PULSAR")
     app.setOrganizationName("PULSAR")
+    configure_ui_scale(app.primaryScreen())
+
+    # Установка шрифта и стилей с учетом размера экрана
+    font = QFont("Segoe UI", FONTS["size_normal"])
+    app.setFont(font)
+    app.setStyle("Fusion")
+    app.setStyleSheet(get_main_stylesheet())
 
     db_password = request_database_password()
     if db_password is None:
@@ -62,19 +69,6 @@ def main():
 
     # Инициализация БД
     init_db(str(db_path), db_password)
-
-    # Установка шрифта
-    font = QFont("Segoe UI", 10)
-    app.setFont(font)
-
-    # Применение стилей
-    app.setStyleSheet(get_main_stylesheet())
-
-    # Настройка тёмной темы для тёмных элементов
-    app.setStyle("Fusion")
-
-    # Обработка исключений в событийном цикле
-    app.setStyleSheet(get_main_stylesheet())
 
     # Окно входа
     login_window = LoginWindow()

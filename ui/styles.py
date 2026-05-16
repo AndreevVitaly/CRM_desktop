@@ -134,6 +134,7 @@ FONTS = {
     "size_header": 20,
     "size_display": 24,
 }
+BASE_FONTS = FONTS.copy()
 
 # Радиусы скругления (Modern Rounded)
 RADIUS = {
@@ -143,6 +144,42 @@ RADIUS = {
     "xl": 20,
     "pill": 999,
 }
+BASE_RADIUS = RADIUS.copy()
+UI_SCALE = 1.0
+
+
+def clamp(value: float, minimum: float, maximum: float) -> float:
+    return max(minimum, min(maximum, value))
+
+
+def scaled(value: int | float, minimum: int = 1) -> int:
+    return max(minimum, int(round(value * UI_SCALE)))
+
+
+def configure_ui_scale(screen) -> float:
+    """Configure compact UI metrics from the available screen size."""
+    global UI_SCALE
+    if screen is None:
+        UI_SCALE = 1.0
+    else:
+        geometry = screen.availableGeometry()
+        width_scale = geometry.width() / 1440
+        height_scale = geometry.height() / 900
+        UI_SCALE = clamp(min(width_scale, height_scale), 0.82, 1.0)
+
+    for key, value in BASE_FONTS.items():
+        if isinstance(value, (int, float)):
+            FONTS[key] = scaled(value, 7)
+        else:
+            FONTS[key] = value
+
+    for key, value in BASE_RADIUS.items():
+        if key == "pill":
+            RADIUS[key] = value
+        else:
+            RADIUS[key] = scaled(value, 4)
+
+    return UI_SCALE
 
 # ============================================================================
 # ТЕКУЩАЯ ТЕМА
