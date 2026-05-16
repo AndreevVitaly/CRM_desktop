@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import base64
 import os
+import uuid as uuid_lib
 import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from models.db_models import Patient, User, db
+from models.db_models import Patient, User, db, hash_password
 
 PACKAGE_VERSION = 1
 MANIFEST_NAME = "manifest.json"
@@ -137,7 +138,26 @@ def _collect_package_data(user: User) -> dict[str, Any]:
     km_records = []
     if "km_records" in table_names:
         document_ids = {row["id"] for row in documents if row.get("id") is not None}
-        km_records = _select_by_column_ids("km_records", "document_id", document_ids)
+        encounter_ids = {row["id"] for row in encounters if row.get("id") is not None}
+        conditions = []
+        params = []
+        if document_ids:
+            conditions.append(
+                "document_id IN (" + ",".join("?" for _ in document_ids) + ")"
+            )
+            params.extend(sorted(document_ids))
+        if encounter_ids:
+            conditions.append(
+                "encounter_id IN (" + ",".join("?" for _ in encounter_ids) + ")"
+            )
+            params.extend(sorted(encounter_ids))
+        if conditions:
+            km_records = _rows(
+                "SELECT * FROM km_records WHERE "
+                + " OR ".join(conditions)
+                + " ORDER BY id",
+                tuple(params),
+            )
 
     facility_ids = {row["facility_id"] for row in patients if row.get("facility_id") is not None}
     user_ids = {user.id} if user.id is not None else set()
@@ -189,10 +209,13 @@ def export_sync_package(
         },
         "counts": counts,
         "schema": {
+            "users": _table_columns("users"),
+            "facilities": _table_columns("facilities"),
             "patients": _table_columns("patients"),
             "encounters": _table_columns("encounters"),
             "documents": _table_columns("documents"),
             "treatment_plan_items": _table_columns("treatment_plan_items"),
+            "km_records": _table_columns("km_records"),
         },
     }
 
@@ -274,6 +297,7 @@ def preview_sync_import(
         "encounters",
         "documents",
         "treatment_plan_items",
+        "km_records",
     ):
         incoming_rows = data.get(table_name, [])
         incoming_with_uuid = [row for row in incoming_rows if row.get("uuid")]
@@ -314,6 +338,39 @@ def preview_sync_import(
                 table_preview["same_or_unknown"] += 1
 
         preview[table_name] = table_preview
+
+    package_users = data.get("users", [])
+    preview["users"] = {
+        "incoming": len(package_users),
+        "without_uuid": 0,
+        "new": sum(
+            1
+            for user in package_users
+            if user.get("username")
+            and not db.fetchone(
+                "SELECT id FROM users WHERE username = ?", (user["username"],)
+            )
+        ),
+        "package_newer": 0,
+        "local_newer": 0,
+        "same_or_unknown": 0,
+    }
+    package_facilities = data.get("facilities", [])
+    preview["facilities"] = {
+        "incoming": len(package_facilities),
+        "without_uuid": 0,
+        "new": sum(
+            1
+            for facility in package_facilities
+            if facility.get("name")
+            and not db.fetchone(
+                "SELECT id FROM facilities WHERE name = ?", (facility["name"],)
+            )
+        ),
+        "package_newer": 0,
+        "local_newer": 0,
+        "same_or_unknown": 0,
+    }
 
     return {"manifest": manifest, "preview": preview}
 
@@ -463,6 +520,61 @@ def _empty_import_summary() -> dict[str, int]:
     }
 
 
+def _apply_users(package_users: list[dict[str, Any]]) -> dict[str, int]:
+    summary = _empty_import_summary()
+    for package_user in package_users:
+        username = (package_user.get("username") or "").strip()
+        if not username:
+            summary["skipped_unmapped_reference"] += 1
+            continue
+        existing = db.fetchone("SELECT id FROM users WHERE username = ?", (username,))
+        if existing:
+            summary["skipped_same_or_unknown"] += 1
+            continue
+        db.execute(
+            """
+            INSERT INTO users
+            (username, first_name, last_name, middle_name, email, password_hash, role, department, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+            """,
+            (
+                username,
+                package_user.get("first_name", ""),
+                package_user.get("last_name", ""),
+                package_user.get("middle_name", ""),
+                package_user.get("email", ""),
+                hash_password(str(uuid_lib.uuid4())),
+                package_user.get("role", User.ROLE_DOCTOR),
+                package_user.get("department"),
+            ),
+        )
+        summary["new"] += 1
+    return summary
+
+
+def _apply_facilities(package_facilities: list[dict[str, Any]]) -> dict[str, int]:
+    summary = _empty_import_summary()
+    for facility in package_facilities:
+        name = (facility.get("name") or "").strip()
+        if not name:
+            summary["skipped_unmapped_reference"] += 1
+            continue
+        existing = db.fetchone("SELECT id FROM facilities WHERE name = ?", (name,))
+        if existing:
+            summary["skipped_same_or_unknown"] += 1
+            continue
+        db.execute(
+            "INSERT INTO facilities (name, type, address) VALUES (?, ?, ?)",
+            (
+                name,
+                facility.get("type") or "hospital",
+                facility.get("address") or "",
+            ),
+        )
+        summary["new"] += 1
+    return summary
+
+
 def _remote_to_local_id_map(table_name: str, incoming_rows: list[dict[str, Any]]) -> dict[int, int]:
     result = {}
     for row in incoming_rows:
@@ -599,6 +711,31 @@ def _apply_encounters(
     return summary
 
 
+def _apply_km_records(
+    km_records: list[dict[str, Any]],
+    encounter_map: dict[int, int],
+    document_map: dict[int, int],
+) -> dict[str, int]:
+    summary = _empty_import_summary()
+    columns = _table_columns("km_records")
+    for row in km_records:
+        prepared = dict(row)
+        remote_encounter_id = prepared.get("encounter_id")
+        remote_document_id = prepared.get("document_id")
+        if remote_encounter_id is not None:
+            prepared["encounter_id"] = encounter_map.get(remote_encounter_id)
+        if remote_document_id is not None:
+            prepared["document_id"] = document_map.get(remote_document_id)
+        if remote_encounter_id is not None and prepared.get("encounter_id") is None:
+            summary["skipped_unmapped_reference"] += 1
+            continue
+        if remote_document_id is not None and prepared.get("document_id") is None:
+            summary["skipped_unmapped_reference"] += 1
+            continue
+        _insert_or_update_by_uuid("km_records", prepared, columns, summary)
+    return summary
+
+
 def _relink_document_encounters(
     documents: list[dict[str, Any]], encounter_map: dict[int, int]
 ) -> int:
@@ -630,14 +767,26 @@ def apply_sync_import(
     manifest, payload = _read_package(file_path, password)
     data = payload.get("data", {})
 
+    conn = db.connect()
+    try:
+        users_summary = _apply_users(data.get("users", []))
+        facilities_summary = _apply_facilities(data.get("facilities", []))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
     patient_result = apply_patient_import(file_path, current_user, password)
     user_map = _user_id_map(data.get("users", []))
 
     summaries = {
+        "users": users_summary,
+        "facilities": facilities_summary,
         "patients": patient_result["summary"],
         "documents": _empty_import_summary(),
         "treatment_plan_items": _empty_import_summary(),
         "encounters": _empty_import_summary(),
+        "km_records": _empty_import_summary(),
         "relinked_documents": 0,
     }
 
@@ -647,6 +796,7 @@ def apply_sync_import(
         documents = data.get("documents", [])
         plan_items = data.get("treatment_plan_items", [])
         encounters = data.get("encounters", [])
+        km_records = data.get("km_records", [])
 
         patient_map = _remote_to_local_id_map("patients", patients)
         encounter_map = _remote_to_local_id_map("encounters", encounters)
@@ -677,6 +827,12 @@ def apply_sync_import(
         summaries["relinked_documents"] = _relink_document_encounters(
             documents, encounter_map
         )
+        document_map = _remote_to_local_id_map("documents", documents)
+        summaries["km_records"] = _apply_km_records(
+            km_records,
+            encounter_map,
+            document_map,
+        )
 
         conn.commit()
     except Exception:
@@ -685,7 +841,15 @@ def apply_sync_import(
 
     aggregate = _empty_import_summary()
     aggregate["skipped_unmapped_doctor"] = 0
-    for table_name in ("patients", "documents", "treatment_plan_items", "encounters"):
+    for table_name in (
+        "users",
+        "facilities",
+        "patients",
+        "documents",
+        "treatment_plan_items",
+        "encounters",
+        "km_records",
+    ):
         table_summary = summaries.get(table_name, {})
         for key, value in table_summary.items():
             aggregate[key] = aggregate.get(key, 0) + value

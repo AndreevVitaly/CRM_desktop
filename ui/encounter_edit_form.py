@@ -241,6 +241,16 @@ class EncounterEditDialog(QDialog):
             self.meeting_result_combo.addItem(label, value)
         result_layout.addRow("Результат встречи*", self.meeting_result_combo)
 
+        self.status_combo = QComboBox()
+        self.status_combo.setFrame(False)
+        self.status_combo.setMinimumHeight(36)
+        self.status_combo.setMaximumWidth(420)
+        self.status_combo.setMaxVisibleItems(3)
+        self.status_combo.addItem("Запланирован", Encounter.STATUS_PLANNED)
+        self.status_combo.addItem("В процессе", Encounter.STATUS_INPROGRESS)
+        self.status_combo.addItem("Завершен", Encounter.STATUS_FINISHED)
+        result_layout.addRow("Статус", self.status_combo)
+
         # Позывной и личный номер (автозаполнение из пациента)
         callsign_label = QLabel(f"Позывной: {self.patient.callsign}")
         callsign_label.setStyleSheet("background-color: transparent;")
@@ -662,6 +672,7 @@ class EncounterEditDialog(QDialog):
         """
 
         self.meeting_result_combo.setStyleSheet(combo_style)
+        self.status_combo.setStyleSheet(combo_style)
         for text_edit in (
             self.patient_info_input,
             self.meeting_description_input,
@@ -906,6 +917,12 @@ class EncounterEditDialog(QDialog):
             if index >= 0:
                 self.meeting_result_combo.setCurrentIndex(index)
 
+        status_index = self.status_combo.findData(
+            self.encounter.status or Encounter.STATUS_FINISHED
+        )
+        if status_index >= 0:
+            self.status_combo.setCurrentIndex(status_index)
+
         # Информация от пациента
         self.patient_info_input.setPlainText(self.encounter.patient_info or "")
 
@@ -934,6 +951,7 @@ class EncounterEditDialog(QDialog):
 
         # Сохранение основных полей
         self.encounter.meeting_result = meeting_result
+        self.encounter.status = self.status_combo.currentData()
         self.encounter.patient_info = self.patient_info_input.toPlainText().strip()
         self.encounter.meeting_description = (
             self.meeting_description_input.toPlainText().strip()

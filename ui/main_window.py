@@ -667,13 +667,16 @@ class MainWindow(QMainWindow):
         preview = result["preview"]
         exported_by = manifest.get("exported_by", {})
         labels = {
+            "users": "Пользователи",
+            "facilities": "Места размещения",
+            "km_records": "КМ-записи",
             "patients": "Пациенты",
             "documents": "Документы",
             "encounters": "Встречи",
             "treatment_plan_items": "Пункты планов",
         }
         preview_lines = []
-        for table_name in ("patients", "documents", "encounters", "treatment_plan_items"):
+        for table_name in ("users", "facilities", "patients", "documents", "encounters", "treatment_plan_items", "km_records"):
             item = preview.get(table_name, {})
             preview_lines.append(
                 f"{labels[table_name]}: всего {item.get('incoming', 0)}, "
@@ -694,7 +697,7 @@ class MainWindow(QMainWindow):
         )
 
         apply_count = 0
-        for table_name in ("patients", "documents", "encounters", "treatment_plan_items"):
+        for table_name in ("users", "facilities", "patients", "documents", "encounters", "treatment_plan_items", "km_records"):
             item = preview.get(table_name, {})
             apply_count += item.get("new", 0) + item.get("package_newer", 0)
         if apply_count <= 0:

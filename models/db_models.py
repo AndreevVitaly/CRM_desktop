@@ -278,6 +278,7 @@ class Database:
             """
             CREATE TABLE IF NOT EXISTS km_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT,
                 callsign TEXT NOT NULL,
                 personal_number TEXT,
                 document_number TEXT,
@@ -290,6 +291,7 @@ class Database:
                 encounter_id INTEGER,
                 document_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (encounter_id) REFERENCES encounters(id),
                 FOREIGN KEY (document_id) REFERENCES documents(id)
             )
@@ -547,6 +549,7 @@ class Database:
             "encounters": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
             "documents": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
             "treatment_plan_items": [("uuid", "TEXT")],
+            "km_records": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
         }
         for table_name, columns in sync_columns.items():
             for col_name, col_type in columns:
@@ -570,7 +573,7 @@ class Database:
             except Exception:
                 pass
 
-        for table_name in ("patients", "encounters", "documents"):
+        for table_name in ("patients", "encounters", "documents", "km_records"):
             try:
                 cursor.execute(
                     f"""
@@ -1836,18 +1839,19 @@ class PatientInteraction:
     def _from_row(cls, row: dict) -> "PatientInteraction":
         """Создание объекта из строки БД с конвертацией дат"""
         data = dict(row)
-        if data.get("created_at") and isinstance(data["created_at"], str):
-            for fmt in [
-                "%Y-%m-%d %H:%M:%S.%f",
-                "%Y-%m-%d %H:%M:%S",
-                "%Y-%m-%dT%H:%M:%S.%f",
-                "%Y-%m-%dT%H:%M:%S",
-            ]:
-                try:
-                    data["created_at"] = datetime.strptime(data["created_at"], fmt)
-                    break
-                except ValueError:
-                    continue
+        for field in ("created_at", "updated_at"):
+            if data.get(field) and isinstance(data[field], str):
+                for fmt in [
+                    "%Y-%m-%d %H:%M:%S.%f",
+                    "%Y-%m-%d %H:%M:%S",
+                    "%Y-%m-%dT%H:%M:%S.%f",
+                    "%Y-%m-%dT%H:%M:%S",
+                ]:
+                    try:
+                        data[field] = datetime.strptime(data[field], fmt)
+                        break
+                    except ValueError:
+                        continue
         return cls(**data)
 
 
@@ -2456,6 +2460,7 @@ class KmRecord:
     """Модель записи таблицы КМ (Комиссионные Мероприятия)"""
 
     id: Optional[int] = None
+    uuid: str = ""
     callsign: str = ""  # Позывной
     personal_number: str = ""  # Личный номер
     document_number: str = ""  # Номер документа
@@ -2468,10 +2473,15 @@ class KmRecord:
     encounter_id: Optional[int] = None  # Связь с встречей
     document_id: Optional[int] = None  # Связь с документом
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     def __post_init__(self):
+        if not self.uuid:
+            self.uuid = str(uuid_lib.uuid4())
         if self.created_at is None:
             self.created_at = datetime.now()
+        if self.updated_at is None:
+            self.updated_at = self.created_at
 
     @property
     def encounter(self) -> Optional[Encounter]:
@@ -2486,15 +2496,17 @@ class KmRecord:
         return None
 
     def save(self):
+        self.updated_at = datetime.now()
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO km_records
-            (id, callsign, personal_number, document_number, position, full_name, birth_date,
-             workplace, info_essence, measures_taken, encounter_id, document_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, uuid, callsign, personal_number, document_number, position, full_name, birth_date,
+             workplace, info_essence, measures_taken, encounter_id, document_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
+                self.uuid,
                 self.callsign,
                 self.personal_number,
                 self.document_number,
@@ -2507,6 +2519,7 @@ class KmRecord:
                 self.encounter_id,
                 self.document_id,
                 self.created_at.isoformat() if self.created_at else None,
+                self.updated_at.isoformat() if self.updated_at else None,
             ),
         )
         db.commit()
