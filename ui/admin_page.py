@@ -204,16 +204,19 @@ class AdminPage(QWidget):
         layout.addLayout(actions)
 
         self.import_log_table = QTableWidget()
-        self.import_log_table.setColumnCount(8)
+        self.import_log_table.setColumnCount(11)
         self.import_log_table.setHorizontalHeaderLabels(
             [
-                "Дата",
+                "Импорт",
                 "Импортировал",
                 "Автор пакета",
                 "Роль",
-                "Польз./места",
-                "Пациенты",
-                "Документы/встречи/планы/КМ",
+                "Экспорт",
+                "Всего",
+                "Новые",
+                "Обновлено",
+                "Пропущено",
+                "Состав пакета",
                 "Файл",
             ]
         )
@@ -227,10 +230,9 @@ class AdminPage(QWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+        for col in range(10):
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(10, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.import_log_table)
 
         self._load_import_logs()
@@ -254,40 +256,62 @@ class AdminPage(QWidget):
             encounters = details.get("encounters", {})
             plans = details.get("treatment_plan_items", {})
             km_records = details.get("km_records", {})
+            package_path = log.get("package_path", "") or ""
+            package_name = Path(package_path).name if package_path else ""
 
             row = self.import_log_table.rowCount()
             self.import_log_table.insertRow(row)
+            total_new = int(summary.get("new", 0) or 0)
+            total_updated = int(summary.get("updated", 0) or 0)
+            total_skipped = self._summary_skipped(summary)
+            total_processed = total_new + total_updated + total_skipped
             values = [
                 log.get("imported_at", ""),
                 log.get("imported_by_username", "") or "",
                 log.get("package_author", "") or "",
                 log.get("package_role", "") or "",
+                log.get("package_exported_at", "") or "",
+                total_processed,
+                total_new,
+                total_updated,
+                total_skipped,
                 (
-                    f"П: {self._summary_short(users)}; "
-                    f"М: {self._summary_short(facilities)}"
-                ),
-                self._summary_short(patients),
-                (
+                    f"Польз.: {self._summary_short(users)}; "
+                    f"Места: {self._summary_short(facilities)}; "
+                    f"Пациенты: {self._summary_short(patients)}; "
                     f"Д: {self._summary_short(documents)}; "
                     f"В: {self._summary_short(encounters)}; "
                     f"П: {self._summary_short(plans)}; "
-                    f"КМ: {self._summary_short(km_records)}"
+                    f"КМ: {self._summary_short(km_records)}; "
+                    f"связи: {summary.get('relinked_documents', 0) or 0}"
                 ),
-                log.get("package_path", "") or "",
+                package_name,
             ]
             for col, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
-                item.setToolTip(str(value))
+                item.setToolTip(package_path if col == 10 and package_path else str(value))
                 self.import_log_table.setItem(row, col, item)
 
     def _summary_short(self, item: dict) -> str:
         return f"+{item.get('new', 0)} / ~{item.get('updated', 0)}"
 
+    def _summary_skipped(self, item: dict) -> int:
+        return sum(
+            int(item.get(key, 0) or 0)
+            for key in (
+                "skipped_local_newer",
+                "skipped_same_or_unknown",
+                "skipped_without_uuid",
+                "skipped_unmapped_doctor",
+                "skipped_unmapped_reference",
+            )
+        )
+
     def _create_exchange_card(self) -> QFrame:
         card, layout = self._card("Обмен данными")
         colors = get_colors()
         note = QLabel(
-            "Экспорт создает защищенный пакет. Импорт сейчас применяет только пациентов после подтверждения."
+            "Экспорт создает защищенный пакет. Импорт применяет пользователей, места, пациентов, документы, встречи, планы и КМ после подтверждения."
         )
         note.setWordWrap(True)
         note.setStyleSheet(f"color: {colors['text_muted']};")

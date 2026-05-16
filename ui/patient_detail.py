@@ -24,9 +24,10 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QWidget,
     QMenu,
+    QFileDialog,
 )
 from PyQt6.QtCore import Qt, QDate, QTime
-from PyQt6.QtGui import QFont, QCursor
+from PyQt6.QtGui import QFont, QCursor, QColor
 from datetime import datetime
 
 from models.db_models import (
@@ -135,6 +136,16 @@ class PatientDetailDialog(QDialog):
 
         text_color = self._colors.get("text", Qt.GlobalColor.black)
         return QColor(text_color)
+
+    def _get_encounter_status_color(self, status: str):
+        """Цвет статуса встречи в таблице."""
+        colors = get_colors()
+        status_colors = {
+            "PLANNED": colors["accent"],
+            "INPROGRESS": colors["warning"],
+            "FINISHED": colors["success"],
+        }
+        return QColor(status_colors.get(status, colors["text"]))
 
     def _create_header(self) -> QFrame:
         """Заголовок с информацией о пациенте"""
@@ -547,6 +558,57 @@ class PatientDetailDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
+        filter_layout = QHBoxLayout()
+        filter_layout.setSpacing(8)
+
+        filter_label = QLabel("Статус:")
+        filter_label.setStyleSheet(f"color: {colors['text_muted']};")
+        filter_layout.addWidget(filter_label)
+
+        self.encounter_status_filter = QComboBox()
+        self.encounter_status_filter.setMinimumHeight(34)
+        self.encounter_status_filter.setMaximumWidth(220)
+        self.encounter_status_filter.addItem("Все", "")
+        self.encounter_status_filter.addItem("Запланирован", "PLANNED")
+        self.encounter_status_filter.addItem("В процессе", "INPROGRESS")
+        self.encounter_status_filter.addItem("Завершен", "FINISHED")
+        self.encounter_status_filter.currentIndexChanged.connect(self._load_encounters)
+        self.encounter_status_filter.setStyleSheet(
+            f"""
+            QComboBox {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                border: 1px solid {colors['line']};
+                border-radius: 6px;
+                padding: 6px 10px;
+            }}
+            QComboBox:hover {{
+                border-color: {colors['accent']};
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                selection-background-color: {colors['accent_light']};
+            }}
+            """
+        )
+        filter_layout.addWidget(self.encounter_status_filter)
+        filter_layout.addStretch()
+
+        word_btn = QPushButton("WORD")
+        word_btn.setFixedHeight(34)
+        word_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        word_btn.clicked.connect(self._export_selected_encounter_word)
+        filter_layout.addWidget(word_btn)
+
+        excel_btn = QPushButton("EXEL")
+        excel_btn.setFixedHeight(34)
+        excel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        excel_btn.clicked.connect(self._export_encounters_excel)
+        filter_layout.addWidget(excel_btn)
+
+        layout.addLayout(filter_layout)
+
         # Таблица встреч
         self.encounters_table = QTableWidget()
         self.encounters_table.setColumnCount(8)
@@ -597,8 +659,22 @@ class PatientDetailDialog(QDialog):
         # Получаем все документы типа "Встреча" пациента
         documents = Document.get_by_patient(self.patient.id)
         encounter_docs = [d for d in documents if d.doc_type == DOCUMENT_TYPE_MEETING]
+        selected_status = ""
+        if hasattr(self, "encounter_status_filter"):
+            selected_status = self.encounter_status_filter.currentData() or ""
 
         for doc in encounter_docs:
+            encounter = None
+            if doc.encounter_id:
+                encounter = Encounter.get_by_id(doc.encounter_id)
+            status = (
+                encounter.status
+                if encounter and encounter.status
+                else Encounter.STATUS_FINISHED
+            )
+            if selected_status and status != selected_status:
+                continue
+
             row = self.encounters_table.rowCount()
             self.encounters_table.insertRow(row)
 
@@ -614,11 +690,8 @@ class PatientDetailDialog(QDialog):
 
             # Результат встречи (из Encounter)
             result_display = "—"
-            encounter = None
-            if doc.encounter_id:
-                encounter = Encounter.get_by_id(doc.encounter_id)
-                if encounter and encounter.meeting_result:
-                    result_display = encounter.meeting_result_display
+            if encounter and encounter.meeting_result:
+                result_display = encounter.meeting_result_display
             self.encounters_table.setItem(row, 2, QTableWidgetItem(result_display))
 
             # Краткое содержание как причина
@@ -629,7 +702,7 @@ class PatientDetailDialog(QDialog):
             if encounter and encounter.status:
                 status_display = encounter.status_display
             status_item = QTableWidgetItem(status_display)
-            status_item.setForeground(Qt.GlobalColor.darkGreen)
+            status_item.setForeground(self._get_encounter_status_color(status))
             self.encounters_table.setItem(row, 4, status_item)
 
             # Информация от пациента (кратко)
@@ -646,6 +719,110 @@ class PatientDetailDialog(QDialog):
 
             # Заметки (пустая колонка)
             self.encounters_table.setItem(row, 7, QTableWidgetItem("—"))
+
+    def _get_encounter_document_by_row(self, row: int):
+        from models.db_models import DOCUMENT_TYPE_MEETING, Document
+
+        doc_id_item = self.encounters_table.item(row, 0)
+        doc_id = doc_id_item.data(Qt.ItemDataRole.UserRole) if doc_id_item else None
+        if not doc_id:
+            return None
+
+        document = Document.get_by_id(doc_id)
+        if not document or document.doc_type != DOCUMENT_TYPE_MEETING:
+            return None
+        return document
+
+    def _encounter_from_document_for_export(self, document):
+        from models.db_models import Encounter
+
+        encounter = document.encounter
+        if encounter:
+            return encounter
+
+        return Encounter(
+            patient_id=self.patient.id,
+            doctor_id=document.author_id or 0,
+            started_at=document.doc_date,
+            reason=document.summary or "",
+            status=Encounter.STATUS_FINISHED,
+            document_id=document.id,
+        )
+
+    def _export_selected_encounter_word(self):
+        selected = self.encounters_table.selectedItems()
+        if not selected:
+            QMessageBox.warning(self, "Экспорт Word", "Выберите встречу в таблице")
+            return
+
+        document = self._get_encounter_document_by_row(selected[0].row())
+        if not document:
+            QMessageBox.warning(self, "Экспорт Word", "Не удалось найти встречу")
+            return
+
+        encounter = self._encounter_from_document_for_export(document)
+        from utils.office_export import (
+            build_encounter_docx_filename,
+            export_encounter_to_docx,
+        )
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить встречу в Word",
+            build_encounter_docx_filename(self.patient, encounter),
+            "Word (*.docx)",
+        )
+        if not file_path:
+            return
+        file_path = self._ensure_file_suffix(file_path, ".docx")
+
+        try:
+            export_encounter_to_docx(self.patient, encounter, file_path)
+        except RuntimeError as exc:
+            QMessageBox.warning(self, "Экспорт Word", str(exc))
+            return
+        except Exception as exc:
+            QMessageBox.critical(self, "Экспорт Word", f"Не удалось создать файл:\n{exc}")
+            return
+
+        QMessageBox.information(self, "Экспорт Word", "Встреча сохранена в Word")
+
+    def _export_encounters_excel(self):
+        from utils.office_export import (
+            build_patient_encounters_xlsx_filename,
+            collect_patient_encounter_rows,
+            export_patient_encounters_to_xlsx,
+        )
+
+        if not collect_patient_encounter_rows(self.patient):
+            QMessageBox.information(self, "Экспорт Excel", "У пациента нет встреч")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить встречи в Excel",
+            build_patient_encounters_xlsx_filename(self.patient),
+            "Excel (*.xlsx)",
+        )
+        if not file_path:
+            return
+        file_path = self._ensure_file_suffix(file_path, ".xlsx")
+
+        try:
+            export_patient_encounters_to_xlsx(self.patient, file_path)
+        except RuntimeError as exc:
+            QMessageBox.warning(self, "Экспорт Excel", str(exc))
+            return
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "Экспорт Excel", f"Не удалось создать файл:\n{exc}"
+            )
+            return
+
+        QMessageBox.information(self, "Экспорт Excel", "Встречи сохранены в Excel")
+
+    def _ensure_file_suffix(self, file_path: str, suffix: str) -> str:
+        return file_path if file_path.lower().endswith(suffix) else f"{file_path}{suffix}"
 
     def _create_plan_tab(self) -> QWidget:
         """Вкладка плана лечения"""
