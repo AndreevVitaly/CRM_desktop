@@ -596,13 +596,15 @@ class PatientDetailDialog(QDialog):
         filter_layout.addStretch()
 
         word_btn = QPushButton("WORD")
-        word_btn.setFixedHeight(34)
+        word_btn.setObjectName("actionButton")
+        word_btn.setFixedHeight(36)
         word_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         word_btn.clicked.connect(self._export_selected_encounter_word)
         filter_layout.addWidget(word_btn)
 
-        excel_btn = QPushButton("EXEL")
-        excel_btn.setFixedHeight(34)
+        excel_btn = QPushButton("EXCEL")
+        excel_btn.setObjectName("actionButton")
+        excel_btn.setFixedHeight(36)
         excel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         excel_btn.clicked.connect(self._export_encounters_excel)
         filter_layout.addWidget(excel_btn)
