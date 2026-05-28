@@ -16,6 +16,7 @@ from models.db_models import (
     Patient,
     User,
 )
+from utils.word_export import WordTemplateError, render_word_template
 
 
 def safe_export_name(value: str, fallback: str = "export") -> str:
@@ -30,80 +31,6 @@ def build_encounter_docx_filename(patient: Patient, encounter: Encounter) -> str
 
 def build_patient_encounters_xlsx_filename(patient: Patient) -> str:
     return f"pulsar_meetings_{safe_export_name(patient.callsign, 'patient')}.xlsx"
-
-
-def export_encounter_to_docx(
-    patient: Patient,
-    encounter: Encounter,
-    file_path: str | Path,
-):
-    try:
-        from docx import Document as WordDocument
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.shared import Pt
-    except ImportError as exc:
-        raise RuntimeError(
-            "Для экспорта в Word нужен пакет python-docx. "
-            "Установите зависимости из requirements.txt."
-        ) from exc
-
-    document = _document_for_encounter(encounter)
-    doctor = encounter.doctor
-    informants = EncounterInformant.get_by_encounter(encounter.id) if encounter.id else []
-
-    doc = WordDocument()
-    styles = doc.styles
-    styles["Normal"].font.name = "Arial"
-    styles["Normal"].font.size = Pt(10)
-
-    title = doc.add_paragraph()
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title.add_run("Встреча с пациентом")
-    run.bold = True
-    run.font.size = Pt(16)
-
-    _add_key_value_table(
-        doc,
-        [
-            ("Пациент", patient.callsign or "—"),
-            ("Личный номер", patient.personal_number or "—"),
-            ("Дата встречи", _format_datetime(encounter.started_at)),
-            ("Врач", doctor.full_name if doctor else "—"),
-            ("Статус", encounter.status_display),
-            ("Результат", encounter.meeting_result_display or "—"),
-            ("Документ", _document_number(document)),
-            ("Причина", encounter.reason or (document.summary if document else "") or "—"),
-        ],
-    )
-
-    _add_section(doc, "Информация от пациента", encounter.patient_info)
-    _add_section(doc, "Описание встречи", encounter.meeting_description)
-    _add_section(doc, "Мероприятия для исполнения пациентом", encounter.patient_tasks)
-    _add_section(doc, "Мероприятия в отношении пациента", encounter.patient_measures)
-    _add_section(doc, "Мероприятия общего формата", encounter.general_measures)
-
-    if informants:
-        doc.add_heading("О ком сообщил пациент", level=2)
-        table = doc.add_table(rows=1, cols=5)
-        table.style = "Table Grid"
-        headers = [
-            "ФИО",
-            "Должность",
-            "Дата рождения",
-            "Место работы",
-            "Суть информации / меры",
-        ]
-        for index, header in enumerate(headers):
-            table.rows[0].cells[index].text = header
-        for informant in informants:
-            row = table.add_row().cells
-            row[0].text = informant.full_name or "—"
-            row[1].text = informant.position or "—"
-            row[2].text = _format_date(informant.birth_date)
-            row[3].text = informant.workplace or "—"
-            row[4].text = _join_lines(informant.info_essence, informant.measures_taken)
-
-    doc.save(str(file_path))
 
 
 def export_patient_encounters_to_xlsx(
@@ -206,6 +133,85 @@ def collect_patient_encounter_rows(patient: Patient) -> list[dict[str, Any]]:
         )
     rows.sort(key=lambda item: _sort_value(item["sort_key"]))
     return rows
+
+
+def export_encounter_to_docx(
+    patient: Patient,
+    encounter: Encounter,
+    file_path: str | Path,
+):
+    document = _document_for_encounter(encounter)
+    doctor = encounter.doctor
+    informants = EncounterInformant.get_by_encounter(encounter.id) if encounter.id else []
+
+    context = {
+        "patient": {
+            "callsign": patient.callsign,
+            "personal_number": patient.personal_number,
+        },
+        "encounter": {
+            "started_at": _format_datetime(encounter.started_at),
+            "status": encounter.status_display,
+            "meeting_result": encounter.meeting_result_display,
+            "reason": encounter.reason or (document.summary if document else ""),
+            "patient_info": encounter.patient_info,
+            "meeting_description": encounter.meeting_description,
+            "patient_tasks": encounter.patient_tasks,
+            "patient_measures": encounter.patient_measures,
+            "general_measures": encounter.general_measures,
+        },
+        "doctor": {
+            "full_name": doctor.full_name if doctor else "",
+        },
+        "document": {
+            "number": _document_number(document),
+            "location": document.location if document else "",
+        },
+    }
+
+    try:
+        render_word_template(
+            "encounter.docx",
+            context,
+            file_path,
+            blocks={
+                "informants": lambda paragraph: _insert_informants_table(
+                    paragraph, informants
+                ),
+            },
+        )
+    except WordTemplateError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+
+def _insert_informants_table(paragraph, informants: list[EncounterInformant]):
+    if not informants:
+        paragraph.add_run("—")
+        return
+
+    from docx.shared import Inches
+
+    table = paragraph._parent.add_table(rows=1, cols=5, width=Inches(6.5))
+    table.style = "Table Grid"
+    paragraph._p.addnext(table._tbl)
+
+    headers = [
+        "ФИО",
+        "Должность",
+        "Дата рождения",
+        "Место работы",
+        "Суть информации / меры",
+    ]
+    for index, header in enumerate(headers):
+        table.rows[0].cells[index].text = header
+
+    for informant in informants:
+        row = table.add_row().cells
+        row[0].text = informant.full_name or "—"
+        row[1].text = informant.position or "—"
+        row[2].text = _format_date(informant.birth_date)
+        row[3].text = informant.workplace or "—"
+        row[4].text = _join_lines(informant.info_essence, informant.measures_taken)
 
 
 def _document_for_encounter(encounter: Encounter) -> Document | None:
