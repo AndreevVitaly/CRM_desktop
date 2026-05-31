@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate, QTime
 from PyQt6.QtGui import QFont, QCursor, QColor
 from datetime import datetime
+from pathlib import Path
 
 from models.db_models import (
     User,
@@ -773,15 +774,25 @@ class PatientDetailDialog(QDialog):
             "Сохранить встречу в Word",
             build_encounter_docx_filename(self.patient, encounter),
             "Word (*.docx)",
+            options=QFileDialog.Option.DontConfirmOverwrite,
         )
         if not file_path:
             return
         file_path = self._ensure_file_suffix(file_path, ".docx")
+        if not self._confirm_file_overwrite(file_path, "Экспорт Word"):
+            return
 
         try:
             export_encounter_to_docx(self.patient, encounter, file_path)
         except RuntimeError as exc:
             QMessageBox.warning(self, "Экспорт Word", str(exc))
+            return
+        except PermissionError:
+            QMessageBox.warning(
+                self,
+                "Экспорт Word",
+                "Не удалось заменить файл. Закройте его в Word и попробуйте снова.",
+            )
             return
         except Exception as exc:
             QMessageBox.critical(self, "Экспорт Word", f"Не удалось создать файл:\n{exc}")
@@ -805,10 +816,13 @@ class PatientDetailDialog(QDialog):
             "Сохранить встречи в Excel",
             build_patient_encounters_xlsx_filename(self.patient),
             "Excel (*.xlsx)",
+            options=QFileDialog.Option.DontConfirmOverwrite,
         )
         if not file_path:
             return
         file_path = self._ensure_file_suffix(file_path, ".xlsx")
+        if not self._confirm_file_overwrite(file_path, "Экспорт Excel"):
+            return
 
         try:
             export_patient_encounters_to_xlsx(self.patient, file_path)
@@ -825,6 +839,20 @@ class PatientDetailDialog(QDialog):
 
     def _ensure_file_suffix(self, file_path: str, suffix: str) -> str:
         return file_path if file_path.lower().endswith(suffix) else f"{file_path}{suffix}"
+
+    def _confirm_file_overwrite(self, file_path: str, title: str) -> bool:
+        path = Path(file_path)
+        if not path.exists():
+            return True
+
+        reply = QMessageBox.question(
+            self,
+            title,
+            f"Файл уже существует:\n{path}\n\nЗаменить его?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
 
     def _create_plan_tab(self) -> QWidget:
         """Вкладка плана лечения"""

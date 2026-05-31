@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from utils.app_paths import get_resource_path
+from utils.app_paths import get_app_base_dir, get_resource_path
 
 PLACEHOLDER_RE = re.compile(r"{{\s*([\w.]+)\s*}}")
 BLOCK_RE = re.compile(r"^{{\s*block:([\w.]+)\s*}}$")
@@ -46,6 +47,11 @@ def render_word_template(
 
 
 def get_word_template_path(template_name: str) -> Path:
+    external_template_path = (
+        get_app_base_dir() / "assets" / "templates" / "word" / template_name
+    )
+    if external_template_path.exists():
+        return external_template_path
     return get_resource_path("assets", "templates", "word", template_name)
 
 
@@ -64,6 +70,7 @@ def _render_paragraphs(paragraphs, context: Mapping[str, Any], blocks: Mapping[s
         if block_match:
             block_name = block_match.group(1)
             handler = blocks.get(block_name)
+            paragraph._template_run_properties = _get_replacement_run_properties(paragraph)
             _clear_paragraph(paragraph)
             if handler:
                 handler(paragraph)
@@ -76,12 +83,25 @@ def _replace_placeholders_in_paragraph(paragraph, context: Mapping[str, Any]):
     if not PLACEHOLDER_RE.search(paragraph.text):
         return
 
+    run_properties = _get_replacement_run_properties(paragraph)
     rendered = PLACEHOLDER_RE.sub(
         lambda match: _stringify(_resolve_value(context, match.group(1))),
         paragraph.text,
     )
     _clear_paragraph(paragraph)
-    paragraph.add_run(rendered)
+    run = paragraph.add_run(rendered)
+    if run_properties is not None:
+        run._r.insert(0, deepcopy(run_properties))
+
+
+def _get_replacement_run_properties(paragraph):
+    for run in paragraph.runs:
+        if PLACEHOLDER_RE.search(run.text) and run._r.rPr is not None:
+            return run._r.rPr
+    for run in paragraph.runs:
+        if run._r.rPr is not None:
+            return run._r.rPr
+    return None
 
 
 def _resolve_value(context: Mapping[str, Any], path: str) -> Any:

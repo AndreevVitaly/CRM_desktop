@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+from copy import copy, deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,10 @@ from models.db_models import (
     Patient,
     User,
 )
+from utils.app_paths import get_app_base_dir, get_resource_path
 from utils.word_export import WordTemplateError, render_word_template
+
+EXCEL_PLACEHOLDER_RE = re.compile(r"{{\s*([\w.]+)\s*}}")
 
 
 def safe_export_name(value: str, fallback: str = "export") -> str:
@@ -38,7 +42,7 @@ def export_patient_encounters_to_xlsx(
     file_path: str | Path,
 ):
     try:
-        from openpyxl import Workbook
+        from openpyxl import Workbook, load_workbook
         from openpyxl.styles import Alignment, Font, PatternFill
         from openpyxl.utils import get_column_letter
     except ImportError as exc:
@@ -48,6 +52,15 @@ def export_patient_encounters_to_xlsx(
         ) from exc
 
     rows = collect_patient_encounter_rows(patient)
+    template_path = get_excel_template_path("encounters.xlsx")
+    if template_path.exists():
+        _export_patient_encounters_with_xlsx_template(
+            load_workbook(str(template_path)),
+            patient,
+            rows,
+            file_path,
+        )
+        return
 
     workbook = Workbook()
     sheet = workbook.active
@@ -104,13 +117,153 @@ def export_patient_encounters_to_xlsx(
     workbook.save(str(file_path))
 
 
+def get_excel_template_path(template_name: str) -> Path:
+    external_template_path = (
+        get_app_base_dir() / "assets" / "templates" / "excel" / template_name
+    )
+    if external_template_path.exists():
+        return external_template_path
+    return get_resource_path("assets", "templates", "excel", template_name)
+
+
+def _export_patient_encounters_with_xlsx_template(
+    workbook,
+    patient: Patient,
+    rows: list[dict[str, Any]],
+    file_path: str | Path,
+):
+    sheet = workbook.active
+    context = {
+        "title": f"Встречи пациента: {patient.callsign or '—'}",
+        "patient": {
+            "callsign": patient.callsign or "—",
+            "personal_number": patient.personal_number or "—",
+        },
+    }
+
+    row_template_index = _find_excel_row_template(sheet)
+    if row_template_index:
+        _render_excel_row_template(sheet, row_template_index, rows, context)
+
+    for row in sheet.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str) and "{{ row." not in cell.value:
+                cell.value = _render_excel_value(cell.value, context)
+
+    workbook.save(str(file_path))
+
+
+def _find_excel_row_template(sheet) -> int | None:
+    for row in sheet.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str) and "{{ row." in cell.value:
+                return cell.row
+    return None
+
+
+def _render_excel_row_template(sheet, row_index: int, rows: list[dict[str, Any]], context):
+    output_rows = rows or [
+        {
+            "date": "—",
+            "patient": context["patient"]["callsign"],
+            "personal_number": context["patient"]["personal_number"],
+            "doctor": "—",
+            "result": "—",
+            "reason": "—",
+            "status": "—",
+            "patient_info": "",
+            "document_number": "—",
+            "notes": "",
+        }
+    ]
+    max_column = sheet.max_column
+    template_cells = []
+    for column in range(1, max_column + 1):
+        source = sheet.cell(row=row_index, column=column)
+        template_cells.append(
+            {
+                "value": source.value,
+                "style": copy(source._style),
+                "number_format": source.number_format,
+                "font": copy(source.font),
+                "fill": copy(source.fill),
+                "border": copy(source.border),
+                "alignment": copy(source.alignment),
+                "protection": copy(source.protection),
+            }
+        )
+    row_height = sheet.row_dimensions[row_index].height
+
+    if len(output_rows) > 1:
+        sheet.insert_rows(row_index + 1, len(output_rows) - 1)
+
+    for offset, item in enumerate(output_rows):
+        target_row = row_index + offset
+        if row_height is not None:
+            sheet.row_dimensions[target_row].height = row_height
+        row_context = {
+            **context,
+            "row": {
+                **item,
+                "patient": context["patient"]["callsign"],
+                "personal_number": context["patient"]["personal_number"],
+            },
+        }
+        for column, template in enumerate(template_cells, start=1):
+            cell = sheet.cell(row=target_row, column=column)
+            cell._style = copy(template["style"])
+            cell.number_format = template["number_format"]
+            cell.font = copy(template["font"])
+            cell.fill = copy(template["fill"])
+            cell.border = copy(template["border"])
+            cell.alignment = copy(template["alignment"])
+            cell.protection = copy(template["protection"])
+            cell.value = _render_excel_value(template["value"], row_context)
+
+
+def _render_excel_value(value, context: dict[str, Any]):
+    if not isinstance(value, str):
+        return value
+
+    exact_match = EXCEL_PLACEHOLDER_RE.fullmatch(value.strip())
+    if exact_match:
+        return _stringify_excel_value(_resolve_value(context, exact_match.group(1)))
+
+    return EXCEL_PLACEHOLDER_RE.sub(
+        lambda match: _stringify_excel_value(_resolve_value(context, match.group(1))),
+        value,
+    )
+
+
+def _stringify_excel_value(value: Any) -> str:
+    if value is None or value == "":
+        return "—"
+    return str(value)
+
+
+def _resolve_value(context: dict[str, Any], path: str) -> Any:
+    value: Any = context
+    for part in path.split("."):
+        if isinstance(value, dict):
+            value = value.get(part)
+        else:
+            value = getattr(value, part, None)
+        if value is None:
+            return ""
+    return value
+
+
 def collect_patient_encounter_rows(patient: Patient) -> list[dict[str, Any]]:
     documents = Document.get_by_patient(patient.id)
     meeting_docs = [doc for doc in documents if doc.doc_type == DOCUMENT_TYPE_MEETING]
     rows = []
     for document in meeting_docs:
         encounter = document.encounter
-        doctor = encounter.doctor if encounter else document.author
+        doctor = (
+            (encounter.doctor if encounter and encounter.doctor_id else None)
+            or patient.doctor
+            or document.author
+        )
         rows.append(
             {
                 "date": _format_date(document.doc_date),
@@ -141,7 +294,7 @@ def export_encounter_to_docx(
     file_path: str | Path,
 ):
     document = _document_for_encounter(encounter)
-    doctor = encounter.doctor
+    doctor = (encounter.doctor if encounter.doctor_id else None) or patient.doctor
     informants = EncounterInformant.get_by_encounter(encounter.id) if encounter.id else []
 
     context = {
@@ -150,6 +303,7 @@ def export_encounter_to_docx(
             "personal_number": patient.personal_number,
         },
         "encounter": {
+            "word_title": _build_encounter_word_title(patient, encounter),
             "started_at": _format_datetime(encounter.started_at),
             "status": encounter.status_display,
             "meeting_result": encounter.meeting_result_display,
@@ -184,9 +338,21 @@ def export_encounter_to_docx(
         raise RuntimeError(str(exc)) from exc
 
 
+def _build_encounter_word_title(patient: Patient, encounter: Encounter) -> str:
+    patient_part = f"{patient.callsign or '—'} л.н. {patient.personal_number or '—'}"
+    if encounter.meeting_result == "message":
+        return f"Сообщение от {patient_part}"
+    if encounter.meeting_result == "certificate":
+        return f"Справка о встрече с пациентом {patient_part}"
+    if encounter.meeting_result_display:
+        return f"{encounter.meeting_result_display} {patient_part}"
+    return f"Встреча с пациентом {patient_part}"
+
+
 def _insert_informants_table(paragraph, informants: list[EncounterInformant]):
+    run_properties = getattr(paragraph, "_template_run_properties", None)
     if not informants:
-        paragraph.add_run("—")
+        _add_formatted_run(paragraph, "—", run_properties)
         return
 
     from docx.shared import Inches
@@ -203,15 +369,32 @@ def _insert_informants_table(paragraph, informants: list[EncounterInformant]):
         "Суть информации / меры",
     ]
     for index, header in enumerate(headers):
-        table.rows[0].cells[index].text = header
+        _set_cell_text(table.rows[0].cells[index], header, run_properties)
 
     for informant in informants:
         row = table.add_row().cells
-        row[0].text = informant.full_name or "—"
-        row[1].text = informant.position or "—"
-        row[2].text = _format_date(informant.birth_date)
-        row[3].text = informant.workplace or "—"
-        row[4].text = _join_lines(informant.info_essence, informant.measures_taken)
+        _set_cell_text(row[0], informant.full_name or "—", run_properties)
+        _set_cell_text(row[1], informant.position or "—", run_properties)
+        _set_cell_text(row[2], _format_date(informant.birth_date), run_properties)
+        _set_cell_text(row[3], informant.workplace or "—", run_properties)
+        _set_cell_text(
+            row[4],
+            _join_lines(informant.info_essence, informant.measures_taken),
+            run_properties,
+        )
+
+
+def _set_cell_text(cell, text: str, run_properties):
+    cell.text = ""
+    paragraph = cell.paragraphs[0]
+    _add_formatted_run(paragraph, text, run_properties)
+
+
+def _add_formatted_run(paragraph, text: str, run_properties):
+    run = paragraph.add_run(text)
+    if run_properties is not None:
+        run._r.insert(0, deepcopy(run_properties))
+    return run
 
 
 def _document_for_encounter(encounter: Encounter) -> Document | None:
