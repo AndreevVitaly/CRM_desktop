@@ -122,7 +122,7 @@ COLORS_DARK = {
 # ============================================================================
 
 FONTS = {
-    "family": "Segoe UI Variable",  # Современный шрифт Windows 11
+    "family": "Segoe UI",  # Stable Qt font on Windows
     "family_fallback": "Segoe UI, Inter, system-ui, sans-serif",
     "size_xs": 8,
     "size_small": 9,

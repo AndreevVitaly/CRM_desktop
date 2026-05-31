@@ -427,8 +427,8 @@ class PatientsPage(QWidget):
         open_action = menu.addAction("Открыть карточку")
         open_action.triggered.connect(lambda: self._open_patient_by_id(patient_id))
 
-        # Редактировать (REG, LEAD)
-        if self.user.role in (User.ROLE_REGISTRAR, User.ROLE_LEAD):
+        # Редактировать (ADMIN, REG, LEAD)
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             if (
                 self.user.role == User.ROLE_LEAD
                 and patient.department != self.user.department
@@ -438,8 +438,8 @@ class PatientsPage(QWidget):
                 edit_action = menu.addAction("Редактировать")
                 edit_action.triggered.connect(lambda: self._edit_patient(patient_id))
 
-        # Скрыть/Восстановить (только REG)
-        if self.user.role == User.ROLE_REGISTRAR:
+        # Скрыть/Восстановить (ADMIN, REG)
+        if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR):
             if patient.is_active:
                 hide_action = menu.addAction("Скрыть")
                 hide_action.triggered.connect(lambda: self._hide_patient(patient_id))

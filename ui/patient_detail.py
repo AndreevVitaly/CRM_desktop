@@ -95,7 +95,11 @@ class PatientDetailDialog(QDialog):
             buttons_layout = QHBoxLayout()
             buttons_layout.addStretch()
 
-            if self.user.role in (User.ROLE_REGISTRAR, User.ROLE_LEAD):
+            if self.user.role in (
+                User.ROLE_ADMIN,
+                User.ROLE_REGISTRAR,
+                User.ROLE_LEAD,
+            ):
                 edit_btn = QPushButton("Редактировать")
                 edit_btn.setObjectName("secondaryBtn")
                 edit_btn.setFixedHeight(40)
@@ -1824,7 +1828,7 @@ class PatientDetailDialog(QDialog):
         dialog = PatientFormDialog(self.user, self.patient)
         if dialog.exec():
             self.patient = Patient.get_by_id(self.patient.id)
-            self._init_ui()
+            self.accept()
 
     def _log_interaction(self, action: str, description: str):
         """Логирование взаимодействия"""

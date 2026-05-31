@@ -237,8 +237,12 @@ class EncounterEditDialog(QDialog):
         self.meeting_result_combo.setMaximumWidth(420)
         self.meeting_result_combo.setMaxVisibleItems(4)
         self.meeting_result_combo.addItem("Выберите результат", "")
-        for value, label in Encounter.MEETING_RESULT_CHOICES:
+        for value, label in self._get_meeting_result_choices():
             self.meeting_result_combo.addItem(label, value)
+        if self.patient.patient_type != "adult":
+            certificate_index = self.meeting_result_combo.findData("certificate")
+            if certificate_index >= 0:
+                self.meeting_result_combo.setCurrentIndex(certificate_index)
         result_layout.addRow("Результат встречи*", self.meeting_result_combo)
 
         self.status_combo = QComboBox()
@@ -614,6 +618,20 @@ class EncounterEditDialog(QDialog):
         # Заполнение при редактировании
         self._fill_data()
 
+    def _get_meeting_result_choices(self):
+        if self.patient.patient_type == "adult":
+            return Encounter.MEETING_RESULT_CHOICES
+        return [
+            (value, label)
+            for value, label in Encounter.MEETING_RESULT_CHOICES
+            if value == "certificate"
+        ]
+
+    def _normalize_meeting_result_for_patient_type(self, meeting_result: str) -> str:
+        if self.patient.patient_type == "adult":
+            return meeting_result
+        return "certificate"
+
     def _polish_controls(self, colors):
         input_style = f"""
             background-color: {colors['surface']};
@@ -913,7 +931,10 @@ class EncounterEditDialog(QDialog):
         """Заполнение данными встречи"""
         # Результат встречи
         if self.encounter.meeting_result:
-            index = self.meeting_result_combo.findData(self.encounter.meeting_result)
+            meeting_result = self._normalize_meeting_result_for_patient_type(
+                self.encounter.meeting_result
+            )
+            index = self.meeting_result_combo.findData(meeting_result)
             if index >= 0:
                 self.meeting_result_combo.setCurrentIndex(index)
 
@@ -944,7 +965,9 @@ class EncounterEditDialog(QDialog):
     def _save(self):
         """Сохранение встречи"""
         # Валидация
-        meeting_result = self.meeting_result_combo.currentData()
+        meeting_result = self._normalize_meeting_result_for_patient_type(
+            self.meeting_result_combo.currentData()
+        )
         if not meeting_result:
             QMessageBox.warning(self, "Ошибка", "Выберите результат встречи")
             return

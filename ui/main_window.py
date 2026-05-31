@@ -550,8 +550,7 @@ class MainWindow(QMainWindow):
         # Кнопка выхода в общем стиле
         logout_btn = QPushButton("Выход")
         logout_btn.setObjectName("logoutBtn")
-        logout_btn.setFixedHeight(scaled(34, 28))
-        logout_btn.setMinimumWidth(scaled(190, 150))
+        logout_btn.setFixedSize(scaled(190, 150), scaled(34, 28))
         logout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         logout_btn.setStyleSheet(
             f"""
@@ -561,6 +560,8 @@ class MainWindow(QMainWindow):
                 border-radius: {RADIUS['md']}px;
                 padding: 0px 14px;
                 min-height: 0px;
+                min-width: {scaled(190, 150)}px;
+                max-width: {scaled(190, 150)}px;
                 max-height: {scaled(34, 28)}px;
                 font-weight: 600;
                 font-size: {FONTS['size_medium']}pt;
@@ -812,6 +813,7 @@ class MainWindow(QMainWindow):
             get_colors,
             RADIUS,
             FONTS,
+            scaled,
         )
         from PyQt6.QtWidgets import QPushButton, QLabel, QApplication
         from PyQt6.QtGui import QPalette, QColor
@@ -876,20 +878,25 @@ class MainWindow(QMainWindow):
             # Обновляем кнопку выхода
             logout_btn = top_bar.findChild(QPushButton, "logoutBtn")
             if logout_btn:
+                logout_btn.setFixedSize(scaled(190, 150), scaled(34, 28))
                 logout_btn.setStyleSheet(
                     f"""
                     QPushButton#logoutBtn {{
                         background-color: transparent;
-                        border: 2px solid {colors['line']};
+                        border: 1px solid {colors['line']};
                         border-radius: {RADIUS['md']}px;
-                        padding: 8px 16px;
+                        padding: 0px 14px;
+                        min-height: 0px;
+                        min-width: {scaled(190, 150)}px;
+                        max-width: {scaled(190, 150)}px;
+                        max-height: {scaled(34, 28)}px;
                         font-weight: 600;
                         font-size: {FONTS['size_medium']}pt;
                         color: {colors['text_muted']};
                     }}
                     QPushButton#logoutBtn:hover {{
                         background-color: {colors['danger_bg']};
-                        border: 2px solid {colors['danger']};
+                        border: 1px solid {colors['danger']};
                         color: {colors['danger']};
                     }}
                     QPushButton#logoutBtn:pressed {{
