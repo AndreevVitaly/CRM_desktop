@@ -12,6 +12,7 @@ from PyQt6.QtGui import QFont
 from models.db_models import init_db, db
 from ui.login_window import LoginWindow
 from ui.main_window import MainWindow
+from ui.native_window_theme import apply_native_theme_to_app, install_native_theme_filter
 from ui.styles import FONTS, configure_ui_scale, get_main_stylesheet
 from utils.app_paths import get_db_path
 from utils.db_encryption import (
@@ -58,6 +59,8 @@ def main():
     app.setFont(font)
     app.setStyle("Fusion")
     app.setStyleSheet(get_main_stylesheet())
+    install_native_theme_filter(app)
+    apply_native_theme_to_app(app)
 
     db_password = request_database_password()
     if db_password is None:
@@ -77,6 +80,7 @@ def main():
         lambda user: on_login_success(user, login_window)
     )
     login_window.show()
+    apply_native_theme_to_app(app)
 
     sys.exit(app.exec())
 
@@ -154,6 +158,7 @@ def on_login_success(user, login_window):
     app_state["main_window"] = main_window
     app_state["login_window"] = None
     main_window.showMaximized()  # Открываем на весь экран
+    apply_native_theme_to_app()
 
     # Загрузка дашборда
     main_window._navigate("dashboard")

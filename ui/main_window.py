@@ -27,11 +27,12 @@ from PyQt6.QtCore import (
     QEasingCurve,
     QPoint,
 )
-from PyQt6.QtGui import QAction, QFont, QPainter, QColor, QBrush, QPen, QPixmap, QPainterPath
+from PyQt6.QtGui import QAction, QFont, QPainter, QColor, QBrush, QPixmap, QPainterPath
 import os
 
 from models.db_models import User
 from ui.brand_title import BrandTitleLabel
+from ui.native_window_theme import apply_native_theme_to_app, apply_native_window_theme
 from ui.styles import FONTS, RADIUS, get_colors, get_main_stylesheet, scaled
 from utils.app_paths import get_resource_path
 
@@ -104,32 +105,6 @@ class ThemeSwitch(QWidget):
         dot_color = QColor("#FFFFFF")
         painter.setBrush(QBrush(dot_color))
         painter.drawEllipse(QPoint(int(left_x + self._offset), center_y), radius, radius)
-
-        # Иконки
-        if self.current_theme_light:
-            # Солнце (жёлтое)
-            painter.setPen(QPen(QColor("#F59E0B"), 1.5))
-            center = QPoint(max(7, left_x - 6), center_y)
-            # Лучи солнца
-            painter.drawLine(
-                QPoint(center.x() - 4, center.y()), QPoint(center.x() - 2, center.y())
-            )
-            painter.drawLine(
-                QPoint(center.x() + 4, center.y()), QPoint(center.x() + 2, center.y())
-            )
-            painter.drawLine(
-                QPoint(center.x(), center.y() - 4), QPoint(center.x(), center.y() - 2)
-            )
-            painter.drawLine(
-                QPoint(center.x(), center.y() + 4), QPoint(center.x(), center.y() + 2)
-            )
-            # Круг солнца
-            painter.drawEllipse(center, 3, 3)
-        else:
-            # Луна (белая)
-            painter.setPen(QPen(QColor("#94A3B8"), 1.5))
-            center = QPoint(min(self.width() - 7, right_x + 6), center_y)
-            painter.drawEllipse(center, 3, 3)
 
 
 class MainWindow(QMainWindow):
@@ -850,6 +825,7 @@ class MainWindow(QMainWindow):
         palette.setColor(QPalette.ColorRole.Highlight, QColor(colors["accent"]))
         palette.setColor(QPalette.ColorRole.HighlightedText, QColor(colors["text"]))
         app.setPalette(palette)
+        apply_native_theme_to_app(app)
 
         self.setStyleSheet(get_main_stylesheet())
 
@@ -857,6 +833,7 @@ class MainWindow(QMainWindow):
         current_page = self.stacked_widget.currentWidget()
         if hasattr(current_page, "update_theme"):
             current_page.update_theme()
+        self._update_open_window_themes()
 
         # Обновляем стили верхней панели
         top_bar = self.findChild(QFrame, "topBar")
@@ -1000,6 +977,13 @@ class MainWindow(QMainWindow):
                 "documents": lambda: __import__(
                     "ui.documents_page", fromlist=["DocumentsPage"]
                 ).DocumentsPage(self.user),
+                "admin": lambda: __import__(
+                    "ui.admin_page", fromlist=["AdminPage"]
+                ).AdminPage(
+                    self.user,
+                    on_export=self._export_data,
+                    on_import=self._import_data,
+                ),
             }
 
             for nav_id, page_factory in pages.items():
@@ -1017,6 +1001,20 @@ class MainWindow(QMainWindow):
 
         # Принудительная перерисовка главного окна
         self.update()
+
+    def _update_open_window_themes(self):
+        """Обновляет тему в уже открытых диалогах и отдельных окнах."""
+        app = QApplication.instance()
+        if app is None:
+            return
+
+        for widget in app.topLevelWidgets():
+            if widget is self or not widget.isVisible():
+                continue
+            apply_native_window_theme(widget)
+            update_theme = getattr(widget, "update_theme", None)
+            if callable(update_theme):
+                update_theme()
 
     def _logout(self):
         """Выход из системы"""

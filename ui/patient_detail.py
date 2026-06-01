@@ -72,7 +72,12 @@ class PatientDetailDialog(QDialog):
             colors = get_colors()
             self._colors = colors
 
-            layout = QVBoxLayout()
+            layout = self.layout()
+            if layout is None:
+                layout = QVBoxLayout()
+                self.setLayout(layout)
+            else:
+                self._clear_layout(layout)
             layout.setSpacing(16)
             layout.setContentsMargins(20, 20, 20, 20)
 
@@ -118,7 +123,6 @@ class PatientDetailDialog(QDialog):
 
             layout.addLayout(buttons_layout)
 
-            self.setLayout(layout)
             self.setStyleSheet(
                 f"background-color: {colors['bg']}; color: {colors['text']}; QGroupBox {{ color: {colors['text']}; }}"
             )
@@ -131,6 +135,24 @@ class PatientDetailDialog(QDialog):
             print(error_msg)
             QMessageBox.critical(None, "Ошибка", error_msg)
             raise
+
+    def _clear_layout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            child_layout = item.layout()
+            if child_layout:
+                self._clear_layout(child_layout)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+    def update_theme(self):
+        """Обновление темы у уже открытой карточки пациента."""
+        current_tab = self.tabs.currentIndex() if hasattr(self, "tabs") else 0
+        self._init_ui()
+        if hasattr(self, "tabs") and 0 <= current_tab < self.tabs.count():
+            self.tabs.setCurrentIndex(current_tab)
+        self.update()
 
     def _get_status_color(self, is_completed):
         """Получить цвет статуса выполнения"""
