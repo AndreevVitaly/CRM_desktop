@@ -225,6 +225,7 @@ class MainWindow(QMainWindow):
             User.ROLE_DOCTOR,
         ):
             items["patients"] = ("Пациенты", True)
+            items["meeting_schedule"] = ("График встреч", True)
 
         # Пользователи
         if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
@@ -740,6 +741,7 @@ class MainWindow(QMainWindow):
         """Загрузка страницы"""
         from ui.dashboard_page import DashboardPage
         from ui.patients_page import PatientsPage
+        from ui.meeting_schedule_page import MeetingSchedulePage
         from ui.users_page import UsersPage
         from ui.planning_page import PlanningPage
         from ui.km_page import KmPage
@@ -758,6 +760,8 @@ class MainWindow(QMainWindow):
             page = DashboardPage(self.user)
         elif page_id == "patients":
             page = PatientsPage(self.user)
+        elif page_id == "meeting_schedule":
+            page = MeetingSchedulePage(self.user)
         elif page_id == "users":
             page = UsersPage(self.user)
         elif page_id == "planning":
@@ -962,6 +966,9 @@ class MainWindow(QMainWindow):
                 "patients": lambda: __import__(
                     "ui.patients_page", fromlist=["PatientsPage"]
                 ).PatientsPage(self.user),
+                "meeting_schedule": lambda: __import__(
+                    "ui.meeting_schedule_page", fromlist=["MeetingSchedulePage"]
+                ).MeetingSchedulePage(self.user),
                 "users": lambda: __import__(
                     "ui.users_page", fromlist=["UsersPage"]
                 ).UsersPage(self.user),

@@ -422,6 +422,27 @@ class Database:
         )
 
         # Миграция: добавляем колонку year, если её нет
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS patient_meeting_schedule (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT UNIQUE,
+                patient_id INTEGER NOT NULL,
+                doctor_id INTEGER NOT NULL,
+                meeting_date DATE NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PLANNED',
+                comment TEXT,
+                created_by_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (patient_id) REFERENCES patients(id),
+                FOREIGN KEY (doctor_id) REFERENCES users(id),
+                FOREIGN KEY (created_by_id) REFERENCES users(id),
+                UNIQUE(patient_id, doctor_id, meeting_date)
+            )
+        """
+        )
+
         try:
             cursor.execute("ALTER TABLE events ADD COLUMN year INTEGER")
         except Exception:
@@ -1178,6 +1199,116 @@ class Patient:
         if self.id:
             db.execute("DELETE FROM patients WHERE id = ?", (self.id,))
             db.commit()
+
+
+@dataclass
+class PatientMeetingSchedule:
+    id: Optional[int] = None
+    uuid: str = ""
+    patient_id: int = 0
+    doctor_id: int = 0
+    meeting_date: date = None
+    status: str = "PLANNED"
+    comment: str = ""
+    created_by_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    STATUS_PLANNED = "PLANNED"
+    STATUS_COMPLETED = "COMPLETED"
+
+    def __post_init__(self):
+        if not self.uuid:
+            self.uuid = str(uuid_lib.uuid4())
+        if self.meeting_date is None:
+            self.meeting_date = date.today()
+        if self.created_at is None:
+            self.created_at = datetime.now()
+        if self.updated_at is None:
+            self.updated_at = self.created_at
+
+    @classmethod
+    def _from_row(cls, row: dict) -> "PatientMeetingSchedule":
+        data = dict(row)
+        if data.get("meeting_date") and isinstance(data["meeting_date"], str):
+            data["meeting_date"] = datetime.strptime(
+                data["meeting_date"][:10], "%Y-%m-%d"
+            ).date()
+        for field in ("created_at", "updated_at"):
+            if data.get(field) and isinstance(data[field], str):
+                for fmt in (
+                    "%Y-%m-%d %H:%M:%S.%f",
+                    "%Y-%m-%d %H:%M:%S",
+                    "%Y-%m-%dT%H:%M:%S.%f",
+                    "%Y-%m-%dT%H:%M:%S",
+                ):
+                    try:
+                        data[field] = datetime.strptime(data[field], fmt)
+                        break
+                    except ValueError:
+                        continue
+        return cls(**data)
+
+    @classmethod
+    def get_for_month(
+        cls, doctor_id: int, year: int, month: int
+    ) -> dict[tuple[int, date], "PatientMeetingSchedule"]:
+        start_date = date(year, month, 1)
+        end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+        rows = db.fetchall(
+            """
+            SELECT * FROM patient_meeting_schedule
+            WHERE doctor_id = ? AND meeting_date >= ? AND meeting_date < ?
+            """,
+            (doctor_id, start_date.isoformat(), end_date.isoformat()),
+        )
+        schedule = {}
+        for row in rows:
+            item = cls._from_row(row)
+            schedule[(item.patient_id, item.meeting_date)] = item
+        return schedule
+
+    @classmethod
+    def set_status(
+        cls,
+        patient_id: int,
+        doctor_id: int,
+        meeting_date: date,
+        status: str,
+        created_by_id: Optional[int] = None,
+    ):
+        now = datetime.now().isoformat()
+        db.execute(
+            """
+            INSERT INTO patient_meeting_schedule
+            (uuid, patient_id, doctor_id, meeting_date, status, created_by_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(patient_id, doctor_id, meeting_date)
+            DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at
+            """,
+            (
+                str(uuid_lib.uuid4()),
+                patient_id,
+                doctor_id,
+                meeting_date.isoformat(),
+                status,
+                created_by_id,
+                now,
+                now,
+            ),
+        )
+        db.commit()
+
+    @classmethod
+    def clear(cls, patient_id: int, doctor_id: int, meeting_date: date):
+        db.execute(
+            """
+            DELETE FROM patient_meeting_schedule
+            WHERE patient_id = ? AND doctor_id = ? AND meeting_date = ?
+            """,
+            (patient_id, doctor_id, meeting_date.isoformat()),
+        )
+        db.commit()
 
 
 @dataclass
