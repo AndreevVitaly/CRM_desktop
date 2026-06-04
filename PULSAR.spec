@@ -6,7 +6,14 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('assets', 'assets')],
-    hiddenimports=[],
+    hiddenimports=[
+        'cryptography.fernet',
+        'cryptography.hazmat.primitives.hashes',
+        'cryptography.hazmat.primitives.kdf.pbkdf2',
+        'docx',
+        'openpyxl',
+        'sqlcipher3',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -32,6 +39,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/pulsar_tile.ico',
 )
 coll = COLLECT(
     exe,

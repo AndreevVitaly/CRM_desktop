@@ -6,7 +6,7 @@ import calendar
 from datetime import date
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QBrush
+from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSplitter,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -26,6 +27,8 @@ from PyQt6.QtWidgets import (
 )
 
 from models.db_models import (
+    DOCUMENT_TYPE_MEETING,
+    Document,
     Facility,
     Patient,
     PatientMeetingSchedule,
@@ -33,6 +36,73 @@ from models.db_models import (
     get_department_choices,
 )
 from ui.styles import FONTS, RADIUS, get_colors, get_main_stylesheet
+
+SCHEDULE_ROW_HEIGHT = 40
+SCHEDULE_STATUS_MARKER_WIDTH = 38
+SCHEDULE_STATUS_MARKER_HEIGHT = 34
+SCHEDULE_STATUS_MARKER_RADIUS = 8
+PATIENT_COLUMN_WIDTH = 230
+SCHEDULE_TOTAL_COLUMN_WIDTH = 70
+SCHEDULE_STATUS_COLORS = {
+    PatientMeetingSchedule.STATUS_PLANNED: "#059669",
+    PatientMeetingSchedule.STATUS_COMPLETED: "#2563EB",
+}
+SCHEDULE_STATUS_COLOR_ROLE = Qt.ItemDataRole.UserRole.value + 1
+SCHEDULE_DOCUMENTED_ROLE = Qt.ItemDataRole.UserRole.value + 2
+SCHEDULE_DOCUMENTED_COLOR = "#7C3AED"
+
+
+class ScheduleStatusDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+
+        color = index.data(SCHEDULE_STATUS_COLOR_ROLE)
+        has_documented_meeting = bool(index.data(SCHEDULE_DOCUMENTED_ROLE))
+        if not color and not has_documented_meeting:
+            return
+
+        rect = option.rect
+        marker_width = max(14, min(SCHEDULE_STATUS_MARKER_WIDTH, rect.width() - 6))
+        marker_height = max(14, min(SCHEDULE_STATUS_MARKER_HEIGHT, rect.height() - 6))
+        marker_x = rect.x() + max(0, (rect.width() - marker_width) // 2)
+        marker_y = rect.y() + max(0, (rect.height() - marker_height) // 2)
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        if color:
+            painter.setBrush(QColor(color))
+            painter.drawRoundedRect(
+                marker_x,
+                marker_y,
+                marker_width,
+                marker_height,
+                SCHEDULE_STATUS_MARKER_RADIUS,
+                SCHEDULE_STATUS_MARKER_RADIUS,
+            )
+        if has_documented_meeting:
+            badge_size = 12 if color else 18
+            badge_x = (
+                marker_x + marker_width - badge_size - 4
+                if color
+                else rect.x() + max(0, (rect.width() - badge_size) // 2)
+            )
+            badge_y = (
+                marker_y + 4
+                if color
+                else rect.y() + max(0, (rect.height() - badge_size) // 2)
+            )
+            painter.setPen(QColor(SCHEDULE_DOCUMENTED_COLOR if color else "#FFFFFF"))
+            painter.setBrush(QColor("#FFFFFF" if color else SCHEDULE_DOCUMENTED_COLOR))
+            painter.drawRoundedRect(
+                badge_x,
+                badge_y,
+                badge_size,
+                badge_size,
+                4,
+                4,
+            )
+        painter.restore()
 
 
 class MeetingSchedulePage(QWidget):
@@ -67,6 +137,7 @@ class MeetingSchedulePage(QWidget):
         self.status_filter = ""
         self.patients: list[Patient] = []
         self.schedule = {}
+        self.documented_meetings: set[tuple[int, date]] = set()
         self._syncing_selection = False
         self._init_ui()
 
@@ -87,11 +158,21 @@ class MeetingSchedulePage(QWidget):
         self.schedule_table = self._create_schedule_table()
         splitter.addWidget(self.patient_table)
         splitter.addWidget(self.schedule_table)
-        splitter.setSizes([340, 900])
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([PATIENT_COLUMN_WIDTH, 1200])
         layout.addWidget(splitter, 1)
 
         bottom_layout = QHBoxLayout()
-        self.legend_label = QLabel("● Запланировано   ● Исполнено")
+        self.legend_label = QLabel(
+            "<span style='font-size:17pt; color:#059669;'>■</span> "
+            "Запланировано&nbsp;&nbsp;&nbsp;"
+            "<span style='font-size:17pt; color:#2563EB;'>■</span> "
+            "Исполнено&nbsp;&nbsp;&nbsp;"
+            "<span style='font-size:17pt; color:#7C3AED;'>■</span> "
+            "Документирована"
+        )
+        self.legend_label.setTextFormat(Qt.TextFormat.RichText)
         self.legend_label.setStyleSheet(
             f"color: {colors['text_muted']}; font-size: {FONTS['size_small']}pt;"
         )
@@ -223,6 +304,8 @@ class MeetingSchedulePage(QWidget):
         table = QTableWidget()
         table.setColumnCount(1)
         table.setHorizontalHeaderLabels(["Пациенты"])
+        table.setMinimumWidth(170)
+        table.setMaximumWidth(PATIENT_COLUMN_WIDTH)
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -239,6 +322,9 @@ class MeetingSchedulePage(QWidget):
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
+        table.setItemDelegate(ScheduleStatusDelegate(table))
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._show_cell_menu)
         table.itemSelectionChanged.connect(self._sync_selection_from_schedule)
@@ -265,7 +351,7 @@ class MeetingSchedulePage(QWidget):
         self.doctor_combo.blockSignals(True)
         self.doctor_combo.clear()
         if self.user.role != User.ROLE_DOCTOR:
-            self.doctor_combo.addItem("Выберите врача", 0)
+            self.doctor_combo.addItem("Все врачи", 0)
 
         doctors = User.get_by_role(User.ROLE_DOCTOR)
         if selected_dept:
@@ -279,8 +365,6 @@ class MeetingSchedulePage(QWidget):
             self.doctor_combo.addItem(doctor.full_name or doctor.username, doctor.id)
 
         index = self.doctor_combo.findData(current_doctor)
-        if current_doctor == 0 and self.doctor_combo.count() > 1:
-            index = 1
         self.doctor_combo.setCurrentIndex(index if index >= 0 else 0)
         self.doctor_combo.setEnabled(self.user.role != User.ROLE_DOCTOR)
         self.doctor_combo.blockSignals(False)
@@ -295,11 +379,10 @@ class MeetingSchedulePage(QWidget):
         self.department_filter = self.department_combo.currentData() or ""
         self.status_filter = self.status_combo.currentData() or ""
 
-        self.schedule = {}
-        if self.doctor_filter:
-            self.schedule = PatientMeetingSchedule.get_for_month(
-                self.doctor_filter, self.selected_year, self.selected_month
-            )
+        self.schedule = PatientMeetingSchedule.get_for_month(
+            self.doctor_filter or None, self.selected_year, self.selected_month
+        )
+        self.documented_meetings = self._load_documented_meetings()
 
         self.patients = Patient.get_all(
             user=self.user,
@@ -313,8 +396,12 @@ class MeetingSchedulePage(QWidget):
                 patient for patient in self.patients if patient.department == self.department_filter
             ]
         if self.doctor_filter:
+            doctor_activity_patient_ids = self._doctor_activity_patient_ids()
             self.patients = [
-                patient for patient in self.patients if patient.doctor_id == self.doctor_filter
+                patient
+                for patient in self.patients
+                if patient.doctor_id == self.doctor_filter
+                or patient.id in doctor_activity_patient_ids
             ]
         if self.current_filter:
             search = self.current_filter.lower()
@@ -333,6 +420,9 @@ class MeetingSchedulePage(QWidget):
 
         self._render_tables()
 
+    def _doctor_activity_patient_ids(self) -> set[int]:
+        return {patient_id for patient_id, _ in self.schedule.keys()}
+
     def _filter_patients_by_status(self, patients: list[Patient]) -> list[Patient]:
         result = []
         days_in_month = calendar.monthrange(self.selected_year, self.selected_month)[1]
@@ -346,7 +436,11 @@ class MeetingSchedulePage(QWidget):
                 for meeting_date in month_dates
                 if self.schedule.get((patient.id, meeting_date))
             ]
-            if self.status_filter == "EMPTY" and not statuses:
+            has_documented_meetings = any(
+                (patient.id, meeting_date) in self.documented_meetings
+                for meeting_date in month_dates
+            )
+            if self.status_filter == "EMPTY" and not statuses and not has_documented_meetings:
                 result.append(patient)
             elif self.status_filter in statuses:
                 result.append(patient)
@@ -354,25 +448,26 @@ class MeetingSchedulePage(QWidget):
 
     def _render_tables(self):
         days_in_month = calendar.monthrange(self.selected_year, self.selected_month)[1]
-        headers = [str(day) for day in range(1, days_in_month + 1)]
+        headers = [str(day) for day in range(1, days_in_month + 1)] + ["Итого"]
 
         self.patient_table.setRowCount(0)
         self.schedule_table.setRowCount(0)
-        self.schedule_table.setColumnCount(days_in_month)
+        self.schedule_table.setColumnCount(days_in_month + 1)
         self.schedule_table.setHorizontalHeaderLabels(headers)
 
+        header = self.schedule_table.horizontalHeader()
         for col in range(days_in_month):
-            self.schedule_table.horizontalHeader().setSectionResizeMode(
-                col, QHeaderView.ResizeMode.Fixed
-            )
-            self.schedule_table.setColumnWidth(col, 44)
+            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
+        total_col = days_in_month
+        header.setSectionResizeMode(total_col, QHeaderView.ResizeMode.Fixed)
+        self.schedule_table.setColumnWidth(total_col, SCHEDULE_TOTAL_COLUMN_WIDTH)
 
         for patient in self.patients:
             row = self.patient_table.rowCount()
             self.patient_table.insertRow(row)
             self.schedule_table.insertRow(row)
-            self.patient_table.setRowHeight(row, 34)
-            self.schedule_table.setRowHeight(row, 34)
+            self.patient_table.setRowHeight(row, SCHEDULE_ROW_HEIGHT)
+            self.schedule_table.setRowHeight(row, SCHEDULE_ROW_HEIGHT)
 
             patient_item = QTableWidgetItem(patient.callsign or "")
             patient_item.setData(Qt.ItemDataRole.UserRole, patient.id)
@@ -382,26 +477,79 @@ class MeetingSchedulePage(QWidget):
             for day in range(1, days_in_month + 1):
                 meeting_date = date(self.selected_year, self.selected_month, day)
                 item = self._create_schedule_item(patient.id, meeting_date)
-                self.schedule_table.setItem(row, day - 1, item)
+                col = day - 1
+                self.schedule_table.setItem(row, col, item)
+            self.schedule_table.setItem(
+                row, total_col, self._create_total_item(patient.id, days_in_month)
+            )
 
         self.count_label.setText(f"Пациентов: {len(self.patients)}")
+
+    def _create_total_item(self, patient_id: int, days_in_month: int) -> QTableWidgetItem:
+        month_dates = [
+            date(self.selected_year, self.selected_month, day)
+            for day in range(1, days_in_month + 1)
+        ]
+        completed_count = sum(
+            1
+            for meeting_date in month_dates
+            if (
+                self.schedule.get((patient_id, meeting_date))
+                and self.schedule[(patient_id, meeting_date)].status
+                == PatientMeetingSchedule.STATUS_COMPLETED
+            )
+        )
+        documented_count = sum(
+            1
+            for meeting_date in month_dates
+            if (patient_id, meeting_date) in self.documented_meetings
+        )
+
+        item = QTableWidgetItem(f"{completed_count}/{documented_count}")
+        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        item.setToolTip(
+            f"Исполненных встреч: {completed_count}\n"
+            f"Задокументированных встреч: {documented_count}"
+        )
+        return item
 
     def _create_schedule_item(self, patient_id: int, meeting_date: date) -> QTableWidgetItem:
         item = QTableWidgetItem("")
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         item.setData(Qt.ItemDataRole.UserRole, meeting_date)
         schedule_item = self.schedule.get((patient_id, meeting_date))
-        if not schedule_item:
-            return item
+        has_documented_meeting = (patient_id, meeting_date) in self.documented_meetings
+        tooltip_parts = []
 
-        item.setText("●")
-        if schedule_item.status == PatientMeetingSchedule.STATUS_COMPLETED:
-            item.setForeground(QBrush(QColor("#2563EB")))
-            item.setToolTip("Исполнено")
-        else:
-            item.setForeground(QBrush(QColor("#059669")))
-            item.setToolTip("Запланировано")
+        if schedule_item:
+            color = SCHEDULE_STATUS_COLORS.get(schedule_item.status, "#059669")
+            item.setData(SCHEDULE_STATUS_COLOR_ROLE, color)
+            if schedule_item.status == PatientMeetingSchedule.STATUS_COMPLETED:
+                tooltip_parts.append("Исполнено")
+            else:
+                tooltip_parts.append("Запланировано")
+
+        if has_documented_meeting:
+            item.setData(SCHEDULE_DOCUMENTED_ROLE, True)
+            tooltip_parts.append("Есть документированная встреча")
+
+        if tooltip_parts:
+            item.setToolTip("\n".join(tooltip_parts))
         return item
+
+    def _load_documented_meetings(self) -> set[tuple[int, date]]:
+        result: set[tuple[int, date]] = set()
+        documents = Document.get_all(self.user)
+        for document in documents:
+            if document.doc_type != DOCUMENT_TYPE_MEETING or not document.doc_date:
+                continue
+            if (
+                document.doc_date.year != self.selected_year
+                or document.doc_date.month != self.selected_month
+            ):
+                continue
+            result.add((document.patient_id, document.doc_date))
+        return result
 
     def _patient_tooltip(self, patient: Patient) -> str:
         lines = [patient.callsign or ""]

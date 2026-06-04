@@ -1251,21 +1251,35 @@ class PatientMeetingSchedule:
 
     @classmethod
     def get_for_month(
-        cls, doctor_id: int, year: int, month: int
+        cls, doctor_id: Optional[int], year: int, month: int
     ) -> dict[tuple[int, date], "PatientMeetingSchedule"]:
         start_date = date(year, month, 1)
         end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+        params = [start_date.isoformat(), end_date.isoformat()]
+        doctor_clause = ""
+        if doctor_id:
+            doctor_clause = "AND doctor_id = ?"
+            params.append(doctor_id)
         rows = db.fetchall(
-            """
+            f"""
             SELECT * FROM patient_meeting_schedule
-            WHERE doctor_id = ? AND meeting_date >= ? AND meeting_date < ?
+            WHERE meeting_date >= ? AND meeting_date < ?
+            {doctor_clause}
+            ORDER BY meeting_date, patient_id, doctor_id
             """,
-            (doctor_id, start_date.isoformat(), end_date.isoformat()),
+            tuple(params),
         )
         schedule = {}
         for row in rows:
             item = cls._from_row(row)
-            schedule[(item.patient_id, item.meeting_date)] = item
+            key = (item.patient_id, item.meeting_date)
+            existing = schedule.get(key)
+            if (
+                existing is None
+                or item.status == cls.STATUS_COMPLETED
+                and existing.status != cls.STATUS_COMPLETED
+            ):
+                schedule[key] = item
         return schedule
 
     @classmethod
