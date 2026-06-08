@@ -326,6 +326,58 @@ class EncounterEditDialog(QDialog):
         self.meeting_description_input.setMaximumHeight(120)
         description_layout.addWidget(self.meeting_description_input)
 
+        information_quality_layout = QFormLayout()
+        information_quality_layout.setSpacing(10)
+
+        self.information_relevance_input = QLineEdit()
+        self.information_relevance_input.setMinimumHeight(36)
+        self.information_relevance_input.setMaximumWidth(420)
+        self.information_relevance_input.setPlaceholderText(
+            "Введите относимость информации"
+        )
+        information_quality_layout.addRow(
+            "Относимость информации", self.information_relevance_input
+        )
+
+        self.information_importance_input = QLineEdit()
+        self.information_importance_input.setMinimumHeight(36)
+        self.information_importance_input.setMaximumWidth(420)
+        self.information_importance_input.setPlaceholderText(
+            "Введите важность информации"
+        )
+        information_quality_layout.addRow(
+            "Важность информации", self.information_importance_input
+        )
+
+        self.information_timeliness_combo = self._create_information_combo(
+            Encounter.INFORMATION_TIMELINESS_CHOICES
+        )
+        information_quality_layout.addRow(
+            "Своевременность информации", self.information_timeliness_combo
+        )
+
+        self.information_completeness_combo = self._create_information_combo(
+            Encounter.INFORMATION_COMPLETENESS_CHOICES
+        )
+        information_quality_layout.addRow(
+            "Полнота информации", self.information_completeness_combo
+        )
+
+        self.information_novelty_combo = self._create_information_combo(
+            Encounter.INFORMATION_NOVELTY_CHOICES
+        )
+        information_quality_layout.addRow(
+            "Новизна информации", self.information_novelty_combo
+        )
+
+        self.information_reliability_combo = self._create_information_combo(
+            Encounter.INFORMATION_RELIABILITY_CHOICES
+        )
+        information_quality_layout.addRow(
+            "Достоверность информации", self.information_reliability_combo
+        )
+        description_layout.addLayout(information_quality_layout)
+
         description_group.setLayout(description_layout)
         layout.addWidget(description_group)
 
@@ -627,6 +679,17 @@ class EncounterEditDialog(QDialog):
             if value == "certificate"
         ]
 
+    @staticmethod
+    def _create_information_combo(choices):
+        combo = QComboBox()
+        combo.setFrame(False)
+        combo.setMinimumHeight(36)
+        combo.setMaximumWidth(420)
+        combo.addItem("Не указано", "")
+        for value, label in choices:
+            combo.addItem(label, value)
+        return combo
+
     def _normalize_meeting_result_for_patient_type(self, meeting_result: str) -> str:
         if self.patient.patient_type == "adult":
             return meeting_result
@@ -691,6 +754,15 @@ class EncounterEditDialog(QDialog):
 
         self.meeting_result_combo.setStyleSheet(combo_style)
         self.status_combo.setStyleSheet(combo_style)
+        for combo in (
+            self.information_timeliness_combo,
+            self.information_completeness_combo,
+            self.information_novelty_combo,
+            self.information_reliability_combo,
+        ):
+            combo.setStyleSheet(combo_style)
+        self.information_relevance_input.setStyleSheet(input_style)
+        self.information_importance_input.setStyleSheet(input_style)
         for text_edit in (
             self.patient_info_input,
             self.meeting_description_input,
@@ -951,6 +1023,31 @@ class EncounterEditDialog(QDialog):
         self.meeting_description_input.setPlainText(
             self.encounter.meeting_description or ""
         )
+        self.information_relevance_input.setText(
+            self.encounter.information_relevance or ""
+        )
+        self.information_importance_input.setText(
+            self.encounter.information_importance or ""
+        )
+        information_combos = (
+            (
+                self.information_timeliness_combo,
+                self.encounter.information_timeliness,
+            ),
+            (
+                self.information_completeness_combo,
+                self.encounter.information_completeness,
+            ),
+            (self.information_novelty_combo, self.encounter.information_novelty),
+            (
+                self.information_reliability_combo,
+                self.encounter.information_reliability,
+            ),
+        )
+        for combo, value in information_combos:
+            index = combo.findData(value or "")
+            if index >= 0:
+                combo.setCurrentIndex(index)
 
         # Мероприятия для исполнения пациентом
         self.patient_tasks_input.setPlainText(self.encounter.patient_tasks or "")
@@ -978,6 +1075,24 @@ class EncounterEditDialog(QDialog):
         self.encounter.patient_info = self.patient_info_input.toPlainText().strip()
         self.encounter.meeting_description = (
             self.meeting_description_input.toPlainText().strip()
+        )
+        self.encounter.information_relevance = (
+            self.information_relevance_input.text().strip()
+        )
+        self.encounter.information_importance = (
+            self.information_importance_input.text().strip()
+        )
+        self.encounter.information_timeliness = (
+            self.information_timeliness_combo.currentData() or ""
+        )
+        self.encounter.information_completeness = (
+            self.information_completeness_combo.currentData() or ""
+        )
+        self.encounter.information_novelty = (
+            self.information_novelty_combo.currentData() or ""
+        )
+        self.encounter.information_reliability = (
+            self.information_reliability_combo.currentData() or ""
         )
         self.encounter.patient_tasks = self.patient_tasks_input.toPlainText().strip()
 

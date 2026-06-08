@@ -620,6 +620,33 @@ class PatientDetailDialog(QDialog):
             """
         )
         filter_layout.addWidget(self.encounter_status_filter)
+
+        importance_label = QLabel("Важность:")
+        importance_label.setStyleSheet(f"color: {colors['text_muted']};")
+        filter_layout.addWidget(importance_label)
+
+        self.encounter_importance_filter = QLineEdit()
+        self.encounter_importance_filter.setMinimumHeight(34)
+        self.encounter_importance_filter.setMaximumWidth(220)
+        self.encounter_importance_filter.setPlaceholderText("Поиск по важности")
+        self.encounter_importance_filter.textChanged.connect(
+            lambda _text: self._load_encounters()
+        )
+        self.encounter_importance_filter.setStyleSheet(
+            f"""
+            QLineEdit {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                border: 1px solid {colors['line']};
+                border-radius: 6px;
+                padding: 6px 10px;
+            }}
+            QLineEdit:hover, QLineEdit:focus {{
+                border-color: {colors['accent']};
+            }}
+            """
+        )
+        filter_layout.addWidget(self.encounter_importance_filter)
         filter_layout.addStretch()
 
         word_btn = QPushButton("WORD")
@@ -691,6 +718,9 @@ class PatientDetailDialog(QDialog):
         selected_status = ""
         if hasattr(self, "encounter_status_filter"):
             selected_status = self.encounter_status_filter.currentData() or ""
+        selected_importance = ""
+        if hasattr(self, "encounter_importance_filter"):
+            selected_importance = self.encounter_importance_filter.text().strip()
 
         for doc in encounter_docs:
             encounter = None
@@ -702,6 +732,16 @@ class PatientDetailDialog(QDialog):
                 else Encounter.STATUS_FINISHED
             )
             if selected_status and status != selected_status:
+                continue
+            importance = (
+                encounter.information_importance
+                if encounter and encounter.information_importance
+                else ""
+            )
+            if (
+                selected_importance
+                and selected_importance.casefold() not in importance.casefold()
+            ):
                 continue
 
             row = self.encounters_table.rowCount()

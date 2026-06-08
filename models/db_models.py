@@ -226,6 +226,12 @@ class Database:
                 meeting_result TEXT,
                 patient_info TEXT,
                 meeting_description TEXT,
+                information_relevance TEXT,
+                information_importance TEXT,
+                information_timeliness TEXT,
+                information_completeness TEXT,
+                information_novelty TEXT,
+                information_reliability TEXT,
                 patient_tasks TEXT,
                 patient_measures TEXT,
                 general_measures TEXT,
@@ -243,6 +249,12 @@ class Database:
             ("meeting_result", "TEXT"),
             ("patient_info", "TEXT"),
             ("meeting_description", "TEXT"),
+            ("information_relevance", "TEXT"),
+            ("information_importance", "TEXT"),
+            ("information_timeliness", "TEXT"),
+            ("information_completeness", "TEXT"),
+            ("information_novelty", "TEXT"),
+            ("information_reliability", "TEXT"),
             ("patient_tasks", "TEXT"),
             ("patient_measures", "TEXT"),
             ("general_measures", "TEXT"),
@@ -1340,6 +1352,12 @@ class Encounter:
     meeting_result: str = ""  # Результат встречи
     patient_info: str = ""  # Информация от пациента
     meeting_description: str = ""  # Описание встречи
+    information_relevance: str = ""  # Относимость информации
+    information_importance: str = ""  # Важность информации
+    information_timeliness: str = ""  # Своевременность информации
+    information_completeness: str = ""  # Полнота информации
+    information_novelty: str = ""  # Новизна информации
+    information_reliability: str = ""  # Достоверность информации
     patient_tasks: str = ""  # Мероприятия для исполнения пациентом
     patient_measures: str = ""  # Мероприятия в отношении пациента
     general_measures: str = ""  # Мероприятия общего формата
@@ -1354,6 +1372,29 @@ class Encounter:
     MEETING_RESULT_CHOICES = [
         ("message", "Сообщение от"),
         ("certificate", "Справка о встрече с"),
+    ]
+
+    INFORMATION_TIMELINESS_CHOICES = [
+        ("TIMELY", "Своевременная"),
+        ("DELAYED", "Запоздалая"),
+        ("OUTDATED", "Устаревшая"),
+    ]
+    INFORMATION_COMPLETENESS_CHOICES = [
+        ("COMPLETE", "Полная"),
+        ("PARTIAL", "Частичная"),
+        ("INSUFFICIENT", "Недостаточная"),
+    ]
+    INFORMATION_NOVELTY_CHOICES = [
+        ("NEW", "Новая"),
+        ("CLARIFYING", "Уточняющая"),
+        ("KNOWN", "Известная"),
+        ("REPEATED", "Повторная"),
+    ]
+    INFORMATION_RELIABILITY_CHOICES = [
+        ("RELIABLE", "Достоверная"),
+        ("PROBABLY_RELIABLE", "Вероятно достоверная"),
+        ("REQUIRES_VERIFICATION", "Требует проверки"),
+        ("UNRELIABLE", "Недостоверная"),
     ]
 
     def __post_init__(self):
@@ -1398,8 +1439,11 @@ class Encounter:
             """
             INSERT OR REPLACE INTO encounters
             (id, uuid, patient_id, doctor_id, started_at, finished_at, reason, status, treatment_plan_item_id,
-             document_id, meeting_result, patient_info, meeting_description, patient_tasks, patient_measures, general_measures, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             document_id, meeting_result, patient_info, meeting_description, information_relevance,
+             information_importance, information_timeliness, information_completeness,
+             information_novelty, information_reliability, patient_tasks, patient_measures,
+             general_measures, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -1415,6 +1459,12 @@ class Encounter:
                 self.meeting_result,
                 self.patient_info,
                 self.meeting_description,
+                self.information_relevance,
+                self.information_importance,
+                self.information_timeliness,
+                self.information_completeness,
+                self.information_novelty,
+                self.information_reliability,
                 self.patient_tasks,
                 self.patient_measures,
                 self.general_measures,
