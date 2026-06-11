@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
-$python = "python"
+$python = "py"
 $distDir = Join-Path $root "dist\PULSAR"
 $internalDb = Join-Path $distDir "_internal\medcrm.db"
 $installerScript = Join-Path $root "installer\PULSAR.iss"
@@ -44,6 +44,10 @@ if (Test-Path $distDir) {
   --clean `
   PULSAR.spec
 
+if ($LASTEXITCODE -ne 0) {
+  throw "PyInstaller failed with exit code $LASTEXITCODE"
+}
+
 if ($IncludeDatabase) {
   Copy-Item -LiteralPath (Join-Path $root "medcrm.db") -Destination (Join-Path $distDir "medcrm.db") -Force
   if (Test-Path $internalDb) {
@@ -64,5 +68,8 @@ if ($Installer) {
   }
 
   & $iscc $installerScript
+  if ($LASTEXITCODE -ne 0) {
+    throw "Inno Setup failed with exit code $LASTEXITCODE"
+  }
   Write-Host "Installer complete: $installerOutput"
 }
