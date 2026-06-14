@@ -70,11 +70,6 @@ class EncountersPage(QWidget):
         self.status_filter.currentIndexChanged.connect(self._load_encounters)
         filter_layout.addWidget(self.status_filter)
 
-        self.importance_filter = QLineEdit()
-        self.importance_filter.setPlaceholderText("Важность")
-        self.importance_filter.setMaximumWidth(180)
-        self.importance_filter.textChanged.connect(self._load_encounters)
-        filter_layout.addWidget(self.importance_filter)
         filter_layout.addStretch()
 
         refresh_btn = self._action_button("Обновить")
@@ -136,7 +131,6 @@ class EncountersPage(QWidget):
     def _load_encounters(self):
         search = self.search_input.text().strip().casefold()
         status_filter = self.status_filter.currentData() or ""
-        importance_filter = self.importance_filter.text().strip().casefold()
 
         visible_rows = []
         for document in Document.get_all(self.user):
@@ -161,8 +155,6 @@ class EncountersPage(QWidget):
                 if encounter and encounter.information_importance
                 else ""
             )
-            if importance_filter and importance_filter not in importance.casefold():
-                continue
 
             doctor = (
                 (encounter.doctor if encounter and encounter.doctor_id else None)
