@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QMenu,
     QMessageBox,
+    QFileDialog,
     QDialog,
     QLineEdit,
     QInputDialog,
@@ -35,6 +36,7 @@ from models.db_models import (
 )
 from ui.styles import get_colors, FONTS, RADIUS, scaled
 from datetime import date, timedelta
+from pathlib import Path
 
 
 class PeriodCalendarWidget(QCalendarWidget):
@@ -525,6 +527,15 @@ class PlanningPage(QWidget):
         add_btn.clicked.connect(self._add_event)
         layout.addWidget(add_btn)
 
+        word_btn = QPushButton("WORD")
+        self.word_export_btn = word_btn
+        word_btn.setObjectName("actionButton")
+        word_btn.setFixedHeight(36)
+        word_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        word_btn.setStyleSheet(self._action_button_style())
+        word_btn.clicked.connect(self._export_year_word)
+        layout.addWidget(word_btn)
+
         layout.addStretch()
 
         self.count_label = QLabel("")
@@ -726,6 +737,61 @@ class PlanningPage(QWidget):
         if dialog.exec():
             self._load_events()
 
+    def _export_year_word(self):
+        year = self.year_combo.currentData() or self.selected_year
+        events = Event.get_all(
+            user=self.user,
+            include_completed=True,
+            year=year,
+        )
+
+        from utils.office_export import (
+            build_planning_year_docx_filename,
+            export_planning_year_to_docx,
+        )
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить планирование в Word",
+            build_planning_year_docx_filename(self.user, year),
+            "Word (*.docx)",
+            options=QFileDialog.Option.DontConfirmOverwrite,
+        )
+        if not file_path:
+            return
+
+        if not file_path.lower().endswith(".docx"):
+            file_path += ".docx"
+
+        if Path(file_path).exists():
+            reply = QMessageBox.question(
+                self,
+                "Экспорт Word",
+                f"Файл уже существует:\n{file_path}\n\nЗаменить его?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        try:
+            export_planning_year_to_docx(events, self.user, year, file_path)
+        except RuntimeError as exc:
+            QMessageBox.warning(self, "Экспорт Word", str(exc))
+            return
+        except PermissionError:
+            QMessageBox.warning(
+                self,
+                "Экспорт Word",
+                "Не удалось заменить файл. Закройте его в Word и попробуйте снова.",
+            )
+            return
+        except Exception as exc:
+            QMessageBox.critical(self, "Экспорт Word", f"Не удалось создать файл:\n{exc}")
+            return
+
+        QMessageBox.information(self, "Экспорт Word", "Планирование сохранено в Word")
+
     def _toggle_event(self, event_id: int):
         """Переключение статуса"""
         event = Event.get_by_id(event_id)
@@ -825,6 +891,8 @@ class PlanningPage(QWidget):
             self.filter_panel.setStyleSheet(self._filter_panel_style())
         if hasattr(self, "add_event_btn"):
             self.add_event_btn.setStyleSheet(self._action_button_style())
+        if hasattr(self, "word_export_btn"):
+            self.word_export_btn.setStyleSheet(self._action_button_style())
 
         for widget in self.findChildren(QLabel):
             widget.style().unpolish(widget)

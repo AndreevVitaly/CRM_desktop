@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from copy import copy, deepcopy
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from models.db_models import (
     Document,
     Encounter,
     EncounterInformant,
+    EventReportPosition,
     Patient,
     TreatmentPlanItem,
     User,
@@ -40,6 +42,11 @@ def build_plan_docx_filename(patient: Patient, plan_document: Document) -> str:
     number_part = safe_export_name(str(plan_document.doc_number or plan_document.id), "plan")
     patient_part = safe_export_name(patient.callsign, "patient")
     return f"pulsar_plan_{patient_part}_{number_part}_{date_part}.docx"
+
+
+def build_planning_year_docx_filename(user: User, year: int) -> str:
+    username = safe_export_name(user.username or user.full_name, "user")
+    return f"pulsar_planning_{year}_{username}.docx"
 
 
 def build_patient_encounters_xlsx_filename(patient: Patient) -> str:
@@ -355,72 +362,149 @@ def export_plan_to_docx(
     if plan_document.doc_type != DOCUMENT_TYPE_PLAN:
         raise RuntimeError("Выбранный документ не является планом работы")
 
-    try:
-        from docx import Document as WordDocument
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.shared import Pt
-    except ImportError as exc:
-        raise RuntimeError(
-            "Для экспорта в Word нужен пакет python-docx. "
-            "Установите зависимости из requirements.txt."
-        ) from exc
-
     items = TreatmentPlanItem.get_by_plan(plan_document.id)
-    document = WordDocument()
+    context = {
+        "patient": {
+            "callsign": patient.callsign or "—",
+            "personal_number": patient.personal_number or "—",
+        },
+        "plan": {
+            "number": plan_document.doc_number or f"#{plan_document.id}",
+            "date": _format_date(plan_document.doc_date),
+            "summary": plan_document.summary or "—",
+            "items_count": len(items),
+        },
+        "export": {
+            "created_at": _format_datetime(datetime.now()),
+        },
+    }
 
-    style = document.styles["Normal"]
-    style.font.name = "Times New Roman"
-    style.font.size = Pt(12)
+    try:
+        render_word_template(
+            "plan_work.docx",
+            context,
+            file_path,
+            blocks={
+                "plan_items": lambda paragraph: _insert_plan_items_table(
+                    paragraph, items
+                ),
+            },
+        )
+    except WordTemplateError as exc:
+        raise RuntimeError(str(exc)) from exc
 
-    title = document.add_paragraph()
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_run = title.add_run("ПЛАН РАБОТЫ С ПАЦИЕНТОМ")
-    title_run.bold = True
-    title_run.font.size = Pt(14)
 
-    _add_plan_field(document, "Пациент", patient.callsign or "—")
-    _add_plan_field(document, "Личный номер", patient.personal_number or "—")
-    _add_plan_field(document, "Дата плана", _format_date(plan_document.doc_date))
-    _add_plan_field(document, "Номер плана", plan_document.doc_number or f"#{plan_document.id}")
-    _add_plan_field(document, "Описание", plan_document.summary or "—")
+def export_planning_year_to_docx(
+    events: list,
+    user: User,
+    year: int,
+    file_path: str | Path,
+):
+    context = {
+        "planning": {
+            "year": year,
+            "events_count": len(events),
+        },
+        "user": {
+            "full_name": user.full_name or user.username,
+            "role": user.role_display,
+        },
+        "export": {
+            "created_at": _format_datetime(datetime.now()),
+        },
+    }
 
-    document.add_paragraph()
-    subtitle = document.add_paragraph()
-    subtitle_run = subtitle.add_run("Пункты плана")
-    subtitle_run.bold = True
+    try:
+        render_word_template(
+            "planning_year.docx",
+            context,
+            file_path,
+            blocks={
+                "planning_events": lambda paragraph: _insert_planning_events_table(
+                    paragraph, events
+                ),
+            },
+        )
+    except WordTemplateError as exc:
+        raise RuntimeError(str(exc)) from exc
 
-    table = document.add_table(rows=1, cols=4)
+
+def _insert_plan_items_table(paragraph, items: list[TreatmentPlanItem]):
+    run_properties = getattr(paragraph, "_template_run_properties", None)
+    from docx.shared import Inches
+
+    table = paragraph._parent.add_table(rows=1, cols=4, width=Inches(6.5))
     table.style = "Table Grid"
+    paragraph._p.addnext(table._tbl)
+
     headers = ["№", "Мероприятие", "Срок исполнения", "Статус"]
     for index, header in enumerate(headers):
-        cell = table.rows[0].cells[index]
-        cell.text = header
-        for paragraph in cell.paragraphs:
-            for run in paragraph.runs:
-                run.bold = True
+        _set_cell_text(table.rows[0].cells[index], header, run_properties)
 
-    if items:
-        for item in items:
-            cells = table.add_row().cells
-            cells[0].text = str(item.order_num)
-            cells[1].text = item.event or "—"
-            cells[2].text = _format_date(item.due_date)
-            cells[3].text = "Выполнено" if item.is_completed else "В ожидании"
-    else:
-        cells = table.add_row().cells
-        cells[0].text = "—"
-        cells[1].text = "Пункты плана не добавлены"
-        cells[2].text = "—"
-        cells[3].text = "—"
+    if not items:
+        row = table.add_row().cells
+        _set_cell_text(row[0], "—", run_properties)
+        _set_cell_text(row[1], "Пункты плана не добавлены", run_properties)
+        _set_cell_text(row[2], "—", run_properties)
+        _set_cell_text(row[3], "—", run_properties)
+        return
 
-    document.save(str(file_path))
+    for item in items:
+        row = table.add_row().cells
+        _set_cell_text(row[0], str(item.order_num), run_properties)
+        _set_cell_text(row[1], item.event or "—", run_properties)
+        _set_cell_text(row[2], _format_date(item.due_date), run_properties)
+        _set_cell_text(
+            row[3],
+            "Выполнено" if item.is_completed else "В ожидании",
+            run_properties,
+        )
 
 
-def _add_plan_field(document, label: str, value: str):
-    paragraph = document.add_paragraph()
-    label_run = paragraph.add_run(f"{label}: ")
-    label_run.bold = True
-    paragraph.add_run(str(value))
+def _insert_planning_events_table(paragraph, events: list):
+    run_properties = getattr(paragraph, "_template_run_properties", None)
+    from docx.shared import Inches
+
+    table = paragraph._parent.add_table(rows=1, cols=7, width=Inches(9.0))
+    table.style = "Table Grid"
+    paragraph._p.addnext(table._tbl)
+
+    headers = [
+        "Дата",
+        "Время",
+        "Название",
+        "Тип",
+        "Отделение",
+        "Ответственный",
+        "Отчетная позиция",
+    ]
+    for index, header in enumerate(headers):
+        _set_cell_text(table.rows[0].cells[index], header, run_properties)
+
+    if not events:
+        row = table.add_row().cells
+        _set_cell_text(row[0], "—", run_properties)
+        _set_cell_text(row[1], "—", run_properties)
+        _set_cell_text(row[2], "Мероприятия за выбранный год не найдены", run_properties)
+        _set_cell_text(row[3], "—", run_properties)
+        _set_cell_text(row[4], "—", run_properties)
+        _set_cell_text(row[5], "—", run_properties)
+        _set_cell_text(row[6], "—", run_properties)
+        return
+
+    for event in events:
+        row = table.add_row().cells
+        _set_cell_text(row[0], _format_date(event.event_date), run_properties)
+        _set_cell_text(row[1], _format_event_time(event.event_time), run_properties)
+        _set_cell_text(row[2], event.title or "—", run_properties)
+        _set_cell_text(row[3], event.event_type_display or "—", run_properties)
+        _set_cell_text(row[4], event.department_display or "—", run_properties)
+        _set_cell_text(
+            row[5],
+            event.responsible.full_name if event.responsible else "—",
+            run_properties,
+        )
+        _set_cell_text(row[6], _event_report_positions_text(event) or "—", run_properties)
 
 
 def _build_encounter_word_title(patient: Patient, encounter: Encounter) -> str:
@@ -526,6 +610,25 @@ def _format_datetime(value) -> str:
     if hasattr(value, "strftime"):
         return value.strftime("%d.%m.%Y %H:%M")
     return str(value)
+
+
+def _format_event_time(value) -> str:
+    if not value:
+        return "—"
+    if hasattr(value, "strftime"):
+        return value.strftime("%H:%M")
+    return str(value)
+
+
+def _event_report_positions_text(event) -> str:
+    if not getattr(event, "id", None):
+        return event.report_position_display or ""
+
+    positions = EventReportPosition.get_by_event(event.id)
+    labels = [position.display_text for position in positions if position.display_text]
+    if labels:
+        return "\n".join(labels)
+    return event.report_position_display or ""
 
 
 def _format_date_for_filename(value) -> str:
