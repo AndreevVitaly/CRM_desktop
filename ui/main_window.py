@@ -126,12 +126,12 @@ class MainWindow(QMainWindow):
     def _apply_adaptive_minimum_size(self):
         screen = QApplication.primaryScreen()
         if screen is None:
-            self.setMinimumSize(scaled(1200), scaled(800))
+            self.setMinimumSize(scaled(1100), scaled(720))
             return
         geometry = screen.availableGeometry()
-        width = min(scaled(1200), int(geometry.width() * 0.92))
-        height = min(scaled(800), int(geometry.height() * 0.9))
-        self.setMinimumSize(max(900, width), max(620, height))
+        width = min(scaled(1180), int(geometry.width() * 0.9))
+        height = min(scaled(720), int(geometry.height() * 0.82))
+        self.setMinimumSize(max(860, width), max(560, height))
 
     def _update_logo(self, logo_path: str, colors: dict):
         """Обновление логотипа (PNG) со скруглёнными углами"""
@@ -953,6 +953,19 @@ class MainWindow(QMainWindow):
         if hasattr(self, "nav_menu"):
             self.nav_menu.setStyleSheet(self._get_navigation_menu_style())
         current_page_id = getattr(self, "current_page_id", "dashboard")
+
+        for index in range(self.stacked_widget.count()):
+            page = self.stacked_widget.widget(index)
+            update_theme = getattr(page, "update_theme", None)
+            update_styles = getattr(page, "update_styles", None)
+            if callable(update_theme):
+                update_theme()
+            elif callable(update_styles):
+                update_styles()
+
+        self._set_active_navigation(current_page_id)
+        self.update()
+        return
 
         # Пересоздаём все страницы для полного обновления стилей
         if self.user is not None:

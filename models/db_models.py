@@ -425,10 +425,13 @@ class Database:
                 responsible_id INTEGER,
                 is_completed BOOLEAN DEFAULT 0,
                 year INTEGER,
+                meeting_document_id INTEGER,
+                report_position_text TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_by_id INTEGER,
                 FOREIGN KEY (responsible_id) REFERENCES users(id),
-                FOREIGN KEY (created_by_id) REFERENCES users(id)
+                FOREIGN KEY (created_by_id) REFERENCES users(id),
+                FOREIGN KEY (meeting_document_id) REFERENCES documents(id)
             )
         """
         )
@@ -461,6 +464,16 @@ class Database:
             pass  # Колонка уже существует
 
         # Заполняем year из event_date для старых записей
+        try:
+            cursor.execute("ALTER TABLE events ADD COLUMN meeting_document_id INTEGER")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE events ADD COLUMN report_position_text TEXT")
+        except Exception:
+            pass
+
         cursor.execute(
             """
             UPDATE events SET year = CAST(strftime('%Y', event_date) AS INTEGER)
@@ -2217,6 +2230,8 @@ class Event:
     responsible_id: Optional[int] = None
     is_completed: bool = False
     year: int = 0
+    meeting_document_id: Optional[int] = None
+    report_position_text: str = ""
     created_at: Optional[datetime] = None
     created_by_id: Optional[int] = None
 
@@ -2247,6 +2262,25 @@ class Event:
     def created_by(self) -> Optional[User]:
         return User.get_by_id(self.created_by_id) if self.created_by_id else None
 
+    @property
+    def meeting_document(self) -> Optional[Document]:
+        if not self.meeting_document_id:
+            return None
+        return Document.get_by_id(self.meeting_document_id)
+
+    @property
+    def meeting_document_number(self) -> str:
+        document = self.meeting_document
+        if not document:
+            return ""
+        return str(document.doc_number or f"#{document.id}")
+
+    @property
+    def report_position_display(self) -> str:
+        if self.report_position_text:
+            return self.report_position_text
+        return self.meeting_document_number
+
     def save(self, user: Optional[User] = None):
         if user and self.created_by_id is None:
             self.created_by_id = user.id
@@ -2254,8 +2288,8 @@ class Event:
             """
             INSERT OR REPLACE INTO events
             (id, title, description, event_type, event_date, event_time, department,
-             responsible_id, is_completed, year, created_by_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             responsible_id, is_completed, year, meeting_document_id, report_position_text, created_by_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -2268,6 +2302,8 @@ class Event:
                 self.responsible_id,
                 self.is_completed,
                 self.year,
+                self.meeting_document_id,
+                self.report_position_text,
                 self.created_by_id,
             ),
         )
@@ -2318,6 +2354,8 @@ class Event:
         department: str = "",
         include_completed: bool = True,
         year: int = 0,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
     ) -> List["Event"]:
         query = "SELECT * FROM events WHERE 1=1"
         params = []
@@ -2325,6 +2363,14 @@ class Event:
         if year:
             query += " AND year = ?"
             params.append(year)
+
+        if date_from:
+            query += " AND event_date >= ?"
+            params.append(date_from.isoformat())
+
+        if date_to:
+            query += " AND event_date <= ?"
+            params.append(date_to.isoformat())
 
         if not include_completed:
             query += " AND is_completed = 0"
