@@ -11,10 +11,12 @@ from typing import Any
 
 from models.db_models import (
     DOCUMENT_TYPE_MEETING,
+    DOCUMENT_TYPE_PLAN,
     Document,
     Encounter,
     EncounterInformant,
     Patient,
+    TreatmentPlanItem,
     User,
 )
 from utils.app_paths import get_app_base_dir, get_resource_path
@@ -31,6 +33,13 @@ def safe_export_name(value: str, fallback: str = "export") -> str:
 def build_encounter_docx_filename(patient: Patient, encounter: Encounter) -> str:
     date_part = _format_date_for_filename(encounter.started_at)
     return f"pulsar_meeting_{safe_export_name(patient.callsign, 'patient')}_{date_part}.docx"
+
+
+def build_plan_docx_filename(patient: Patient, plan_document: Document) -> str:
+    date_part = _format_date_for_filename(plan_document.doc_date)
+    number_part = safe_export_name(str(plan_document.doc_number or plan_document.id), "plan")
+    patient_part = safe_export_name(patient.callsign, "patient")
+    return f"pulsar_plan_{patient_part}_{number_part}_{date_part}.docx"
 
 
 def build_patient_encounters_xlsx_filename(patient: Patient) -> str:
@@ -336,6 +345,82 @@ def export_encounter_to_docx(
         )
     except WordTemplateError as exc:
         raise RuntimeError(str(exc)) from exc
+
+
+def export_plan_to_docx(
+    patient: Patient,
+    plan_document: Document,
+    file_path: str | Path,
+):
+    if plan_document.doc_type != DOCUMENT_TYPE_PLAN:
+        raise RuntimeError("Выбранный документ не является планом работы")
+
+    try:
+        from docx import Document as WordDocument
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.shared import Pt
+    except ImportError as exc:
+        raise RuntimeError(
+            "Для экспорта в Word нужен пакет python-docx. "
+            "Установите зависимости из requirements.txt."
+        ) from exc
+
+    items = TreatmentPlanItem.get_by_plan(plan_document.id)
+    document = WordDocument()
+
+    style = document.styles["Normal"]
+    style.font.name = "Times New Roman"
+    style.font.size = Pt(12)
+
+    title = document.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run = title.add_run("ПЛАН РАБОТЫ С ПАЦИЕНТОМ")
+    title_run.bold = True
+    title_run.font.size = Pt(14)
+
+    _add_plan_field(document, "Пациент", patient.callsign or "—")
+    _add_plan_field(document, "Личный номер", patient.personal_number or "—")
+    _add_plan_field(document, "Дата плана", _format_date(plan_document.doc_date))
+    _add_plan_field(document, "Номер плана", plan_document.doc_number or f"#{plan_document.id}")
+    _add_plan_field(document, "Описание", plan_document.summary or "—")
+
+    document.add_paragraph()
+    subtitle = document.add_paragraph()
+    subtitle_run = subtitle.add_run("Пункты плана")
+    subtitle_run.bold = True
+
+    table = document.add_table(rows=1, cols=4)
+    table.style = "Table Grid"
+    headers = ["№", "Мероприятие", "Срок исполнения", "Статус"]
+    for index, header in enumerate(headers):
+        cell = table.rows[0].cells[index]
+        cell.text = header
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.bold = True
+
+    if items:
+        for item in items:
+            cells = table.add_row().cells
+            cells[0].text = str(item.order_num)
+            cells[1].text = item.event or "—"
+            cells[2].text = _format_date(item.due_date)
+            cells[3].text = "Выполнено" if item.is_completed else "В ожидании"
+    else:
+        cells = table.add_row().cells
+        cells[0].text = "—"
+        cells[1].text = "Пункты плана не добавлены"
+        cells[2].text = "—"
+        cells[3].text = "—"
+
+    document.save(str(file_path))
+
+
+def _add_plan_field(document, label: str, value: str):
+    paragraph = document.add_paragraph()
+    label_run = paragraph.add_run(f"{label}: ")
+    label_run.bold = True
+    paragraph.add_run(str(value))
 
 
 def _build_encounter_word_title(patient: Patient, encounter: Encounter) -> str:

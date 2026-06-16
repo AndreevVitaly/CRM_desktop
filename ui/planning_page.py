@@ -26,11 +26,10 @@ from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor, QFont, QPen
 
 from models.db_models import (
-    DOCUMENT_TYPE_MEETING,
     Document,
-    Encounter,
     User,
     Event,
+    EventReportPosition,
     EVENT_TYPES,
     get_department_choices,
 )
@@ -98,14 +97,25 @@ class PeriodCalendarWidget(QCalendarWidget):
         painter.restore()
 
 
+def _document_type_label(doc_type: str) -> str:
+    labels = {
+        "meeting": "Встреча",
+        "plan_work": "План",
+    }
+    return labels.get(doc_type or "", doc_type or "Документ")
+
+
 class MeetingDocumentPickerDialog(QDialog):
-    def __init__(self, user: User, selected_document_id: int | None = None):
+    def __init__(
+        self, user: User, selected_document_ids: set[int] | None = None
+    ):
         super().__init__()
         self.user = user
-        self.selected_document_id = selected_document_id
+        self.selected_document_ids = selected_document_ids or set()
         self.documents: list[Document] = []
         self.selected_document: Document | None = None
-        self.setWindowTitle("Выбор документа встречи")
+        self.selected_documents: list[Document] = []
+        self.setWindowTitle("Выбор документа")
         self.setMinimumSize(860, 520)
         self._init_ui()
 
@@ -116,7 +126,7 @@ class MeetingDocumentPickerDialog(QDialog):
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText(
-            "Поиск по пациенту, личному номеру, врачу или номеру документа"
+            "Поиск по пациенту, личному номеру, автору, типу или номеру документа"
         )
         self.search_input.textChanged.connect(self._load_documents)
         layout.addWidget(self.search_input)
@@ -124,7 +134,7 @@ class MeetingDocumentPickerDialog(QDialog):
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(
-            ["Дата", "Пациент", "Личный номер", "Врач", "Документ"]
+            ["Дата", "Пациент", "Личный номер", "Автор", "Документ"]
         )
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -133,7 +143,7 @@ class MeetingDocumentPickerDialog(QDialog):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
         self.table.doubleClicked.connect(self.accept)
@@ -143,6 +153,7 @@ class MeetingDocumentPickerDialog(QDialog):
         buttons_layout.addStretch()
 
         select_btn = QPushButton("Выбрать")
+        select_btn.setObjectName("secondaryBtn")
         select_btn.clicked.connect(self.accept)
         buttons_layout.addWidget(select_btn)
 
@@ -163,31 +174,23 @@ class MeetingDocumentPickerDialog(QDialog):
         self.table.setRowCount(0)
 
         for document in Document.get_all(self.user):
-            if document.doc_type != DOCUMENT_TYPE_MEETING:
-                continue
-
-            encounter = document.encounter
-            if encounter and encounter.status != Encounter.STATUS_FINISHED:
-                continue
-
             patient = document.patient
             if not patient:
                 continue
 
-            doctor = (
-                (encounter.doctor if encounter and encounter.doctor_id else None)
-                or patient.doctor
-                or document.author
-            )
-            doctor_name = doctor.full_name if doctor else "-"
+            author_name = document.author.full_name if document.author else "-"
+            document_type = _document_type_label(document.doc_type)
             document_number = str(document.doc_number or f"#{document.id}")
+            document_label = f"{document_type} {document_number}".strip()
             date_text = document.doc_date.strftime("%d.%m.%Y") if document.doc_date else "-"
             haystack = " ".join(
                 [
                     patient.callsign or "",
                     patient.personal_number or "",
-                    doctor_name,
+                    author_name,
+                    document_type,
                     document_number,
+                    document.summary or "",
                     date_text,
                 ]
             ).casefold()
@@ -201,26 +204,31 @@ class MeetingDocumentPickerDialog(QDialog):
                 date_text,
                 patient.callsign or "-",
                 patient.personal_number or "-",
-                doctor_name,
-                document_number,
+                author_name,
+                document_label,
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 if column == 0:
                     item.setData(Qt.ItemDataRole.UserRole, document.id)
                 self.table.setItem(row, column, item)
-            if document.id == self.selected_document_id:
+            if document.id in self.selected_document_ids:
                 self.table.selectRow(row)
 
     def accept(self):
         selected = self.table.selectionModel().selectedRows()
         if not selected:
-            QMessageBox.warning(self, "Выбор документа", "Выберите документ встречи")
+            QMessageBox.warning(self, "Выбор документа", "Выберите документ")
             return
-        row = selected[0].row()
-        if row < 0 or row >= len(self.documents):
+        selected_documents = []
+        for index in selected:
+            row = index.row()
+            if 0 <= row < len(self.documents):
+                selected_documents.append(self.documents[row])
+        if not selected_documents:
             return
-        self.selected_document = self.documents[row]
+        self.selected_documents = selected_documents
+        self.selected_document = selected_documents[0]
         super().accept()
 
 
@@ -268,25 +276,17 @@ class PlanningPage(QWidget):
         colors = get_colors()
 
         panel = QFrame()
-        panel.setObjectName("card")
+        panel.setObjectName("planningFilterPanel")
+        self.filter_panel = panel
         panel.setFixedHeight(96)
-        panel.setStyleSheet(
-            f"""
-            QFrame#card {{
-                background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
-                border-radius: {RADIUS['lg']}px;
-                padding: 12px;
-            }}
-        """
-        )
+        panel.setStyleSheet(self._filter_panel_style())
 
         layout = QHBoxLayout(panel)
         layout.setSpacing(12)
 
         # Год
         year_label = QLabel("Год:")
-        year_label.setStyleSheet("font-weight: bold; background-color: transparent;")
+        year_label.setObjectName("filterLabel")
         layout.addWidget(year_label)
 
         self.year_combo = QComboBox()
@@ -302,7 +302,7 @@ class PlanningPage(QWidget):
         layout.addWidget(self.year_combo)
 
         period_label = QLabel("Период:")
-        period_label.setStyleSheet("font-weight: bold; background-color: transparent;")
+        period_label.setObjectName("filterLabel")
         layout.addWidget(period_label)
 
         self.period_combo = QComboBox()
@@ -424,8 +424,8 @@ class PlanningPage(QWidget):
 
         # Показать выполненные
         self.show_completed_check = QCheckBox("Показать выполненные")
+        self.show_completed_check.setObjectName("showCompletedCheck")
         self.show_completed_check.setChecked(True)
-        self.show_completed_check.setStyleSheet("background-color: transparent;")
         self.show_completed_check.stateChanged.connect(self._load_events)
         layout.addWidget(self.show_completed_check)
 
@@ -434,6 +434,41 @@ class PlanningPage(QWidget):
         layout.addStretch()
 
         return panel
+
+    def _filter_panel_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QFrame#planningFilterPanel {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['lg']}px;
+                padding: 12px;
+            }}
+            QFrame#planningFilterPanel QLabel#filterLabel {{
+                color: {colors['text']};
+                font-weight: 700;
+                background-color: transparent;
+            }}
+            QFrame#planningFilterPanel QCheckBox#showCompletedCheck {{
+                color: {colors['text']};
+                background-color: transparent;
+                spacing: 8px;
+            }}
+            QFrame#planningFilterPanel QCheckBox#showCompletedCheck::indicator {{
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 1px solid {colors['line']};
+                background-color: {colors['surface_muted']};
+            }}
+            QFrame#planningFilterPanel QCheckBox#showCompletedCheck::indicator:hover {{
+                border: 1px solid {colors['accent']};
+            }}
+            QFrame#planningFilterPanel QCheckBox#showCompletedCheck::indicator:checked {{
+                background-color: {colors['accent']};
+                border: 1px solid {colors['accent']};
+            }}
+        """
 
     def _create_table(self) -> QTableWidget:
         """Таблица мероприятий"""
@@ -473,8 +508,6 @@ class PlanningPage(QWidget):
 
     def _create_actions_panel(self) -> QFrame:
         """Панель действий"""
-        colors = get_colors()
-
         panel = QFrame()
         panel.setFixedHeight(scaled(58, 50))
         panel.setStyleSheet("background-color: transparent;")
@@ -484,32 +517,11 @@ class PlanningPage(QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         add_btn = QPushButton("Создать мероприятие")
+        self.add_event_btn = add_btn
         add_btn.setObjectName("actionButton")
         add_btn.setFixedHeight(36)
         add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_btn.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: transparent;
-                border: 2px solid {colors['line']};
-                border-radius: {RADIUS['md']}px;
-                padding: 6px 16px;
-                font-weight: 600;
-                font-size: {FONTS['size_small']}pt;
-                color: {colors['text']};
-            }}
-            QPushButton:hover {{
-                background-color: {colors['accent_light']};
-                border: 2px solid {colors['accent']};
-                color: {colors['accent']};
-            }}
-            QPushButton:pressed {{
-                background-color: #3B82F6;
-                border: 2px solid #3B82F6;
-                color: #FFFFFF;
-            }}
-        """
-        )
+        add_btn.setStyleSheet(self._action_button_style())
         add_btn.clicked.connect(self._add_event)
         layout.addWidget(add_btn)
 
@@ -520,6 +532,30 @@ class PlanningPage(QWidget):
         layout.addWidget(self.count_label)
 
         return panel
+
+    def _action_button_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QPushButton#actionButton {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 6px 16px;
+                font-weight: 600;
+                font-size: {FONTS['size_small']}pt;
+                color: {colors['text']};
+            }}
+            QPushButton#actionButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#actionButton:pressed {{
+                background-color: #3B82F6;
+                border: 2px solid #3B82F6;
+                color: #FFFFFF;
+            }}
+        """
 
     def _load_events(self):
         """Загрузка мероприятий"""
@@ -654,24 +690,29 @@ class PlanningPage(QWidget):
             )
             status_action.triggered.connect(lambda: self._toggle_event(event_id))
 
-        # Редактировать/Удалить (только свои)
-        manual_action = menu.addAction("Добавить запись")
+        # Удаление доступно администраторам, регистраторам, начальникам и авторам.
+        manual_action = menu.addAction("Добавить отчетную позицию")
         manual_action.triggered.connect(lambda: self._add_report_position(event_id))
 
-        meeting_action = menu.addAction("Выбрать встречу")
+        meeting_action = menu.addAction("Выбрать документы")
         meeting_action.triggered.connect(lambda: self._select_meeting_document(event_id))
 
-        if event.meeting_document_id or event.report_position_text:
-            clear_meeting_action = menu.addAction("Очистить отчетную позицию")
+        has_positions = EventReportPosition.has_for_event(event_id) or (
+            event.meeting_document_id or event.report_position_text
+        )
+        if has_positions:
+            clear_meeting_action = menu.addAction("Очистить отчетные позиции")
             clear_meeting_action.triggered.connect(
                 lambda: self._clear_report_position(event_id)
             )
 
-        can_edit = self.user.role == User.ROLE_ADMIN or (
-            event.created_by_id == self.user.id
-        )
+        can_delete = self.user.role in (
+            User.ROLE_ADMIN,
+            User.ROLE_REGISTRAR,
+            User.ROLE_LEAD,
+        ) or (event.created_by_id == self.user.id)
 
-        if can_edit:
+        if can_delete:
             delete_action = menu.addAction("🗑️ Удалить")
             delete_action.triggered.connect(lambda: self._delete_event(event_id))
 
@@ -697,10 +738,21 @@ class PlanningPage(QWidget):
         if not event:
             return
 
-        dialog = MeetingDocumentPickerDialog(self.user, event.meeting_document_id)
-        if dialog.exec() and dialog.selected_document:
-            event.meeting_document_id = dialog.selected_document.id
-            event.report_position_text = ""
+        selected_ids = {
+            position.document_id
+            for position in EventReportPosition.get_by_event(event_id)
+            if position.document_id
+        }
+        if event.meeting_document_id:
+            selected_ids.add(event.meeting_document_id)
+
+        dialog = MeetingDocumentPickerDialog(self.user, selected_ids)
+        if dialog.exec() and dialog.selected_documents:
+            for document in dialog.selected_documents:
+                if document.id is not None:
+                    EventReportPosition.add_document(
+                        event_id, document.id, created_by_id=self.user.id
+                    )
             event.is_completed = True
             event.save()
             self._load_events()
@@ -714,7 +766,7 @@ class PlanningPage(QWidget):
             self,
             "Отчетная позиция",
             "Введите отчетные данные:",
-            event.report_position_text or event.meeting_document_number,
+            "",
         )
         if not ok:
             return
@@ -723,8 +775,7 @@ class PlanningPage(QWidget):
         if not text:
             return
 
-        event.report_position_text = text
-        event.meeting_document_id = None
+        EventReportPosition.add_text(event_id, text, created_by_id=self.user.id)
         event.is_completed = True
         event.save()
         self._load_events()
@@ -734,6 +785,7 @@ class PlanningPage(QWidget):
         if not event:
             return
 
+        EventReportPosition.clear_event(event_id)
         event.meeting_document_id = None
         event.report_position_text = ""
         event.save()
@@ -769,6 +821,10 @@ class PlanningPage(QWidget):
         self.setStyleSheet(
             f"background-color: {colors['bg']}; color: {colors['text']};"
         )
+        if hasattr(self, "filter_panel"):
+            self.filter_panel.setStyleSheet(self._filter_panel_style())
+        if hasattr(self, "add_event_btn"):
+            self.add_event_btn.setStyleSheet(self._action_button_style())
 
         for widget in self.findChildren(QLabel):
             widget.style().unpolish(widget)

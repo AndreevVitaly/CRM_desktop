@@ -888,12 +888,23 @@ class PatientDetailDialog(QDialog):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
+        plan_actions_layout = QHBoxLayout()
+
         # Кнопка добавления плана
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_DOCTOR):
             add_btn = QPushButton("Создать план работы")
             add_btn.setFixedHeight(36)
             add_btn.clicked.connect(self._add_plan_item)
-            layout.addWidget(add_btn)
+            plan_actions_layout.addWidget(add_btn)
+
+        word_btn = QPushButton("WORD")
+        word_btn.setObjectName("actionButton")
+        word_btn.setFixedHeight(36)
+        word_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        word_btn.clicked.connect(self._export_selected_plan_word)
+        plan_actions_layout.addWidget(word_btn)
+        plan_actions_layout.addStretch()
+        layout.addLayout(plan_actions_layout)
 
         # Таблица планов (документов)
         plans_label = QLabel("Планы работы:")
@@ -1738,6 +1749,54 @@ class PatientDetailDialog(QDialog):
 
         # Переключаемся на вкладку "План лечения"
         self.tabs.setCurrentIndex(self.plan_tab_index)
+
+    def _export_selected_plan_word(self):
+        plan_id = self._get_selected_plan_id()
+        if not plan_id:
+            QMessageBox.warning(self, "Экспорт Word", "Выберите план работы")
+            return
+
+        plan_document = Document.get_by_id(plan_id)
+        if not plan_document or plan_document.doc_type != DOCUMENT_TYPE_PLAN:
+            QMessageBox.warning(self, "Экспорт Word", "Не удалось найти план работы")
+            return
+
+        from utils.office_export import (
+            build_plan_docx_filename,
+            export_plan_to_docx,
+        )
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить план в Word",
+            build_plan_docx_filename(self.patient, plan_document),
+            "Word (*.docx)",
+            options=QFileDialog.Option.DontConfirmOverwrite,
+        )
+        if not file_path:
+            return
+
+        file_path = self._ensure_file_suffix(file_path, ".docx")
+        if not self._confirm_file_overwrite(file_path, "Экспорт Word"):
+            return
+
+        try:
+            export_plan_to_docx(self.patient, plan_document, file_path)
+        except RuntimeError as exc:
+            QMessageBox.warning(self, "Экспорт Word", str(exc))
+            return
+        except PermissionError:
+            QMessageBox.warning(
+                self,
+                "Экспорт Word",
+                "Не удалось заменить файл. Закройте его в Word и попробуйте снова.",
+            )
+            return
+        except Exception as exc:
+            QMessageBox.critical(self, "Экспорт Word", f"Не удалось создать файл:\n{exc}")
+            return
+
+        QMessageBox.information(self, "Экспорт Word", "План сохранен в Word")
 
     def _get_all_plan_items(self):
         """Получение всех пунктов плана из всех документов-планов"""

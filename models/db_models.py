@@ -589,6 +589,48 @@ class Database:
             except Exception:
                 pass  # Колонка уже существует
 
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS event_report_positions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT UNIQUE,
+                event_id INTEGER NOT NULL,
+                document_id INTEGER,
+                text TEXT,
+                order_num INTEGER DEFAULT 0,
+                created_by_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (event_id) REFERENCES events(id),
+                FOREIGN KEY (document_id) REFERENCES documents(id),
+                FOREIGN KEY (created_by_id) REFERENCES users(id)
+            )
+        """
+        )
+
+        cursor.execute(
+            """
+            INSERT INTO event_report_positions
+            (uuid, event_id, document_id, text, order_num, created_at, updated_at)
+            SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
+                   substr(lower(hex(randomblob(2))), 2) || '-' ||
+                   substr('89ab', abs(random()) % 4 + 1, 1) ||
+                   substr(lower(hex(randomblob(2))), 2) || '-' ||
+                   lower(hex(randomblob(6))),
+                   e.id,
+                   e.meeting_document_id,
+                   NULLIF(e.report_position_text, ''),
+                   1,
+                   COALESCE(e.created_at, CURRENT_TIMESTAMP),
+                   CURRENT_TIMESTAMP
+            FROM events e
+            WHERE (e.meeting_document_id IS NOT NULL OR NULLIF(e.report_position_text, '') IS NOT NULL)
+              AND NOT EXISTS (
+                  SELECT 1 FROM event_report_positions rp WHERE rp.event_id = e.id
+              )
+        """
+        )
+
         # Таблица кэша статистики
         sync_columns = {
             "patients": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
@@ -2219,6 +2261,153 @@ class Document:
 
 
 @dataclass
+class EventReportPosition:
+    id: Optional[int] = None
+    uuid: str = ""
+    event_id: int = 0
+    document_id: Optional[int] = None
+    text: str = ""
+    order_num: int = 0
+    created_by_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        now = datetime.now()
+        if not self.uuid:
+            self.uuid = str(uuid_lib.uuid4())
+        if self.created_at is None:
+            self.created_at = now
+        if self.updated_at is None:
+            self.updated_at = now
+
+    @property
+    def document(self) -> Optional[Document]:
+        return Document.get_by_id(self.document_id) if self.document_id else None
+
+    @property
+    def display_text(self) -> str:
+        if self.text:
+            return self.text
+        document = self.document
+        if document:
+            prefix = "План" if document.doc_type == DOCUMENT_TYPE_PLAN else "Встреча" if document.doc_type == DOCUMENT_TYPE_MEETING else "Документ"
+            return f"{prefix} {document.doc_number or f'#{document.id}'}"
+        return ""
+
+    def save(self):
+        self.updated_at = datetime.now()
+        cursor = db.execute(
+            """
+            INSERT OR REPLACE INTO event_report_positions
+            (id, uuid, event_id, document_id, text, order_num, created_by_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                self.id,
+                self.uuid,
+                self.event_id,
+                self.document_id,
+                self.text,
+                self.order_num,
+                self.created_by_id,
+                self.created_at.isoformat() if self.created_at else None,
+                self.updated_at.isoformat() if self.updated_at else None,
+            ),
+        )
+        db.commit()
+        if self.id is None:
+            self.id = db.lastrowid()
+
+    @classmethod
+    def _from_row(cls, row: dict) -> "EventReportPosition":
+        data = dict(row)
+        for field in ("created_at", "updated_at"):
+            if data.get(field) and isinstance(data[field], str):
+                for fmt in (
+                    "%Y-%m-%d %H:%M:%S.%f",
+                    "%Y-%m-%d %H:%M:%S",
+                    "%Y-%m-%dT%H:%M:%S.%f",
+                    "%Y-%m-%dT%H:%M:%S",
+                ):
+                    try:
+                        data[field] = datetime.strptime(data[field], fmt)
+                        break
+                    except ValueError:
+                        continue
+        return cls(**data)
+
+    @classmethod
+    def get_by_event(cls, event_id: int) -> List["EventReportPosition"]:
+        rows = db.fetchall(
+            """
+            SELECT * FROM event_report_positions
+            WHERE event_id = ?
+            ORDER BY order_num, created_at, id
+            """,
+            (event_id,),
+        )
+        return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    def has_for_event(cls, event_id: int) -> bool:
+        row = db.fetchone(
+            "SELECT 1 FROM event_report_positions WHERE event_id = ? LIMIT 1",
+            (event_id,),
+        )
+        return row is not None
+
+    @classmethod
+    def next_order_num(cls, event_id: int) -> int:
+        row = db.fetchone(
+            "SELECT COALESCE(MAX(order_num), 0) + 1 AS next_order FROM event_report_positions WHERE event_id = ?",
+            (event_id,),
+        )
+        return int(row["next_order"] if row else 1)
+
+    @classmethod
+    def add_document(
+        cls, event_id: int, document_id: int, created_by_id: Optional[int] = None
+    ) -> "EventReportPosition":
+        existing = db.fetchone(
+            """
+            SELECT * FROM event_report_positions
+            WHERE event_id = ? AND document_id = ? AND (text = '' OR text IS NULL)
+            """,
+            (event_id, document_id),
+        )
+        if existing:
+            return cls._from_row(existing)
+
+        position = cls(
+            event_id=event_id,
+            document_id=document_id,
+            order_num=cls.next_order_num(event_id),
+            created_by_id=created_by_id,
+        )
+        position.save()
+        return position
+
+    @classmethod
+    def add_text(
+        cls, event_id: int, text: str, created_by_id: Optional[int] = None
+    ) -> "EventReportPosition":
+        position = cls(
+            event_id=event_id,
+            text=text,
+            order_num=cls.next_order_num(event_id),
+            created_by_id=created_by_id,
+        )
+        position.save()
+        return position
+
+    @classmethod
+    def clear_event(cls, event_id: int):
+        db.execute("DELETE FROM event_report_positions WHERE event_id = ?", (event_id,))
+        db.commit()
+
+
+@dataclass
 class Event:
     id: Optional[int] = None
     title: str = ""
@@ -2277,6 +2466,14 @@ class Event:
 
     @property
     def report_position_display(self) -> str:
+        if self.id:
+            positions = EventReportPosition.get_by_event(self.id)
+            if positions:
+                labels = [position.display_text for position in positions if position.display_text]
+                if len(labels) == 1:
+                    return labels[0]
+                if len(labels) > 1:
+                    return f"{len(labels)} позиции: " + "; ".join(labels[:2])
         if self.report_position_text:
             return self.report_position_text
         return self.meeting_document_number
@@ -2406,6 +2603,7 @@ class Event:
 
     def delete(self):
         if self.id:
+            EventReportPosition.clear_event(self.id)
             db.execute("DELETE FROM events WHERE id = ?", (self.id,))
             db.commit()
 
