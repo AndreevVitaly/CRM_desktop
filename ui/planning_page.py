@@ -505,6 +505,7 @@ class PlanningPage(QWidget):
         table.setShowGrid(True)
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(self._show_context_menu)
+        table.doubleClicked.connect(self._open_event_editor)
 
         return table
 
@@ -694,6 +695,11 @@ class PlanningPage(QWidget):
 
         menu = QMenu()
 
+        can_edit = self._can_edit_event(event)
+        if can_edit:
+            edit_action = menu.addAction("Редактировать")
+            edit_action.triggered.connect(lambda: self._edit_event(event_id))
+
         # Переключить статус
         if event:
             status_action = menu.addAction(
@@ -717,17 +723,49 @@ class PlanningPage(QWidget):
                 lambda: self._clear_report_position(event_id)
             )
 
-        can_delete = self.user.role in (
+        if can_edit:
+            delete_action = menu.addAction("🗑️ Удалить")
+            delete_action.triggered.connect(lambda: self._delete_event(event_id))
+
+        menu.exec(self.table.viewport().mapToGlobal(pos))
+
+    def _can_edit_event(self, event: Event) -> bool:
+        return self.user.role in (
             User.ROLE_ADMIN,
             User.ROLE_REGISTRAR,
             User.ROLE_LEAD,
         ) or (event.created_by_id == self.user.id)
 
-        if can_delete:
-            delete_action = menu.addAction("🗑️ Удалить")
-            delete_action.triggered.connect(lambda: self._delete_event(event_id))
+    def _get_event_id_from_row(self, row: int) -> int | None:
+        if row < 0:
+            return None
+        item = self.table.item(row, 1)
+        if not item:
+            return None
+        return item.data(Qt.ItemDataRole.UserRole)
 
-        menu.exec(self.table.viewport().mapToGlobal(pos))
+    def _open_event_editor(self, index):
+        event_id = self._get_event_id_from_row(index.row())
+        if event_id is not None:
+            self._edit_event(event_id)
+
+    def _edit_event(self, event_id: int):
+        event = Event.get_by_id(event_id)
+        if not event:
+            return
+        if not self._can_edit_event(event):
+            QMessageBox.warning(
+                self,
+                "Редактирование",
+                "У вас нет прав на редактирование этого мероприятия.",
+            )
+            return
+
+        from ui.event_form import EventFormDialog
+
+        dialog = EventFormDialog(self.user, event, default_year=self.selected_year)
+        if dialog.exec():
+            self._load_events()
 
     def _add_event(self):
         """Добавление мероприятия"""

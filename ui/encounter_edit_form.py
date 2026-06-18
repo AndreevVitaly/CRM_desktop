@@ -614,20 +614,69 @@ class EncounterEditDialog(QDialog):
 
         # Кнопки управления информаторами
         informants_buttons = QHBoxLayout()
-        add_informant_btn = QPushButton("Добавить информатора")
-        add_informant_btn.setFixedHeight(32)
+        informants_button_style = f"""
+            QPushButton {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 6px 14px;
+                font-weight: 600;
+                font-size: {FONTS['size_small']}pt;
+                color: {colors['text']};
+            }}
+            QPushButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton:pressed {{
+                background-color: {colors['accent']};
+                border: 2px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
+        informants_danger_button_style = f"""
+            QPushButton {{
+                background-color: transparent;
+                border: 2px solid {colors['danger']};
+                border-radius: {RADIUS['md']}px;
+                padding: 6px 14px;
+                font-weight: 600;
+                font-size: {FONTS['size_small']}pt;
+                color: {colors['danger']};
+            }}
+            QPushButton:hover {{
+                background-color: {colors['danger_bg']};
+                border: 2px solid {colors['danger']};
+                color: {colors['danger']};
+            }}
+            QPushButton:pressed {{
+                background-color: {colors['danger']};
+                border: 2px solid {colors['danger']};
+                color: #FFFFFF;
+            }}
+        """
+        add_informant_btn = QPushButton("Добавить лицо")
+        add_informant_btn.setObjectName("actionButton")
+        add_informant_btn.setFixedHeight(36)
+        add_informant_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_informant_btn.setStyleSheet(informants_button_style)
         add_informant_btn.clicked.connect(self._add_informant)
         informants_buttons.addWidget(add_informant_btn)
 
         edit_informant_btn = QPushButton("Редактировать")
         edit_informant_btn.setObjectName("secondaryBtn")
-        edit_informant_btn.setFixedHeight(32)
+        edit_informant_btn.setFixedHeight(36)
+        edit_informant_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_informant_btn.setStyleSheet(informants_button_style)
         edit_informant_btn.clicked.connect(self._edit_informant)
         informants_buttons.addWidget(edit_informant_btn)
 
         delete_informant_btn = QPushButton("Удалить")
         delete_informant_btn.setObjectName("dangerBtn")
-        delete_informant_btn.setFixedHeight(32)
+        delete_informant_btn.setFixedHeight(36)
+        delete_informant_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        delete_informant_btn.setStyleSheet(informants_danger_button_style)
         delete_informant_btn.clicked.connect(self._delete_informant)
         informants_buttons.addWidget(delete_informant_btn)
 

@@ -140,7 +140,8 @@ class EventFormDialog(QDialog):
         buttons_layout = QHBoxLayout()
         buttons_layout.addStretch()
 
-        save_btn = QPushButton("💾 Сохранить")
+        save_btn = QPushButton("Сохранить")
+        save_btn.setObjectName("secondaryBtn")
         save_btn.setFixedHeight(40)
         save_btn.clicked.connect(self._save)
         buttons_layout.addWidget(save_btn)
