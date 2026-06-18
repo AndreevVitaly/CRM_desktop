@@ -227,6 +227,7 @@ class MainWindow(QMainWindow):
             items["patients"] = ("Пациенты", True)
             items["meeting_schedule"] = ("График встреч", True)
             items["encounters"] = ("Встречи", True)
+            items["encounter_groups"] = ("Признаки", True)
 
         # Пользователи
         if user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
@@ -608,6 +609,7 @@ class MainWindow(QMainWindow):
             (
                 f"Пакет сохранен:\n{result['path']}\n\n"
                 f"Пациенты: {counts.get('patients', 0)}\n"
+                f"Признаки: {counts.get('encounter_groups', 0)}\n"
                 f"Документы: {counts.get('documents', 0)}\n"
                 f"Встречи: {counts.get('encounters', 0)}\n"
                 f"Пункты планов: {counts.get('treatment_plan_items', 0)}"
@@ -649,12 +651,13 @@ class MainWindow(QMainWindow):
             "facilities": "Места размещения",
             "km_records": "КМ-записи",
             "patients": "Пациенты",
+            "encounter_groups": "Признаки",
             "documents": "Документы",
             "encounters": "Встречи",
             "treatment_plan_items": "Пункты планов",
         }
         preview_lines = []
-        for table_name in ("users", "facilities", "patients", "documents", "encounters", "treatment_plan_items", "km_records"):
+        for table_name in ("users", "facilities", "patients", "encounter_groups", "documents", "encounters", "treatment_plan_items", "km_records"):
             item = preview.get(table_name, {})
             preview_lines.append(
                 f"{labels[table_name]}: всего {item.get('incoming', 0)}, "
@@ -675,7 +678,7 @@ class MainWindow(QMainWindow):
         )
 
         apply_count = 0
-        for table_name in ("users", "facilities", "patients", "documents", "encounters", "treatment_plan_items", "km_records"):
+        for table_name in ("users", "facilities", "patients", "encounter_groups", "documents", "encounters", "treatment_plan_items", "km_records"):
             item = preview.get(table_name, {})
             apply_count += item.get("new", 0) + item.get("package_newer", 0)
         if apply_count <= 0:
@@ -744,6 +747,7 @@ class MainWindow(QMainWindow):
         from ui.patients_page import PatientsPage
         from ui.meeting_schedule_page import MeetingSchedulePage
         from ui.encounters_page import EncountersPage
+        from ui.encounter_groups_page import EncounterGroupsPage
         from ui.users_page import UsersPage
         from ui.planning_page import PlanningPage
         from ui.km_page import KmPage
@@ -766,6 +770,8 @@ class MainWindow(QMainWindow):
             page = MeetingSchedulePage(self.user)
         elif page_id == "encounters":
             page = EncountersPage(self.user)
+        elif page_id == "encounter_groups":
+            page = EncounterGroupsPage(self.user)
         elif page_id == "users":
             page = UsersPage(self.user)
         elif page_id == "planning":
@@ -989,6 +995,9 @@ class MainWindow(QMainWindow):
                 "encounters": lambda: __import__(
                     "ui.encounters_page", fromlist=["EncountersPage"]
                 ).EncountersPage(self.user),
+                "encounter_groups": lambda: __import__(
+                    "ui.encounter_groups_page", fromlist=["EncounterGroupsPage"]
+                ).EncounterGroupsPage(self.user),
                 "users": lambda: __import__(
                     "ui.users_page", fromlist=["UsersPage"]
                 ).UsersPage(self.user),

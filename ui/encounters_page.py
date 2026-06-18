@@ -56,7 +56,7 @@ class EncountersPage(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText(
-            "Поиск по пациенту, номеру, врачу или документу"
+            "Поиск по пациенту, номеру, врачу, документу или признаку"
         )
         self.search_input.setMinimumWidth(300)
         self.search_input.textChanged.connect(self._load_encounters)
@@ -91,7 +91,7 @@ class EncountersPage(QWidget):
         layout.addWidget(self.count_label)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(10)
+        self.table.setColumnCount(11)
         self.table.setHorizontalHeaderLabels(
             [
                 "Дата",
@@ -100,6 +100,7 @@ class EncountersPage(QWidget):
                 "Врач",
                 "Результат",
                 "Причина",
+                "Признак",
                 "Статус",
                 "Важность",
                 "Информация",
@@ -107,10 +108,10 @@ class EncountersPage(QWidget):
             ]
         )
         header = self.table.horizontalHeader()
-        for column in (0, 1, 2, 3, 4, 6, 7, 9):
+        for column in (0, 1, 2, 3, 4, 6, 7, 8, 10):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -163,6 +164,8 @@ class EncountersPage(QWidget):
             )
             doctor_name = doctor.full_name if doctor else "—"
             document_number = str(document.doc_number or f"#{document.id}")
+            group = encounter.group if encounter and encounter.group_id else None
+            group_name = group.name if group else ""
             haystack = " ".join(
                 [
                     patient.callsign or "",
@@ -170,6 +173,7 @@ class EncountersPage(QWidget):
                     doctor_name,
                     document_number,
                     document.summary or "",
+                    group_name,
                 ]
             ).casefold()
             if search and search not in haystack:
@@ -196,6 +200,7 @@ class EncountersPage(QWidget):
                         if encounter and encounter.reason
                         else document.summary or "—"
                     ),
+                    "group": group_name or "—",
                     "status": status,
                     "status_display": (
                         encounter.status_display if encounter else "Завершен"
@@ -230,6 +235,7 @@ class EncountersPage(QWidget):
                 data["doctor"],
                 data["result"],
                 data["reason"],
+                data["group"],
                 data["status_display"],
                 data["importance"],
                 data["patient_info"],
@@ -241,7 +247,7 @@ class EncountersPage(QWidget):
                     item.setData(
                         Qt.ItemDataRole.UserRole, data["document"].id
                     )
-                if column == 6:
+                if column == 7:
                     item.setForeground(
                         QColor(status_colors.get(data["status"], colors["text"]))
                     )
@@ -357,6 +363,7 @@ class EncountersPage(QWidget):
                 "Врач",
                 "Результат",
                 "Причина",
+                "Признак",
                 "Статус",
                 "Важность",
                 "Информация",
@@ -377,6 +384,7 @@ class EncountersPage(QWidget):
                         data["doctor"],
                         data["result"],
                         data["reason"],
+                        data["group"],
                         data["status_display"],
                         data["importance"],
                         data["patient_info"],
@@ -386,7 +394,7 @@ class EncountersPage(QWidget):
             for row in sheet.iter_rows(min_row=2):
                 for cell in row:
                     cell.alignment = Alignment(wrap_text=True, vertical="top")
-            widths = [14, 18, 16, 24, 22, 34, 16, 18, 42, 18]
+            widths = [14, 18, 16, 24, 22, 34, 24, 16, 18, 42, 18]
             for index, width in enumerate(widths, start=1):
                 sheet.column_dimensions[
                     chr(64 + index)

@@ -641,13 +641,14 @@ class PatientDetailDialog(QDialog):
 
         # Таблица встреч
         self.encounters_table = QTableWidget()
-        self.encounters_table.setColumnCount(8)
+        self.encounters_table.setColumnCount(9)
         self.encounters_table.setHorizontalHeaderLabels(
             [
                 "Дата",
                 "Врач",
                 "Результат",
                 "Причина",
+                "Признак",
                 "Статус",
                 "Информация",
                 "Документ",
@@ -664,6 +665,7 @@ class PatientDetailDialog(QDialog):
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
 
         self.encounters_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -725,13 +727,18 @@ class PatientDetailDialog(QDialog):
             # Краткое содержание как причина
             self.encounters_table.setItem(row, 3, QTableWidgetItem(doc.summary or "—"))
 
+            group_name = "—"
+            if encounter and encounter.group:
+                group_name = encounter.group.name
+            self.encounters_table.setItem(row, 4, QTableWidgetItem(group_name))
+
             # Статус (из Encounter или по умолчанию завершён)
             status_display = "Завершен"
             if encounter and encounter.status:
                 status_display = encounter.status_display
             status_item = QTableWidgetItem(status_display)
             status_item.setForeground(self._get_encounter_status_color(status))
-            self.encounters_table.setItem(row, 4, status_item)
+            self.encounters_table.setItem(row, 5, status_item)
 
             # Информация от пациента (кратко)
             patient_info_short = "—"
@@ -739,14 +746,14 @@ class PatientDetailDialog(QDialog):
                 patient_info_short = encounter.patient_info[:50] + (
                     "..." if len(encounter.patient_info) > 50 else ""
                 )
-            self.encounters_table.setItem(row, 5, QTableWidgetItem(patient_info_short))
+            self.encounters_table.setItem(row, 6, QTableWidgetItem(patient_info_short))
 
             # Номер документа
             doc_number_str = str(doc.doc_number) if doc.doc_number else f"#{doc.id}"
-            self.encounters_table.setItem(row, 6, QTableWidgetItem(doc_number_str))
+            self.encounters_table.setItem(row, 7, QTableWidgetItem(doc_number_str))
 
             # Заметки (пустая колонка)
-            self.encounters_table.setItem(row, 7, QTableWidgetItem("—"))
+            self.encounters_table.setItem(row, 8, QTableWidgetItem("—"))
 
     def _get_encounter_document_by_row(self, row: int):
         from models.db_models import DOCUMENT_TYPE_MEETING, Document

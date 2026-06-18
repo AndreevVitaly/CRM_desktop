@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QDateEdit,
     QLineEdit,
+    QInputDialog,
     QScrollArea,
     QWidget,
 )
@@ -30,6 +31,7 @@ from models.db_models import (
     User,
     Patient,
     Encounter,
+    EncounterGroup,
     EncounterInformant,
     TreatmentPlanItem,
     KmRecord,
@@ -254,6 +256,34 @@ class EncounterEditDialog(QDialog):
         self.status_combo.addItem("В процессе", Encounter.STATUS_INPROGRESS)
         self.status_combo.addItem("Завершен", Encounter.STATUS_FINISHED)
         result_layout.addRow("Статус", self.status_combo)
+
+        group_row = QHBoxLayout()
+        group_row.setSpacing(8)
+        self.group_combo = QComboBox()
+        self.group_combo.setFrame(False)
+        self.group_combo.setMinimumHeight(36)
+        self.group_combo.setMaximumWidth(420)
+        self.group_combo.setMaxVisibleItems(12)
+        group_row.addWidget(self.group_combo, 1)
+
+        new_group_btn = QPushButton("Новый")
+        new_group_btn.setObjectName("secondaryBtn")
+        new_group_btn.setFixedHeight(36)
+        new_group_btn.setFixedWidth(86)
+        new_group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        new_group_btn.clicked.connect(self._create_encounter_group)
+        self.group_new_btn = new_group_btn
+        group_row.addWidget(new_group_btn)
+
+        clear_group_btn = QPushButton("Очистить")
+        clear_group_btn.setObjectName("secondaryBtn")
+        clear_group_btn.setFixedHeight(36)
+        clear_group_btn.setFixedWidth(96)
+        clear_group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        clear_group_btn.clicked.connect(lambda: self.group_combo.setCurrentIndex(0))
+        self.group_clear_btn = clear_group_btn
+        group_row.addWidget(clear_group_btn)
+        result_layout.addRow("Признак встречи", group_row)
 
         # Позывной и личный номер (автозаполнение из пациента)
         callsign_label = QLabel(f"Позывной: {self.patient.callsign}")
@@ -526,6 +556,7 @@ class EncounterEditDialog(QDialog):
 
         # Загрузка пунктов плана
         self._load_plan_items()
+        self._load_encounter_groups()
 
         patient_measures_group.setLayout(patient_measures_layout)
         layout.addWidget(patient_measures_group)
@@ -581,7 +612,8 @@ class EncounterEditDialog(QDialog):
         """
         )
         informants_layout = QVBoxLayout()
-        informants_layout.setSpacing(8)
+        informants_layout.setContentsMargins(8, 8, 8, 10)
+        informants_layout.setSpacing(10)
 
         # Таблица информаторов
         self.informants_table = QTableWidget()
@@ -610,10 +642,11 @@ class EncounterEditDialog(QDialog):
         informants_header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         informants_header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         informants_header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
-        informants_layout.addWidget(self.informants_table)
 
         # Кнопки управления информаторами
         informants_buttons = QHBoxLayout()
+        informants_buttons.setContentsMargins(0, 6, 0, 2)
+        informants_buttons.setSpacing(8)
         informants_button_style = f"""
             QPushButton {{
                 background-color: transparent;
@@ -659,14 +692,17 @@ class EncounterEditDialog(QDialog):
         add_informant_btn = QPushButton("Добавить лицо")
         add_informant_btn.setObjectName("actionButton")
         add_informant_btn.setFixedHeight(36)
+        add_informant_btn.setFixedWidth(128)
         add_informant_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         add_informant_btn.setStyleSheet(informants_button_style)
         add_informant_btn.clicked.connect(self._add_informant)
+        informants_buttons.addSpacing(4)
         informants_buttons.addWidget(add_informant_btn)
 
         edit_informant_btn = QPushButton("Редактировать")
         edit_informant_btn.setObjectName("secondaryBtn")
         edit_informant_btn.setFixedHeight(36)
+        edit_informant_btn.setFixedWidth(132)
         edit_informant_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         edit_informant_btn.setStyleSheet(informants_button_style)
         edit_informant_btn.clicked.connect(self._edit_informant)
@@ -675,12 +711,14 @@ class EncounterEditDialog(QDialog):
         delete_informant_btn = QPushButton("Удалить")
         delete_informant_btn.setObjectName("dangerBtn")
         delete_informant_btn.setFixedHeight(36)
+        delete_informant_btn.setFixedWidth(96)
         delete_informant_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         delete_informant_btn.setStyleSheet(informants_danger_button_style)
         delete_informant_btn.clicked.connect(self._delete_informant)
         informants_buttons.addWidget(delete_informant_btn)
-
         informants_buttons.addStretch()
+
+        informants_layout.addWidget(self.informants_table)
         informants_layout.addLayout(informants_buttons)
 
         # Загрузка информаторов
@@ -803,6 +841,29 @@ class EncounterEditDialog(QDialog):
 
         self.meeting_result_combo.setStyleSheet(combo_style)
         self.status_combo.setStyleSheet(combo_style)
+        self.group_combo.setStyleSheet(combo_style)
+        group_button_style = f"""
+            QPushButton#secondaryBtn {{
+                background-color: transparent;
+                border: 2px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 6px 12px;
+                font-weight: 600;
+                color: {colors['text']};
+            }}
+            QPushButton#secondaryBtn:hover {{
+                background-color: {colors['surface_muted']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#secondaryBtn:pressed {{
+                background-color: {colors['accent']};
+                border: 2px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
+        self.group_new_btn.setStyleSheet(group_button_style)
+        self.group_clear_btn.setStyleSheet(group_button_style)
         for combo in (
             self.information_timeliness_combo,
             self.information_completeness_combo,
@@ -822,6 +883,59 @@ class EncounterEditDialog(QDialog):
 
         self.plan_items_table.setStyleSheet(table_style)
         self.informants_table.setStyleSheet(table_style)
+
+    def _load_encounter_groups(self, selected_group_id: int | None = None):
+        current_group_id = (
+            selected_group_id
+            if selected_group_id is not None
+            else self.encounter.group_id
+        )
+        self.group_combo.blockSignals(True)
+        self.group_combo.clear()
+        self.group_combo.addItem("Без признака", None)
+        for group in EncounterGroup.get_all():
+            self.group_combo.addItem(
+                f"{group.name} · {group.category_display}",
+                group.id,
+            )
+        if current_group_id:
+            index = self.group_combo.findData(current_group_id)
+            if index >= 0:
+                self.group_combo.setCurrentIndex(index)
+        self.group_combo.blockSignals(False)
+
+    def _create_encounter_group(self):
+        name, ok = QInputDialog.getText(
+            self,
+            "Новый признак",
+            "Условное наименование:",
+        )
+        name = name.strip()
+        if not ok or not name:
+            return
+
+        category_labels = [label for _, label in EncounterGroup.CATEGORY_CHOICES]
+        category_label, ok = QInputDialog.getItem(
+            self,
+            "Тип признака",
+            "Признак:",
+            category_labels,
+            0,
+            False,
+        )
+        if not ok:
+            return
+        category_by_label = {
+            label: value for value, label in EncounterGroup.CATEGORY_CHOICES
+        }
+        group = EncounterGroup.create_quick(
+            name=name,
+            category=category_by_label.get(
+                category_label, EncounterGroup.CATEGORY_PERSONAL
+            ),
+            created_by_id=self.user.id,
+        )
+        self._load_encounter_groups(group.id)
 
     def _load_plan_items(self):
         """Загрузка пунктов плана лечения пациента"""
@@ -1064,6 +1178,10 @@ class EncounterEditDialog(QDialog):
         )
         if status_index >= 0:
             self.status_combo.setCurrentIndex(status_index)
+        if self.encounter.group_id:
+            group_index = self.group_combo.findData(self.encounter.group_id)
+            if group_index >= 0:
+                self.group_combo.setCurrentIndex(group_index)
 
         # Информация от пациента
         self.patient_info_input.setPlainText(self.encounter.patient_info or "")
@@ -1121,6 +1239,7 @@ class EncounterEditDialog(QDialog):
         # Сохранение основных полей
         self.encounter.meeting_result = meeting_result
         self.encounter.status = self.status_combo.currentData()
+        self.encounter.group_id = self.group_combo.currentData()
         self.encounter.patient_info = self.patient_info_input.toPlainText().strip()
         self.encounter.meeting_description = (
             self.meeting_description_input.toPlainText().strip()

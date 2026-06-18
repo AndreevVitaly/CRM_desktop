@@ -133,6 +133,8 @@ def _collect_package_data(user: User) -> dict[str, Any]:
     encounters = _select_by_column_ids("encounters", "patient_id", patient_ids)
     documents = _select_by_column_ids("documents", "patient_id", patient_ids)
     plan_items = _select_by_column_ids("treatment_plan_items", "patient_id", patient_ids)
+    group_ids = {row["group_id"] for row in encounters if row.get("group_id") is not None}
+    encounter_groups = _select_by_ids("encounter_groups", group_ids)
 
     table_names = {row["name"] for row in db.fetchall("SELECT name FROM sqlite_master WHERE type = 'table'")}
     km_records = []
@@ -164,11 +166,13 @@ def _collect_package_data(user: User) -> dict[str, Any]:
     user_ids.update(row["doctor_id"] for row in patients if row.get("doctor_id") is not None)
     user_ids.update(row["doctor_id"] for row in encounters if row.get("doctor_id") is not None)
     user_ids.update(row["author_id"] for row in documents if row.get("author_id") is not None)
+    user_ids.update(row["created_by_id"] for row in encounter_groups if row.get("created_by_id") is not None)
 
     return {
         "users": _public_users(user_ids),
         "facilities": _select_by_ids("facilities", facility_ids),
         "patients": patients,
+        "encounter_groups": encounter_groups,
         "encounters": encounters,
         "documents": documents,
         "treatment_plan_items": plan_items,
@@ -212,6 +216,7 @@ def export_sync_package(
             "users": _table_columns("users"),
             "facilities": _table_columns("facilities"),
             "patients": _table_columns("patients"),
+            "encounter_groups": _table_columns("encounter_groups"),
             "encounters": _table_columns("encounters"),
             "documents": _table_columns("documents"),
             "treatment_plan_items": _table_columns("treatment_plan_items"),
@@ -294,6 +299,7 @@ def preview_sync_import(
     preview = {}
     for table_name in (
         "patients",
+        "encounter_groups",
         "encounters",
         "documents",
         "treatment_plan_items",
@@ -691,6 +697,7 @@ def _apply_encounters(
     user_map: dict[int, int | None],
     document_map: dict[int, int],
     plan_item_map: dict[int, int],
+    group_map: dict[int, int],
 ) -> dict[str, int]:
     summary = _empty_import_summary()
     columns = _table_columns("encounters")
@@ -707,7 +714,23 @@ def _apply_encounters(
         prepared["treatment_plan_item_id"] = plan_item_map.get(
             prepared.get("treatment_plan_item_id")
         )
+        prepared["group_id"] = group_map.get(prepared.get("group_id"))
         _insert_or_update_by_uuid("encounters", prepared, columns, summary)
+    return summary
+
+
+def _apply_encounter_groups(
+    groups: list[dict[str, Any]],
+    user_map: dict[int, int | None],
+) -> dict[str, int]:
+    summary = _empty_import_summary()
+    columns = _table_columns("encounter_groups")
+    for row in groups:
+        prepared = dict(row)
+        created_by_id = prepared.get("created_by_id")
+        if created_by_id is not None:
+            prepared["created_by_id"] = user_map.get(created_by_id)
+        _insert_or_update_by_uuid("encounter_groups", prepared, columns, summary)
     return summary
 
 
@@ -783,6 +806,7 @@ def apply_sync_import(
         "users": users_summary,
         "facilities": facilities_summary,
         "patients": patient_result["summary"],
+        "encounter_groups": _empty_import_summary(),
         "documents": _empty_import_summary(),
         "treatment_plan_items": _empty_import_summary(),
         "encounters": _empty_import_summary(),
@@ -795,6 +819,7 @@ def apply_sync_import(
         patients = data.get("patients", [])
         documents = data.get("documents", [])
         plan_items = data.get("treatment_plan_items", [])
+        encounter_groups = data.get("encounter_groups", [])
         encounters = data.get("encounters", [])
         km_records = data.get("km_records", [])
 
@@ -816,12 +841,19 @@ def apply_sync_import(
         )
         plan_item_map = _remote_to_local_id_map("treatment_plan_items", plan_items)
 
+        summaries["encounter_groups"] = _apply_encounter_groups(
+            encounter_groups,
+            user_map,
+        )
+        group_map = _remote_to_local_id_map("encounter_groups", encounter_groups)
+
         summaries["encounters"] = _apply_encounters(
             encounters,
             patient_map,
             user_map,
             document_map,
             plan_item_map,
+            group_map,
         )
         encounter_map = _remote_to_local_id_map("encounters", encounters)
         summaries["relinked_documents"] = _relink_document_encounters(
@@ -847,6 +879,7 @@ def apply_sync_import(
         "patients",
         "documents",
         "treatment_plan_items",
+        "encounter_groups",
         "encounters",
         "km_records",
     ):

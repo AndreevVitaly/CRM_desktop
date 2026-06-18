@@ -223,6 +223,7 @@ class Database:
                 status TEXT DEFAULT 'PLANNED',
                 treatment_plan_item_id INTEGER,
                 document_id INTEGER,
+                group_id INTEGER,
                 meeting_result TEXT,
                 patient_info TEXT,
                 meeting_description TEXT,
@@ -238,7 +239,24 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (patient_id) REFERENCES patients(id),
                 FOREIGN KEY (doctor_id) REFERENCES users(id),
-                FOREIGN KEY (document_id) REFERENCES documents(id)
+                FOREIGN KEY (document_id) REFERENCES documents(id),
+                FOREIGN KEY (group_id) REFERENCES encounter_groups(id)
+            )
+        """
+        )
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS encounter_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT UNIQUE,
+                name TEXT NOT NULL,
+                category TEXT DEFAULT 'personal',
+                description TEXT,
+                created_by_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by_id) REFERENCES users(id)
             )
         """
         )
@@ -246,6 +264,7 @@ class Database:
         # Миграция: добавление новых полей для encounters
         encounter_new_columns = [
             ("document_id", "INTEGER"),
+            ("group_id", "INTEGER"),
             ("meeting_result", "TEXT"),
             ("patient_info", "TEXT"),
             ("meeting_description", "TEXT"),
@@ -635,6 +654,7 @@ class Database:
         sync_columns = {
             "patients": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
             "encounters": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
+            "encounter_groups": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
             "documents": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
             "treatment_plan_items": [("uuid", "TEXT")],
             "km_records": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
@@ -661,7 +681,7 @@ class Database:
             except Exception:
                 pass
 
-        for table_name in ("patients", "encounters", "documents", "km_records"):
+        for table_name in ("patients", "encounters", "encounter_groups", "documents", "km_records"):
             try:
                 cursor.execute(
                     f"""
@@ -1393,6 +1413,144 @@ class PatientMeetingSchedule:
 
 
 @dataclass
+class EncounterGroup:
+    id: Optional[int] = None
+    uuid: str = ""
+    name: str = ""
+    category: str = "personal"
+    description: str = ""
+    created_by_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    CATEGORY_PERSONAL = "personal"
+    CATEGORY_EPIDEMIC = "epidemic"
+    CATEGORY_OTHER = "other"
+
+    CATEGORY_CHOICES = [
+        (CATEGORY_PERSONAL, "Персональное заболевание"),
+        (CATEGORY_EPIDEMIC, "Возможная эпидемия"),
+        (CATEGORY_OTHER, "Прочее"),
+    ]
+
+    def __post_init__(self):
+        if not self.uuid:
+            self.uuid = str(uuid_lib.uuid4())
+        if self.created_at is None:
+            self.created_at = datetime.now()
+        if self.updated_at is None:
+            self.updated_at = datetime.now()
+
+    @property
+    def category_display(self) -> str:
+        return dict(self.CATEGORY_CHOICES).get(self.category, self.category or "—")
+
+    def save(self):
+        self.updated_at = datetime.now()
+        cursor = db.execute(
+            """
+            INSERT OR REPLACE INTO encounter_groups
+            (id, uuid, name, category, description, created_by_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                self.id,
+                self.uuid,
+                self.name,
+                self.category,
+                self.description,
+                self.created_by_id,
+                self.created_at.isoformat() if self.created_at else None,
+                self.updated_at.isoformat() if self.updated_at else None,
+            ),
+        )
+        db.commit()
+        if self.id is None:
+            self.id = db.lastrowid()
+
+    @classmethod
+    def _from_row(cls, row: dict) -> "EncounterGroup":
+        data = dict(row)
+        for field_name in ("created_at", "updated_at"):
+            if data.get(field_name) and isinstance(data[field_name], str):
+                for fmt in [
+                    "%Y-%m-%d %H:%M:%S.%f",
+                    "%Y-%m-%d %H:%M:%S",
+                    "%Y-%m-%dT%H:%M:%S.%f",
+                    "%Y-%m-%dT%H:%M:%S",
+                ]:
+                    try:
+                        data[field_name] = datetime.strptime(data[field_name], fmt)
+                        break
+                    except ValueError:
+                        continue
+        return cls(**data)
+
+    @classmethod
+    def get_by_id(cls, group_id: int) -> Optional["EncounterGroup"]:
+        row = db.fetchone("SELECT * FROM encounter_groups WHERE id = ?", (group_id,))
+        if row:
+            return cls._from_row(row)
+        return None
+
+    @classmethod
+    def get_all(cls) -> List["EncounterGroup"]:
+        rows = db.fetchall(
+            "SELECT * FROM encounter_groups ORDER BY lower(name), created_at DESC"
+        )
+        return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    def create_quick(
+        cls,
+        name: str,
+        category: str = CATEGORY_PERSONAL,
+        created_by_id: Optional[int] = None,
+    ) -> "EncounterGroup":
+        group = cls(
+            name=name.strip(),
+            category=category or cls.CATEGORY_PERSONAL,
+            created_by_id=created_by_id,
+        )
+        group.save()
+        return group
+
+    @classmethod
+    def get_summary(cls, user: Optional[User] = None) -> List[dict]:
+        query = """
+            SELECT
+                g.*,
+                COUNT(e.id) AS encounters_count,
+                MAX(COALESCE(d.doc_date, e.started_at)) AS last_encounter_at,
+                GROUP_CONCAT(DISTINCT p.callsign) AS patient_names,
+                GROUP_CONCAT(DISTINCT p.personal_number) AS patient_numbers
+            FROM encounter_groups g
+            LEFT JOIN encounters e ON e.group_id = g.id AND e.status != 'CANCELLED'
+            LEFT JOIN patients p ON p.id = e.patient_id
+            LEFT JOIN documents d ON d.id = e.document_id
+            WHERE 1=1
+        """
+        params = []
+
+        if user:
+            if user.role == User.ROLE_LEAD:
+                query += " AND (p.department = ? OR e.id IS NULL)"
+                params.append(user.department)
+            elif user.role == User.ROLE_DOCTOR:
+                query += " AND (e.doctor_id = ? OR e.id IS NULL)"
+                params.append(user.id)
+            elif user.role == User.ROLE_NURSE:
+                query += " AND (p.department = ? OR e.id IS NULL)"
+                params.append(user.department)
+
+        query += """
+            GROUP BY g.id
+            ORDER BY COALESCE(last_encounter_at, g.updated_at) DESC, lower(g.name)
+        """
+        return [dict(row) for row in db.fetchall(query, tuple(params))]
+
+
+@dataclass
 class Encounter:
     id: Optional[int] = None
     uuid: str = ""
@@ -1404,6 +1562,7 @@ class Encounter:
     status: str = "PLANNED"
     treatment_plan_item_id: Optional[int] = None
     document_id: Optional[int] = None  # Связь с документом
+    group_id: Optional[int] = None  # Объединяющий признак встречи
     meeting_result: str = ""  # Результат встречи
     patient_info: str = ""  # Информация от пациента
     meeting_description: str = ""  # Описание встречи
@@ -1488,17 +1647,23 @@ class Encounter:
             return Document.get_by_id(self.document_id)
         return None
 
+    @property
+    def group(self) -> Optional[EncounterGroup]:
+        if self.group_id:
+            return EncounterGroup.get_by_id(self.group_id)
+        return None
+
     def save(self):
         self.updated_at = datetime.now()
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO encounters
             (id, uuid, patient_id, doctor_id, started_at, finished_at, reason, status, treatment_plan_item_id,
-             document_id, meeting_result, patient_info, meeting_description, information_relevance,
+             document_id, group_id, meeting_result, patient_info, meeting_description, information_relevance,
              information_importance, information_timeliness, information_completeness,
              information_novelty, information_reliability, patient_tasks, patient_measures,
              general_measures, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -1511,6 +1676,7 @@ class Encounter:
                 self.status,
                 self.treatment_plan_item_id,
                 self.document_id,
+                self.group_id,
                 self.meeting_result,
                 self.patient_info,
                 self.meeting_description,
