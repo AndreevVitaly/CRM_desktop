@@ -56,6 +56,15 @@ class PatientsPage(QWidget):
         self.setLayout(layout)
         self.setStyleSheet(get_main_stylesheet())
 
+        panel = self.findChild(QFrame, "patientsFilterPanel")
+        if panel:
+            panel.setStyleSheet(self._filter_panel_style())
+
+        for combo in self.findChildren(QComboBox, "filterCombo"):
+            combo.setStyleSheet(self._filter_combo_style())
+        for button in self.findChildren(QPushButton, "filterButton"):
+            button.setStyleSheet(self._filter_button_style())
+
         # Загрузка данных
         self._load_patients()
 
@@ -69,21 +78,10 @@ class PatientsPage(QWidget):
 
     def _create_filter_panel(self) -> QFrame:
         """Панель фильтров"""
-        colors = get_colors()
-
         panel = QFrame()
-        panel.setObjectName("card")
+        panel.setObjectName("patientsFilterPanel")
         panel.setFixedHeight(128)
-        panel.setStyleSheet(
-            f"""
-            QFrame#card {{
-                background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
-                border-radius: {RADIUS['lg']}px;
-                padding: 12px;
-            }}
-        """
-        )
+        panel.setStyleSheet(self._filter_panel_style())
 
         layout = QVBoxLayout(panel)
         layout.setSpacing(10)
@@ -99,6 +97,7 @@ class PatientsPage(QWidget):
         self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText("Поиск по позывному, личному номеру...")
         self.search_input.setFixedWidth(300)
+        self.search_input.setFixedHeight(34)
         self.search_input.textChanged.connect(self._on_search_changed)
         filters_layout.addWidget(self.search_input)
 
@@ -111,32 +110,43 @@ class PatientsPage(QWidget):
         self.type_combo.addItem("Дети", "child")
         self.type_combo.addItem("Неопределённые", "undefined")
         self.type_combo.setFixedWidth(140)
+        self.type_combo.setFixedHeight(34)
+        self.type_combo.setStyleSheet(self._filter_combo_style())
         self.type_combo.currentIndexChanged.connect(self._on_filter_changed)
         filters_layout.addWidget(self.type_combo)
 
         # Место размещения
         self.facility_combo = QComboBox()
         self.facility_combo.setFrame(False)
+        self.facility_combo.setObjectName("filterCombo")
         self.facility_combo.addItem("Все места", 0)
         facilities = Facility.get_all()
         for f in facilities:
             self.facility_combo.addItem(f.name, f.id)
         self.facility_combo.setFixedWidth(180)
+        self.facility_combo.setFixedHeight(34)
+        self.facility_combo.setStyleSheet(self._filter_combo_style())
         self.facility_combo.currentIndexChanged.connect(self._on_filter_changed)
         filters_layout.addWidget(self.facility_combo)
 
         self.department_combo = QComboBox()
         self.department_combo.setFrame(False)
+        self.department_combo.setObjectName("filterCombo")
         self.department_combo.addItem("Все отделения", "")
         for dept_code, dept_name in get_department_choices(include_inactive=False):
             self.department_combo.addItem(dept_name, dept_code)
         self.department_combo.setFixedWidth(190)
+        self.department_combo.setFixedHeight(34)
+        self.department_combo.setStyleSheet(self._filter_combo_style())
         self.department_combo.currentIndexChanged.connect(self._on_department_changed)
         filters_layout.addWidget(self.department_combo)
 
         self.doctor_combo = QComboBox()
         self.doctor_combo.setFrame(False)
+        self.doctor_combo.setObjectName("filterCombo")
         self.doctor_combo.setFixedWidth(210)
+        self.doctor_combo.setFixedHeight(34)
+        self.doctor_combo.setStyleSheet(self._filter_combo_style())
         self.doctor_combo.currentIndexChanged.connect(self._on_filter_changed)
         filters_layout.addWidget(self.doctor_combo)
         self._populate_doctor_filter()
@@ -152,72 +162,29 @@ class PatientsPage(QWidget):
         # Кнопка добавления (ADMIN, REG, LEAD)
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             add_btn = QPushButton("Добавить пациента")
-            add_btn.setObjectName("actionButton")
-            add_btn.setFixedHeight(36)
+            add_btn.setObjectName("filterButton")
+            add_btn.setFixedHeight(34)
             add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            add_btn.setStyleSheet(
-                f"""
-                QPushButton {{
-                    background-color: transparent;
-                    border: 2px solid {colors['line']};
-                    border-radius: {RADIUS['md']}px;
-                    padding: 6px 16px;
-                    font-weight: 600;
-                    font-size: {FONTS['size_small']}pt;
-                    color: {colors['text']};
-                }}
-                QPushButton:hover {{
-                    background-color: {colors['accent_light']};
-                    border: 2px solid {colors['accent']};
-                    color: {colors['accent']};
-                }}
-                QPushButton:pressed {{
-                    background-color: #3B82F6;
-                    border: 2px solid #3B82F6;
-                    color: #FFFFFF;
-                }}
-            """
-            )
+            add_btn.setStyleSheet(self._filter_button_style())
             add_btn.clicked.connect(self._add_patient)
             actions_layout.addWidget(add_btn)
 
         # Кнопка справки (ADMIN, REG, LEAD)
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             cert_btn = QPushButton("Справка")
-            cert_btn.setObjectName("actionButton")
-            cert_btn.setFixedHeight(36)
+            cert_btn.setObjectName("filterButton")
+            cert_btn.setFixedHeight(34)
             cert_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            cert_btn.setStyleSheet(
-                f"""
-                QPushButton {{
-                    background-color: transparent;
-                    border: 2px solid {colors['line']};
-                    border-radius: {RADIUS['md']}px;
-                    padding: 6px 16px;
-                    font-weight: 600;
-                    font-size: {FONTS['size_small']}pt;
-                    color: {colors['text']};
-                }}
-                QPushButton:hover {{
-                    background-color: {colors['accent_light']};
-                    border: 2px solid {colors['accent']};
-                    color: {colors['accent']};
-                }}
-                QPushButton:pressed {{
-                    background-color: #3B82F6;
-                    border: 2px solid #3B82F6;
-                    color: #FFFFFF;
-                }}
-            """
-            )
+            cert_btn.setStyleSheet(self._filter_button_style())
             cert_btn.clicked.connect(self._generate_certificate_selected)
             actions_layout.addWidget(cert_btn)
 
         # Кнопка сброса
-        reset_btn = QPushButton("🔄 Сброс")
-        reset_btn.setObjectName("actionButton")
-        reset_btn.setFixedHeight(36)
+        reset_btn = QPushButton("Сброс")
+        reset_btn.setObjectName("filterButton")
+        reset_btn.setFixedHeight(34)
         reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset_btn.setStyleSheet(self._filter_button_style())
         reset_btn.clicked.connect(self._reset_filters)
         actions_layout.addWidget(reset_btn)
         actions_layout.addStretch()
@@ -226,6 +193,78 @@ class PatientsPage(QWidget):
         layout.addLayout(actions_layout)
 
         return panel
+
+    def _filter_panel_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QFrame#patientsFilterPanel {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['lg']}px;
+                padding: 12px;
+            }}
+        """
+
+    def _filter_combo_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QComboBox#filterCombo {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 12px;
+                min-height: 0px;
+                font-weight: 500;
+                font-size: {FONTS['size_small']}pt;
+                color: {colors['text']};
+            }}
+            QComboBox#filterCombo:hover {{
+                border: 1px solid {colors['accent']};
+            }}
+            QComboBox#filterCombo:focus {{
+                border: 1px solid {colors['accent']};
+            }}
+            QComboBox#filterCombo::drop-down {{
+                border: none;
+                width: 22px;
+            }}
+            QComboBox#filterCombo::down-arrow {{
+                width: 8px;
+                height: 8px;
+            }}
+            QComboBox#filterCombo QAbstractItemView {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                selection-background-color: {colors['accent_light']};
+                selection-color: {colors['accent']};
+                outline: none;
+            }}
+        """
+
+    def _filter_button_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QPushButton#filterButton {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 12px;
+                min-height: 0px;
+                font-weight: 500;
+                font-size: {FONTS['size_xs']}pt;
+                color: {colors['text']};
+            }}
+            QPushButton#filterButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 1px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#filterButton:pressed {{
+                background-color: {colors['accent']};
+                border: 1px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
 
     def _create_table(self) -> QTableWidget:
         """Таблица пациентов"""
@@ -578,7 +617,16 @@ class PatientsPage(QWidget):
         """Обновление стилей при смене темы"""
         self.setStyleSheet(get_main_stylesheet())
 
+        panel = self.findChild(QFrame, "patientsFilterPanel")
+        if panel:
+            panel.setStyleSheet(self._filter_panel_style())
+
         # Обновляем все виджеты на странице
+        for combo in self.findChildren(QComboBox, "filterCombo"):
+            combo.setStyleSheet(self._filter_combo_style())
+        for button in self.findChildren(QPushButton, "filterButton"):
+            button.setStyleSheet(self._filter_button_style())
+
         for widget in self.findChildren(QLabel):
             widget.style().unpolish(widget)
             widget.style().polish(widget)

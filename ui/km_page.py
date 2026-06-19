@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QLineEdit,
+    QComboBox,
 )
 from PyQt6.QtCore import Qt
 
@@ -53,21 +54,10 @@ class KmPage(QWidget):
 
     def _create_filter_panel(self) -> QFrame:
         """Панель фильтров"""
-        colors = get_colors()
-
         panel = QFrame()
-        panel.setObjectName("card")
+        panel.setObjectName("kmFilterPanel")
         panel.setFixedHeight(80)
-        panel.setStyleSheet(
-            f"""
-            QFrame#card {{
-                background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
-                border-radius: {RADIUS['lg']}px;
-                padding: 12px;
-            }}
-        """
-        )
+        panel.setStyleSheet(self._filter_panel_style())
 
         layout = QHBoxLayout(panel)
         layout.setSpacing(12)
@@ -78,21 +68,62 @@ class KmPage(QWidget):
         layout.addWidget(search_label)
 
         self.search_input = QLineEdit()
+        self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText("Позывной, личный номер или ФИО")
         self.search_input.setFixedWidth(250)
-        self.search_input.setFixedHeight(42)
+        self.search_input.setFixedHeight(34)
         self.search_input.textChanged.connect(self._load_km_records)
         layout.addWidget(self.search_input)
 
         layout.addStretch()
 
         # Кнопка обновления
-        refresh_btn = QPushButton("🔄 Обновить")
-        refresh_btn.setFixedHeight(42)
+        refresh_btn = QPushButton("Обновить")
+        refresh_btn.setObjectName("filterButton")
+        refresh_btn.setFixedHeight(34)
+        refresh_btn.setMinimumWidth(92)
+        refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        refresh_btn.setStyleSheet(self._filter_button_style())
         refresh_btn.clicked.connect(self._load_km_records)
         layout.addWidget(refresh_btn)
 
         return panel
+
+    def _filter_panel_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QFrame#kmFilterPanel {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['lg']}px;
+                padding: 12px;
+            }}
+        """
+
+    def _filter_button_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QPushButton#filterButton {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 12px;
+                min-height: 0px;
+                font-weight: 500;
+                font-size: {FONTS['size_xs']}pt;
+                color: {colors['text']};
+            }}
+            QPushButton#filterButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 1px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#filterButton:pressed {{
+                background-color: {colors['accent']};
+                border: 1px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
 
     def _create_table(self) -> QTableWidget:
         """Таблица КМ"""
@@ -221,6 +252,12 @@ class KmPage(QWidget):
         self.setStyleSheet(
             f"background-color: {colors['bg']}; color: {colors['text']};"
         )
+
+        panel = self.findChild(QFrame, "kmFilterPanel")
+        if panel:
+            panel.setStyleSheet(self._filter_panel_style())
+        for button in self.findChildren(QPushButton, "filterButton"):
+            button.setStyleSheet(self._filter_button_style())
 
         for widget in self.findChildren(QLabel):
             widget.style().unpolish(widget)

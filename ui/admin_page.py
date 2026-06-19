@@ -60,9 +60,8 @@ class AdminPage(QWidget):
         layout.setSpacing(scaled(16))
 
         title = QLabel("Администрирование")
-        title.setStyleSheet(
-            f"font-size: {FONTS['size_header']}pt; font-weight: 700; color: {colors['text']};"
-        )
+        title.setObjectName("adminTitle")
+        title.setStyleSheet(self._title_style())
         layout.addWidget(title)
 
         layout.addWidget(self._create_database_card())
@@ -80,34 +79,75 @@ class AdminPage(QWidget):
         colors = get_colors()
         card = QFrame()
         card.setObjectName("adminCard")
-        card.setStyleSheet(
-            f"""
-            QFrame#adminCard {{
-                background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
-                border-radius: {RADIUS['md']}px;
-            }}
-            """
-        )
+        card.setStyleSheet(self._card_style())
         layout = QVBoxLayout(card)
         layout.setContentsMargins(scaled(16), scaled(14), scaled(16), scaled(16))
         layout.setSpacing(scaled(12))
 
         label = QLabel(title)
-        label.setStyleSheet(
-            f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['text']};"
-        )
+        label.setObjectName("adminCardTitle")
+        label.setStyleSheet(self._card_title_style())
         layout.addWidget(label)
         return card, layout
 
     def _button(self, text: str) -> QPushButton:
         colors = get_colors()
         btn = QPushButton(text)
+        btn.setObjectName("adminButton")
         btn.setFixedHeight(scaled(28, 24))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setStyleSheet(
-            f"""
-            QPushButton {{
+        btn.setStyleSheet(self._button_style())
+        return btn
+
+    def _card_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QFrame#adminCard {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+            }}
+        """
+
+    def _title_style(self) -> str:
+        colors = get_colors()
+        return (
+            f"font-size: {FONTS['size_header']}pt; "
+            f"font-weight: 700; color: {colors['text']};"
+        )
+
+    def _card_title_style(self) -> str:
+        colors = get_colors()
+        return (
+            f"font-size: {FONTS['size_large']}pt; "
+            f"font-weight: 700; color: {colors['text']}; "
+            "background-color: transparent;"
+        )
+
+    def _muted_label_style(self) -> str:
+        colors = get_colors()
+        return (
+            f"color: {colors['text_muted']}; "
+            f"font-size: {FONTS['size_small']}pt; "
+            "font-weight: 600; background-color: transparent;"
+        )
+
+    def _value_label_style(self) -> str:
+        colors = get_colors()
+        return (
+            f"color: {colors['text']}; "
+            f"font-size: {FONTS['size_medium']}pt; "
+            "font-weight: 500; background-color: transparent;"
+        )
+
+    def _note_label_style(self) -> str:
+        colors = get_colors()
+        return f"color: {colors['text_muted']}; background-color: transparent;"
+
+    def _button_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QPushButton#adminButton {{
                 background-color: transparent;
                 border: 1px solid {colors['line']};
                 border-radius: {RADIUS['sm']}px;
@@ -116,19 +156,17 @@ class AdminPage(QWidget):
                 font-size: {FONTS['size_xs']}pt;
                 color: {colors['text']};
             }}
-            QPushButton:hover {{
+            QPushButton#adminButton:hover {{
                 background-color: {colors['accent_light']};
                 border: 1px solid {colors['accent']};
                 color: {colors['accent']};
             }}
-            QPushButton:pressed {{
+            QPushButton#adminButton:pressed {{
                 background-color: {colors['accent']};
                 border: 1px solid {colors['accent']};
                 color: #FFFFFF;
             }}
-            """
-        )
-        return btn
+        """
 
     def _create_database_card(self) -> QFrame:
         card, layout = self._card("База данных")
@@ -154,16 +192,16 @@ class AdminPage(QWidget):
             grid.setRowMinimumHeight(row, scaled(22, 18))
 
             name_label = QLabel(name)
+            name_label.setObjectName("adminMutedLabel")
             name_label.setFixedWidth(scaled(110, 92))
             name_label.setMinimumHeight(scaled(22, 18))
             name_label.setAlignment(
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
             )
-            name_label.setStyleSheet(
-                f"color: {colors['text_muted']}; font-size: {FONTS['size_small']}pt; font-weight: 600; background-color: transparent;"
-            )
+            name_label.setStyleSheet(self._muted_label_style())
 
             value_label = QLabel(str(value))
+            value_label.setObjectName("adminValueLabel")
             value_label.setMinimumHeight(scaled(22, 18))
             value_label.setWordWrap(True)
             value_label.setTextInteractionFlags(
@@ -172,9 +210,7 @@ class AdminPage(QWidget):
             value_label.setAlignment(
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
             )
-            value_label.setStyleSheet(
-                f"color: {colors['text']}; font-size: {FONTS['size_medium']}pt; font-weight: 500; background-color: transparent;"
-            )
+            value_label.setStyleSheet(self._value_label_style())
 
             grid.addWidget(name_label, row, 0)
             grid.addWidget(value_label, row, 1)
@@ -314,7 +350,8 @@ class AdminPage(QWidget):
             "Экспорт создает защищенный пакет. Импорт применяет пользователей, места, пациентов, документы, встречи, планы и КМ после подтверждения."
         )
         note.setWordWrap(True)
-        note.setStyleSheet(f"color: {colors['text_muted']};")
+        note.setObjectName("adminNoteLabel")
+        note.setStyleSheet(self._note_label_style())
         layout.addWidget(note)
 
         actions = QHBoxLayout()
@@ -332,6 +369,31 @@ class AdminPage(QWidget):
         actions.addStretch()
         layout.addLayout(actions)
         return card
+
+    def update_styles(self):
+        colors = get_colors()
+        self.setStyleSheet(
+            f"background-color: {colors['bg']}; color: {colors['text']};"
+        )
+
+        for card in self.findChildren(QFrame, "adminCard"):
+            card.setStyleSheet(self._card_style())
+        for label in self.findChildren(QLabel, "adminTitle"):
+            label.setStyleSheet(self._title_style())
+        for label in self.findChildren(QLabel, "adminCardTitle"):
+            label.setStyleSheet(self._card_title_style())
+        for label in self.findChildren(QLabel, "adminMutedLabel"):
+            label.setStyleSheet(self._muted_label_style())
+        for label in self.findChildren(QLabel, "adminValueLabel"):
+            label.setStyleSheet(self._value_label_style())
+        for label in self.findChildren(QLabel, "adminNoteLabel"):
+            label.setStyleSheet(self._note_label_style())
+        for button in self.findChildren(QPushButton, "adminButton"):
+            button.setStyleSheet(self._button_style())
+
+        for widget in self.findChildren(QTableWidget):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
 
     def _backup_database(self):
         source = get_db_path()

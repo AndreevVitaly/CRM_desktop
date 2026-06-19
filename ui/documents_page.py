@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from models.db_models import User, Document, DOCUMENT_TYPE_PLAN, DOCUMENT_TYPE_MEETING
-from ui.styles import get_colors, RADIUS, get_main_stylesheet
+from ui.styles import get_colors, RADIUS, FONTS, get_main_stylesheet
 
 
 class DocumentsPage(QWidget):
@@ -58,21 +58,10 @@ class DocumentsPage(QWidget):
         self._load_documents()
 
     def _create_filter_panel(self) -> QFrame:
-        colors = get_colors()
-
         panel = QFrame()
-        panel.setObjectName("card")
+        panel.setObjectName("documentsFilterPanel")
         panel.setFixedHeight(80)
-        panel.setStyleSheet(
-            f"""
-            QFrame#card {{
-                background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
-                border-radius: {RADIUS['lg']}px;
-                padding: 12px;
-            }}
-        """
-        )
+        panel.setStyleSheet(self._filter_panel_style())
 
         layout = QHBoxLayout(panel)
         layout.setSpacing(12)
@@ -83,6 +72,7 @@ class DocumentsPage(QWidget):
             "Поиск по пациенту, номеру документа, типу, содержанию, месту приобщения..."
         )
         self.search_input.setFixedWidth(520)
+        self.search_input.setFixedHeight(34)
         self.search_input.textChanged.connect(self._load_documents)
         layout.addWidget(self.search_input)
 
@@ -90,18 +80,60 @@ class DocumentsPage(QWidget):
 
         if self.user.role != User.ROLE_NURSE:
             edit_btn = QPushButton("Редактировать")
-            edit_btn.setObjectName("actionButton")
-            edit_btn.setFixedHeight(36)
+            edit_btn.setObjectName("filterButton")
+            edit_btn.setFixedHeight(34)
+            edit_btn.setMinimumWidth(118)
+            edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            edit_btn.setStyleSheet(self._filter_button_style())
             edit_btn.clicked.connect(self._edit_selected_document)
             layout.addWidget(edit_btn)
 
         refresh_btn = QPushButton("Обновить")
-        refresh_btn.setObjectName("actionButton")
-        refresh_btn.setFixedHeight(36)
+        refresh_btn.setObjectName("filterButton")
+        refresh_btn.setFixedHeight(34)
+        refresh_btn.setMinimumWidth(92)
+        refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        refresh_btn.setStyleSheet(self._filter_button_style())
         refresh_btn.clicked.connect(self._load_documents)
         layout.addWidget(refresh_btn)
 
         return panel
+
+    def _filter_panel_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QFrame#documentsFilterPanel {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['lg']}px;
+                padding: 12px;
+            }}
+        """
+
+    def _filter_button_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QPushButton#filterButton {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 12px;
+                min-height: 0px;
+                font-weight: 500;
+                font-size: {FONTS['size_xs']}pt;
+                color: {colors['text']};
+            }}
+            QPushButton#filterButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 1px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#filterButton:pressed {{
+                background-color: {colors['accent']};
+                border: 1px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
 
     def _create_table(self) -> QTableWidget:
         table = QTableWidget()
@@ -360,3 +392,9 @@ class DocumentsPage(QWidget):
         self.setStyleSheet(
             f"background-color: {colors['bg']}; color: {colors['text']};"
         )
+
+        panel = self.findChild(QFrame, "documentsFilterPanel")
+        if panel:
+            panel.setStyleSheet(self._filter_panel_style())
+        for button in self.findChildren(QPushButton, "filterButton"):
+            button.setStyleSheet(self._filter_button_style())

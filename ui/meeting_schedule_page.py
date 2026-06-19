@@ -185,23 +185,14 @@ class MeetingSchedulePage(QWidget):
 
         self.setLayout(layout)
         self.setStyleSheet(get_main_stylesheet())
+        self._apply_filter_styles()
         self._load_data()
 
     def _create_filter_panel(self) -> QFrame:
-        colors = get_colors()
         panel = QFrame()
-        panel.setObjectName("card")
+        panel.setObjectName("scheduleFilterPanel")
         panel.setFixedHeight(128)
-        panel.setStyleSheet(
-            f"""
-            QFrame#card {{
-                background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
-                border-radius: {RADIUS['lg']}px;
-                padding: 12px;
-            }}
-            """
-        )
+        panel.setStyleSheet(self._filter_panel_style())
 
         layout = QVBoxLayout(panel)
         layout.setSpacing(10)
@@ -216,29 +207,37 @@ class MeetingSchedulePage(QWidget):
             "Поиск по позывному, личному номеру, документу..."
         )
         self.search_input.setFixedWidth(310)
+        self.search_input.setFixedHeight(34)
         self.search_input.textChanged.connect(self._on_search_changed)
         top.addWidget(self.search_input)
 
         self.month_combo = QComboBox()
         self.month_combo.setFrame(False)
+        self.month_combo.setObjectName("filterCombo")
         for label, value in self.MONTHS:
             self.month_combo.addItem(label, value)
         self.month_combo.setCurrentIndex(self.selected_month - 1)
         self.month_combo.setFixedWidth(140)
+        self.month_combo.setFixedHeight(34)
+        self.month_combo.setStyleSheet(self._filter_combo_style())
         self.month_combo.currentIndexChanged.connect(self._on_month_changed)
         top.addWidget(self.month_combo)
 
         self.year_combo = QComboBox()
         self.year_combo.setFrame(False)
+        self.year_combo.setObjectName("filterCombo")
         for year in range(self.selected_year - 5, self.selected_year + 6):
             self.year_combo.addItem(str(year), year)
         self.year_combo.setCurrentText(str(self.selected_year))
         self.year_combo.setFixedWidth(110)
+        self.year_combo.setFixedHeight(34)
+        self.year_combo.setStyleSheet(self._filter_combo_style())
         self.year_combo.currentIndexChanged.connect(self._on_month_changed)
         top.addWidget(self.year_combo)
 
         self.department_combo = QComboBox()
         self.department_combo.setFrame(False)
+        self.department_combo.setObjectName("filterCombo")
         self.department_combo.addItem("Все отделения", "")
         if self.user.role in (User.ROLE_LEAD, User.ROLE_NURSE):
             self.department_combo.addItem(self.user.department_display, self.user.department)
@@ -248,12 +247,17 @@ class MeetingSchedulePage(QWidget):
             for dept_code, dept_name in get_department_choices(include_inactive=False):
                 self.department_combo.addItem(dept_name, dept_code)
         self.department_combo.setFixedWidth(190)
+        self.department_combo.setFixedHeight(34)
+        self.department_combo.setStyleSheet(self._filter_combo_style())
         self.department_combo.currentIndexChanged.connect(self._on_department_changed)
         top.addWidget(self.department_combo)
 
         self.doctor_combo = QComboBox()
         self.doctor_combo.setFrame(False)
+        self.doctor_combo.setObjectName("filterCombo")
         self.doctor_combo.setFixedWidth(220)
+        self.doctor_combo.setFixedHeight(34)
+        self.doctor_combo.setStyleSheet(self._filter_combo_style())
         self.doctor_combo.currentIndexChanged.connect(self._on_filter_changed)
         top.addWidget(self.doctor_combo)
         self._populate_doctor_filter()
@@ -262,36 +266,48 @@ class MeetingSchedulePage(QWidget):
 
         self.type_combo = QComboBox()
         self.type_combo.setFrame(False)
+        self.type_combo.setObjectName("filterCombo")
         self.type_combo.addItem("Все типы", "")
         self.type_combo.addItem("Взрослые", "adult")
         self.type_combo.addItem("Дети", "child")
         self.type_combo.addItem("Неопределенные", "undefined")
         self.type_combo.setFixedWidth(150)
+        self.type_combo.setFixedHeight(34)
+        self.type_combo.setStyleSheet(self._filter_combo_style())
         self.type_combo.currentIndexChanged.connect(self._on_filter_changed)
         bottom.addWidget(self.type_combo)
 
         self.facility_combo = QComboBox()
         self.facility_combo.setFrame(False)
+        self.facility_combo.setObjectName("filterCombo")
         self.facility_combo.addItem("Все места", 0)
         for facility in Facility.get_all():
             self.facility_combo.addItem(facility.name, facility.id)
         self.facility_combo.setFixedWidth(210)
+        self.facility_combo.setFixedHeight(34)
+        self.facility_combo.setStyleSheet(self._filter_combo_style())
         self.facility_combo.currentIndexChanged.connect(self._on_filter_changed)
         bottom.addWidget(self.facility_combo)
 
         self.status_combo = QComboBox()
         self.status_combo.setFrame(False)
+        self.status_combo.setObjectName("filterCombo")
         self.status_combo.addItem("Все отметки", "")
         self.status_combo.addItem("Запланировано", PatientMeetingSchedule.STATUS_PLANNED)
         self.status_combo.addItem("Исполнено", PatientMeetingSchedule.STATUS_COMPLETED)
         self.status_combo.addItem("Без отметок", "EMPTY")
         self.status_combo.setFixedWidth(170)
+        self.status_combo.setFixedHeight(34)
+        self.status_combo.setStyleSheet(self._filter_combo_style())
         self.status_combo.currentIndexChanged.connect(self._on_filter_changed)
         bottom.addWidget(self.status_combo)
 
         reset_btn = QPushButton("Сброс")
-        reset_btn.setObjectName("actionButton")
-        reset_btn.setFixedHeight(36)
+        reset_btn.setObjectName("filterButton")
+        reset_btn.setFixedHeight(34)
+        reset_btn.setMinimumWidth(70)
+        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset_btn.setStyleSheet(self._filter_button_style())
         reset_btn.clicked.connect(self._reset_filters)
         bottom.addWidget(reset_btn)
         bottom.addStretch()
@@ -299,6 +315,87 @@ class MeetingSchedulePage(QWidget):
         layout.addLayout(top)
         layout.addLayout(bottom)
         return panel
+
+    def _filter_panel_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QFrame#scheduleFilterPanel {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['lg']}px;
+                padding: 12px;
+            }}
+        """
+
+    def _filter_combo_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QComboBox#filterCombo {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 12px;
+                min-height: 0px;
+                font-weight: 500;
+                font-size: {FONTS['size_small']}pt;
+                color: {colors['text']};
+            }}
+            QComboBox#filterCombo:hover {{
+                border: 1px solid {colors['accent']};
+            }}
+            QComboBox#filterCombo:focus {{
+                border: 1px solid {colors['accent']};
+            }}
+            QComboBox#filterCombo::drop-down {{
+                border: none;
+                width: 22px;
+            }}
+            QComboBox#filterCombo::down-arrow {{
+                width: 8px;
+                height: 8px;
+            }}
+            QComboBox#filterCombo QAbstractItemView {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                selection-background-color: {colors['accent_light']};
+                selection-color: {colors['accent']};
+                outline: none;
+            }}
+        """
+
+    def _filter_button_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QPushButton#filterButton {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 12px;
+                min-height: 0px;
+                font-weight: 500;
+                font-size: {FONTS['size_xs']}pt;
+                color: {colors['text']};
+            }}
+            QPushButton#filterButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 1px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#filterButton:pressed {{
+                background-color: {colors['accent']};
+                border: 1px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
+
+    def _apply_filter_styles(self):
+        panel = self.findChild(QFrame, "scheduleFilterPanel")
+        if panel:
+            panel.setStyleSheet(self._filter_panel_style())
+        for combo in self.findChildren(QComboBox, "filterCombo"):
+            combo.setStyleSheet(self._filter_combo_style())
+        for button in self.findChildren(QPushButton, "filterButton"):
+            button.setStyleSheet(self._filter_button_style())
 
     def _create_patient_table(self) -> QTableWidget:
         table = QTableWidget()
@@ -671,4 +768,5 @@ class MeetingSchedulePage(QWidget):
 
     def update_styles(self):
         self.setStyleSheet(get_main_stylesheet())
+        self._apply_filter_styles()
         self._render_tables()

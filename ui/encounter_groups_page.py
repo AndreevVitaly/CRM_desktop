@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from models.db_models import Encounter, EncounterGroup, User
-from ui.styles import get_colors, get_main_stylesheet
+from ui.styles import FONTS, RADIUS, get_colors, get_main_stylesheet
 
 
 class EncounterGroupDetailDialog(QDialog):
@@ -239,22 +239,30 @@ class EncounterGroupsPage(QWidget):
             "Поиск по условному наименованию, пациенту или личному номеру"
         )
         self.search_input.setMinimumWidth(320)
+        self.search_input.setFixedHeight(34)
         self.search_input.textChanged.connect(self._load_groups)
         filter_layout.addWidget(self.search_input)
 
         self.category_filter = QComboBox()
+        self.category_filter.setObjectName("filterCombo")
+        self.category_filter.setFrame(False)
         self.category_filter.addItem("Все признаки", "")
         for value, label in EncounterGroup.CATEGORY_CHOICES:
             self.category_filter.addItem(label, value)
+        self.category_filter.setFixedHeight(34)
+        self.category_filter.setFixedWidth(260)
+        self.category_filter.setStyleSheet(self._filter_combo_style())
         self.category_filter.currentIndexChanged.connect(self._load_groups)
         filter_layout.addWidget(self.category_filter)
 
         filter_layout.addStretch()
 
         refresh_btn = QPushButton("Обновить")
-        refresh_btn.setObjectName("actionButton")
-        refresh_btn.setFixedHeight(36)
+        refresh_btn.setObjectName("filterButton")
+        refresh_btn.setFixedHeight(34)
+        refresh_btn.setMinimumWidth(92)
         refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        refresh_btn.setStyleSheet(self._filter_button_style())
         refresh_btn.clicked.connect(self._load_groups)
         filter_layout.addWidget(refresh_btn)
 
@@ -292,6 +300,70 @@ class EncounterGroupsPage(QWidget):
 
         self.setStyleSheet(get_main_stylesheet())
         self._load_groups()
+
+    def _filter_combo_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QComboBox#filterCombo {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 30px 4px 12px;
+                color: {colors['text']};
+                font-size: {FONTS['size_small']}pt;
+                min-width: 0px;
+            }}
+            QComboBox#filterCombo:hover {{
+                border: 1px solid {colors['accent']};
+            }}
+            QComboBox#filterCombo:focus {{
+                border: 1px solid {colors['accent']};
+                background-color: {colors['accent_light']};
+            }}
+            QComboBox#filterCombo::drop-down {{
+                border: none;
+                width: 28px;
+            }}
+            QComboBox#filterCombo::down-arrow {{
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid {colors['text_muted']};
+                margin-right: 10px;
+            }}
+            QComboBox#filterCombo QAbstractItemView {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                selection-background-color: {colors['accent_light']};
+                selection-color: {colors['text']};
+                outline: none;
+            }}
+        """
+
+    def _filter_button_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QPushButton#filterButton {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 12px;
+                min-height: 0px;
+                font-weight: 500;
+                font-size: {FONTS['size_xs']}pt;
+                color: {colors['text']};
+            }}
+            QPushButton#filterButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 1px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#filterButton:pressed {{
+                background-color: {colors['accent']};
+                border: 1px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
 
     @staticmethod
     def _format_date(value: str | None) -> str:
@@ -395,4 +467,7 @@ class EncounterGroupsPage(QWidget):
 
     def update_theme(self):
         self.setStyleSheet(get_main_stylesheet())
+        self.category_filter.setStyleSheet(self._filter_combo_style())
+        for button in self.findChildren(QPushButton, "filterButton"):
+            button.setStyleSheet(self._filter_button_style())
         self._render_rows()

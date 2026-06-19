@@ -63,21 +63,10 @@ class UsersPage(QWidget):
 
     def _create_filter_panel(self) -> QFrame:
         """Панель фильтров"""
-        colors = get_colors()
-
         panel = QFrame()
-        panel.setObjectName("card")
+        panel.setObjectName("usersFilterPanel")
         panel.setFixedHeight(80)
-        panel.setStyleSheet(
-            f"""
-            QFrame#card {{
-                background-color: {colors['surface']};
-                border: 1px solid {colors['line']};
-                border-radius: {RADIUS['lg']}px;
-                padding: 12px;
-            }}
-        """
-        )
+        panel.setStyleSheet(self._filter_panel_style())
 
         layout = QHBoxLayout(panel)
         layout.setSpacing(12)
@@ -87,11 +76,13 @@ class UsersPage(QWidget):
         self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText("Поиск по ФИО...")
         self.search_input.setFixedWidth(300)
+        self.search_input.setFixedHeight(34)
         self.search_input.textChanged.connect(self._load_users)
         layout.addWidget(self.search_input)
 
         # Фильтр по роли
         self.role_combo = QComboBox()
+        self.role_combo.setObjectName("filterCombo")
         self.role_combo.setFrame(False)
         self.role_combo.addItem("Все роли", "")
         self.role_combo.addItem("Администратор", User.ROLE_ADMIN)
@@ -100,12 +91,14 @@ class UsersPage(QWidget):
         self.role_combo.addItem("Врач", User.ROLE_DOCTOR)
         self.role_combo.addItem("Медсестра", User.ROLE_NURSE)
         self.role_combo.setFixedWidth(180)
-        self.role_combo.setFixedHeight(40)
+        self.role_combo.setFixedHeight(34)
+        self.role_combo.setStyleSheet(self._filter_combo_style())
         self.role_combo.currentIndexChanged.connect(self._load_users)
         layout.addWidget(self.role_combo)
 
         # Фильтр по отделению
         self.dept_combo = QComboBox()
+        self.dept_combo.setObjectName("filterCombo")
         self.dept_combo.setFrame(False)
         self.dept_combo.addItem("Все отделения", "")
         for value, label in get_department_choices():
@@ -116,13 +109,64 @@ class UsersPage(QWidget):
                 self.dept_combo.setCurrentIndex(dept_index)
             self.dept_combo.setEnabled(False)
         self.dept_combo.setFixedWidth(180)
-        self.dept_combo.setFixedHeight(40)
+        self.dept_combo.setFixedHeight(34)
+        self.dept_combo.setStyleSheet(self._filter_combo_style())
         self.dept_combo.currentIndexChanged.connect(self._load_users)
         layout.addWidget(self.dept_combo)
 
         layout.addStretch()
 
         return panel
+
+    def _filter_panel_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QFrame#usersFilterPanel {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['lg']}px;
+                padding: 12px;
+            }}
+        """
+
+    def _filter_combo_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QComboBox#filterCombo {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 30px 4px 12px;
+                color: {colors['text']};
+                font-size: {FONTS['size_small']}pt;
+                min-width: 0px;
+            }}
+            QComboBox#filterCombo:hover {{
+                border: 1px solid {colors['accent']};
+            }}
+            QComboBox#filterCombo:focus {{
+                border: 1px solid {colors['accent']};
+                background-color: {colors['accent_light']};
+            }}
+            QComboBox#filterCombo::drop-down {{
+                border: none;
+                width: 28px;
+            }}
+            QComboBox#filterCombo::down-arrow {{
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid {colors['text_muted']};
+                margin-right: 10px;
+            }}
+            QComboBox#filterCombo QAbstractItemView {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                selection-background-color: {colors['accent_light']};
+                selection-color: {colors['text']};
+                outline: none;
+            }}
+        """
 
     def _create_table(self) -> QTableWidget:
         """Таблица пользователей"""
@@ -166,32 +210,10 @@ class UsersPage(QWidget):
 
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             add_btn = QPushButton("Добавить пользователя")
-            add_btn.setObjectName("actionButton")
-            add_btn.setFixedHeight(36)
+            add_btn.setObjectName("filterButton")
+            add_btn.setFixedHeight(34)
             add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            add_btn.setStyleSheet(
-                f"""
-                QPushButton {{
-                    background-color: transparent;
-                    border: 2px solid {colors['line']};
-                    border-radius: {RADIUS['md']}px;
-                    padding: 6px 16px;
-                    font-weight: 600;
-                    font-size: {FONTS['size_small']}pt;
-                    color: {colors['text']};
-                }}
-                QPushButton:hover {{
-                    background-color: {colors['accent_light']};
-                    border: 2px solid {colors['accent']};
-                    color: {colors['accent']};
-                }}
-                QPushButton:pressed {{
-                    background-color: #3B82F6;
-                    border: 2px solid #3B82F6;
-                    color: #FFFFFF;
-                }}
-            """
-            )
+            add_btn.setStyleSheet(self._filter_button_style())
             add_btn.clicked.connect(self._add_user)
             layout.addWidget(add_btn)
 
@@ -202,6 +224,31 @@ class UsersPage(QWidget):
         layout.addWidget(self.count_label)
 
         return panel
+
+    def _filter_button_style(self) -> str:
+        colors = get_colors()
+        return f"""
+            QPushButton#filterButton {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+                padding: 4px 12px;
+                min-height: 0px;
+                font-weight: 500;
+                font-size: {FONTS['size_xs']}pt;
+                color: {colors['text']};
+            }}
+            QPushButton#filterButton:hover {{
+                background-color: {colors['accent_light']};
+                border: 1px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#filterButton:pressed {{
+                background-color: {colors['accent']};
+                border: 1px solid {colors['accent']};
+                color: #FFFFFF;
+            }}
+        """
 
     def _load_users(self):
         """Загрузка пользователей"""
@@ -252,6 +299,9 @@ class UsersPage(QWidget):
 
             # Роль
             role_item = QTableWidgetItem(u.role_display)
+            role_item.setForeground(
+                QColor(self._get_role_color(u.role) if u.is_active else inactive_color)
+            )
             self.table.setItem(row, 2, role_item)
 
             # Отделение
@@ -271,8 +321,9 @@ class UsersPage(QWidget):
             # Статус
             status = "✅ Активен" if u.is_active else "⏸️ Заблокирован"
             status_item = QTableWidgetItem(status)
-            if not u.is_active:
-                status_item.setForeground(QColor(inactive_color))
+            status_item.setForeground(
+                QColor(active_text_color if u.is_active else inactive_color)
+            )
             self.table.setItem(row, 5, status_item)
 
         self.count_label.setText(f"Найдено: {len(filtered)}")
@@ -403,6 +454,15 @@ class UsersPage(QWidget):
         self.setStyleSheet(
             f"background-color: {colors['bg']}; color: {colors['text']};"
         )
+        panel = self.findChild(QFrame, "usersFilterPanel")
+        if panel:
+            panel.setStyleSheet(self._filter_panel_style())
+        if hasattr(self, "role_combo"):
+            self.role_combo.setStyleSheet(self._filter_combo_style())
+        if hasattr(self, "dept_combo"):
+            self.dept_combo.setStyleSheet(self._filter_combo_style())
+        for button in self.findChildren(QPushButton, "filterButton"):
+            button.setStyleSheet(self._filter_button_style())
 
         for widget in self.findChildren(QLabel):
             widget.style().unpolish(widget)
@@ -422,3 +482,4 @@ class UsersPage(QWidget):
         for widget in self.findChildren(QFrame):
             widget.style().unpolish(widget)
             widget.style().polish(widget)
+        self._load_users()
