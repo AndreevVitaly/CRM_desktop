@@ -5,6 +5,7 @@ PULSAR - Десктопная CRM для работы с отделениями
 
 import sys
 import traceback
+from datetime import datetime
 from PyQt6.QtWidgets import QApplication, QMessageBox, QInputDialog, QLineEdit
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -14,7 +15,7 @@ from ui.login_window import LoginWindow
 from ui.main_window import MainWindow
 from ui.native_window_theme import apply_native_theme_to_app, install_native_theme_filter
 from ui.styles import FONTS, configure_ui_scale, get_main_stylesheet
-from utils.app_paths import get_db_path
+from utils.app_paths import get_app_base_dir, get_db_path
 from utils.db_encryption import (
     encrypt_existing_database,
     is_encrypted_database,
@@ -32,6 +33,14 @@ def exception_hook(exctype, value, tb):
     """Глобальный обработчик исключений"""
     error_msg = "".join(traceback.format_exception(exctype, value, tb))
     print(f"Uncaught exception: {error_msg}", flush=True)
+    log_path = get_app_base_dir() / "crash.log"
+    try:
+        with log_path.open("a", encoding="utf-8") as log_file:
+            log_file.write("\n" + "=" * 80 + "\n")
+            log_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
+            log_file.write(error_msg)
+    except Exception:
+        pass
 
     # Показываем сообщение об ошибке
     msg = QMessageBox()
