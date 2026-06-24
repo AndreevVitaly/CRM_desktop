@@ -126,8 +126,14 @@ def _patient_scope_label(user: User) -> str:
     return "none"
 
 
-def _collect_package_data(user: User) -> dict[str, Any]:
+def _collect_package_data(
+    user: User, patient_ids: set[int] | None = None
+) -> dict[str, Any]:
     patients = [vars(patient) for patient in Patient.get_all(user, include_inactive=True)]
+    if patient_ids is not None:
+        patients = [
+            patient for patient in patients if patient.get("id") in patient_ids
+        ]
     patient_ids = {patient["id"] for patient in patients if patient.get("id") is not None}
 
     encounters = _select_by_column_ids("encounters", "patient_id", patient_ids)
@@ -189,13 +195,17 @@ def build_export_filename(user: User) -> str:
 
 
 def export_sync_package(
-    user: User, file_path: str | Path, password: str | None = None
+    user: User,
+    file_path: str | Path,
+    password: str | None = None,
+    patient_ids: set[int] | list[int] | tuple[int, ...] | None = None,
 ) -> dict[str, Any]:
     path = Path(file_path)
     if path.suffix.lower() != ".pulsarzip":
         path = path.with_suffix(".pulsarzip")
 
-    data = _collect_package_data(user)
+    selected_patient_ids = set(patient_ids) if patient_ids is not None else None
+    data = _collect_package_data(user, selected_patient_ids)
     counts = {key: len(value) for key, value in data.items()}
     exported_at = datetime.now().isoformat(timespec="seconds")
     manifest = {

@@ -16,6 +16,8 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QMessageBox,
     QMenu,
+    QFileDialog,
+    QInputDialog,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
@@ -179,6 +181,20 @@ class PatientsPage(QWidget):
             cert_btn.clicked.connect(self._generate_certificate_selected)
             actions_layout.addWidget(cert_btn)
 
+        if self.user.role in (
+            User.ROLE_ADMIN,
+            User.ROLE_REGISTRAR,
+            User.ROLE_LEAD,
+            User.ROLE_DOCTOR,
+        ):
+            export_btn = QPushButton("Экспорт выбранных")
+            export_btn.setObjectName("filterButton")
+            export_btn.setFixedHeight(34)
+            export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            export_btn.setStyleSheet(self._filter_button_style())
+            export_btn.clicked.connect(self._export_selected_patients)
+            actions_layout.addWidget(export_btn)
+
         # Кнопка сброса
         reset_btn = QPushButton("Сброс")
         reset_btn.setObjectName("filterButton")
@@ -296,7 +312,7 @@ class PatientsPage(QWidget):
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
 
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setAlternatingRowColors(False)
         table.verticalHeader().setVisible(False)
@@ -499,10 +515,103 @@ class PatientsPage(QWidget):
 
     def _get_selected_patient_id(self) -> int:
         """Получение ID выбранного пациента"""
+        current_row = self.table.currentRow()
+        if current_row >= 0:
+            item = self.table.item(current_row, 0)
+            if item:
+                return item.data(Qt.ItemDataRole.UserRole)
         selected = self.table.selectedItems()
         if not selected:
             return None
         return selected[0].data(Qt.ItemDataRole.UserRole)
+
+    def _get_selected_patient_ids(self) -> list[int]:
+        rows = {
+            index.row()
+            for index in self.table.selectionModel().selectedRows()
+            if index.row() >= 0
+        }
+        if not rows and self.table.currentRow() >= 0:
+            rows.add(self.table.currentRow())
+
+        patient_ids = []
+        for row in sorted(rows):
+            item = self.table.item(row, 0)
+            if not item:
+                continue
+            patient_id = item.data(Qt.ItemDataRole.UserRole)
+            if patient_id is not None:
+                patient_ids.append(patient_id)
+        return patient_ids
+
+    def _export_selected_patients(self):
+        patient_ids = self._get_selected_patient_ids()
+        if not patient_ids:
+            QMessageBox.information(
+                self,
+                "Экспорт выбранных",
+                "Выберите одного или нескольких пациентов в таблице",
+            )
+            return
+
+        from utils.sync_exchange import build_export_filename, export_sync_package
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Экспорт выбранных пациентов",
+            build_export_filename(self.user),
+            "Пакет обмена PULSAR (*.pulsarzip)",
+        )
+        if not file_path:
+            return
+
+        password, ok = QInputDialog.getText(
+            self,
+            "Пароль пакета",
+            "Введите пароль для шифрования пакета:",
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return
+        if not password:
+            QMessageBox.warning(
+                self, "Экспорт выбранных", "Пароль не может быть пустым"
+            )
+            return
+
+        password_repeat, ok = QInputDialog.getText(
+            self,
+            "Пароль пакета",
+            "Повторите пароль:",
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok:
+            return
+        if password != password_repeat:
+            QMessageBox.warning(self, "Экспорт выбранных", "Пароли не совпадают")
+            return
+
+        try:
+            result = export_sync_package(
+                self.user, file_path, password, patient_ids=patient_ids
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Ошибка экспорта", str(exc))
+            return
+
+        counts = result["manifest"]["counts"]
+        QMessageBox.information(
+            self,
+            "Экспорт завершен",
+            (
+                f"Пакет сохранен:\n{result['path']}\n\n"
+                f"Пациенты: {counts.get('patients', 0)}\n"
+                f"Документы: {counts.get('documents', 0)}\n"
+                f"Встречи: {counts.get('encounters', 0)}\n"
+                f"Пункты планов: {counts.get('treatment_plan_items', 0)}\n"
+                f"КМ: {counts.get('km_records', 0)}"
+            ),
+        )
 
     def _open_patient(self, index):
         """Открытие пациента (двойной клик)"""
