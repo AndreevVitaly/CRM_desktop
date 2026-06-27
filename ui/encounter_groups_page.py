@@ -308,7 +308,7 @@ class EncounterGroupsPage(QWidget):
                 background-color: {colors['surface']};
                 border: 1px solid {colors['line']};
                 border-radius: {RADIUS['sm']}px;
-                padding: 4px 30px 4px 12px;
+                padding: 4px 12px;
                 color: {colors['text']};
                 font-size: {FONTS['size_small']}pt;
                 min-width: 0px;
@@ -322,14 +322,13 @@ class EncounterGroupsPage(QWidget):
             }}
             QComboBox#filterCombo::drop-down {{
                 border: none;
-                width: 28px;
+                width: 0px;
             }}
             QComboBox#filterCombo::down-arrow {{
                 image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 6px solid {colors['text_muted']};
-                margin-right: 10px;
+                width: 0px;
+                height: 0px;
+                border: none;
             }}
             QComboBox#filterCombo QAbstractItemView {{
                 background-color: {colors['surface']};

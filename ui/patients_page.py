@@ -242,11 +242,13 @@ class PatientsPage(QWidget):
             }}
             QComboBox#filterCombo::drop-down {{
                 border: none;
-                width: 22px;
+                width: 0px;
             }}
             QComboBox#filterCombo::down-arrow {{
-                width: 8px;
-                height: 8px;
+                image: none;
+                width: 0px;
+                height: 0px;
+                border: none;
             }}
             QComboBox#filterCombo QAbstractItemView {{
                 background-color: {colors['surface']};

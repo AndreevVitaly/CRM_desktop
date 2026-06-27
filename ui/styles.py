@@ -442,15 +442,14 @@ QComboBox:focus {{
 
 QComboBox::drop-down {{
     border: none;
-    width: 32px;
+    width: 0px;
 }}
 
 QComboBox::down-arrow {{
     image: none;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid {colors['text_muted']};
-    margin-right: 12px;
+    width: 0px;
+    height: 0px;
+    border: none;
 }}
 
 QComboBox QAbstractItemView {{
