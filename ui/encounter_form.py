@@ -84,7 +84,7 @@ class EncounterFormDialog(QDialog):
             self.doctor_combo.addItem("Не выбран", 0)
             for doctor in User.get_by_role(User.ROLE_DOCTOR):
                 self.doctor_combo.addItem(doctor.full_name, doctor.id)
-        form_layout.addRow("Врач*", self.doctor_combo)
+        form_layout.addRow("Работник*", self.doctor_combo)
 
         self.reason_input = QTextEdit()
         self.reason_input.setFont(compact_font)
@@ -280,7 +280,7 @@ class EncounterFormDialog(QDialog):
         """Сохранение встречи"""
         doctor_id = self.doctor_combo.currentData()
         if not doctor_id:
-            QMessageBox.warning(self, "Ошибка", "Выберите врача")
+            QMessageBox.warning(self, "Ошибка", "Выберите работника")
             return
 
         if not self.encounter:

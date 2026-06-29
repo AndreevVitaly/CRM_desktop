@@ -1,6 +1,6 @@
 """
 Окно редактирования встречи (Encounter Edit Form)
-Расширенная форма с полями: результат встречи, информация от пациента,
+Расширенная форма с полями: результат встречи, информация от категории АА,
 описание встречи, мероприятия, информация от информатора
 """
 
@@ -285,7 +285,7 @@ class EncounterEditDialog(QDialog):
         group_row.addWidget(clear_group_btn)
         result_layout.addRow("Признак встречи", group_row)
 
-        # Позывной и личный номер (автозаполнение из пациента)
+        # Позывной и личный номер (автозаполнение из категории АА)
         callsign_label = QLabel(f"Позывной: {self.patient.callsign}")
         callsign_label.setStyleSheet("background-color: transparent;")
         result_layout.addRow("", callsign_label)
@@ -299,8 +299,8 @@ class EncounterEditDialog(QDialog):
         result_group.setLayout(result_layout)
         layout.addWidget(result_group)
 
-        # Группа 2: Информация от пациента
-        patient_info_group = QGroupBox("Информация от пациента")
+        # Группа 2: Информация от категории АА
+        patient_info_group = QGroupBox("Информация от категории АА")
         patient_info_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -321,7 +321,7 @@ class EncounterEditDialog(QDialog):
         patient_info_layout.setSpacing(8)
 
         self.patient_info_input = QTextEdit()
-        self.patient_info_input.setPlaceholderText("Введите информацию от пациента")
+        self.patient_info_input.setPlaceholderText("Введите информацию от категории АА")
         self.patient_info_input.setMinimumHeight(92)
         self.patient_info_input.setMaximumHeight(120)
         patient_info_layout.addWidget(self.patient_info_input)
@@ -411,8 +411,8 @@ class EncounterEditDialog(QDialog):
         description_group.setLayout(description_layout)
         layout.addWidget(description_group)
 
-        # Группа 4: Мероприятия для исполнения пациентом
-        patient_tasks_group = QGroupBox("Мероприятия для исполнения пациентом")
+        # Группа 4: Мероприятия для исполнения категорией АА
+        patient_tasks_group = QGroupBox("Мероприятия для исполнения категорией АА")
         patient_tasks_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -443,9 +443,9 @@ class EncounterEditDialog(QDialog):
         patient_tasks_group.setLayout(patient_tasks_layout)
         layout.addWidget(patient_tasks_group)
 
-        # Группа 5: Мероприятия в отношении пациента (из плана)
+        # Группа 5: Мероприятия в отношении категории АА (из плана)
         patient_measures_group = QGroupBox(
-            "Мероприятия в отношении пациента (из плана)"
+            "Мероприятия в отношении категории АА (из плана)"
         )
         patient_measures_group.setStyleSheet(
             f"""
@@ -593,8 +593,8 @@ class EncounterEditDialog(QDialog):
         general_measures_group.setLayout(general_measures_layout)
         layout.addWidget(general_measures_group)
 
-        # Группа 7: О ком сообщил пациент (Информаторы)
-        informants_group = QGroupBox("О ком сообщил пациент")
+        # Группа 7: О ком сообщила категория АА (Информаторы)
+        informants_group = QGroupBox("О ком сообщила категория АА")
         informants_group.setStyleSheet(
             f"""
             QGroupBox {{
@@ -938,7 +938,7 @@ class EncounterEditDialog(QDialog):
         self._load_encounter_groups(group.id)
 
     def _load_plan_items(self):
-        """Загрузка пунктов плана лечения пациента"""
+        """Загрузка пунктов плана лечения категории АА"""
         self.plan_items_table.setRowCount(0)
 
         from models.db_models import Document, DOCUMENT_TYPE_PLAN
@@ -1183,7 +1183,7 @@ class EncounterEditDialog(QDialog):
             if group_index >= 0:
                 self.group_combo.setCurrentIndex(group_index)
 
-        # Информация от пациента
+        # Информация от категории АА
         self.patient_info_input.setPlainText(self.encounter.patient_info or "")
 
         # Описание встречи
@@ -1216,10 +1216,10 @@ class EncounterEditDialog(QDialog):
             if index >= 0:
                 combo.setCurrentIndex(index)
 
-        # Мероприятия для исполнения пациентом
+        # Мероприятия для исполнения категорией АА
         self.patient_tasks_input.setPlainText(self.encounter.patient_tasks or "")
 
-        # Мероприятия в отношении пациента (из выбранных пунктов плана)
+        # Мероприятия в отношении категории АА (из выбранных пунктов плана)
         # Здесь можно добавить логику выделения пунктов
         # Пока просто загружаем все пункты
 

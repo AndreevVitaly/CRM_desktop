@@ -1,5 +1,5 @@
 """
-Страница списка пациентов
+Страница списка категорий АА
 """
 
 from PyQt6.QtWidgets import (
@@ -27,7 +27,7 @@ from ui.styles import get_colors, FONTS, RADIUS, get_main_stylesheet
 
 
 class PatientsPage(QWidget):
-    """Страница пациентов"""
+    """Страница категорий АА"""
 
     def __init__(self, user: User):
         super().__init__()
@@ -51,7 +51,7 @@ class PatientsPage(QWidget):
         filter_panel = self._create_filter_panel()
         layout.addWidget(filter_panel)
 
-        # Таблица пациентов
+        # Таблица категорий АА
         self.table = self._create_table()
         layout.addWidget(self.table, 1)
 
@@ -103,14 +103,14 @@ class PatientsPage(QWidget):
         self.search_input.textChanged.connect(self._on_search_changed)
         filters_layout.addWidget(self.search_input)
 
-        # Тип пациента
+        # Тип категории АА
         self.type_combo = QComboBox()
         self.type_combo.setFrame(False)
         self.type_combo.setObjectName("filterCombo")
         self.type_combo.addItem("Все типы", "")
-        self.type_combo.addItem("Взрослые", "adult")
-        self.type_combo.addItem("Дети", "child")
-        self.type_combo.addItem("Неопределённые", "undefined")
+        self.type_combo.addItem("Категория А", "adult")
+        self.type_combo.addItem("Категория Д", "child")
+        self.type_combo.addItem("Категория К", "undefined")
         self.type_combo.setFixedWidth(140)
         self.type_combo.setFixedHeight(34)
         self.type_combo.setStyleSheet(self._filter_combo_style())
@@ -163,7 +163,7 @@ class PatientsPage(QWidget):
 
         # Кнопка добавления (ADMIN, REG, LEAD)
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
-            add_btn = QPushButton("Добавить пациента")
+            add_btn = QPushButton("Добавить в категорию АА")
             add_btn.setObjectName("filterButton")
             add_btn.setFixedHeight(34)
             add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -285,7 +285,7 @@ class PatientsPage(QWidget):
         """
 
     def _create_table(self) -> QTableWidget:
-        """Таблица пациентов"""
+        """Таблица категорий АА"""
         colors = get_colors()
 
         table = QTableWidget()
@@ -298,7 +298,7 @@ class PatientsPage(QWidget):
                 "Пол",
                 "Тип",
                 "Отделение",
-                "Врач",
+                "Работник",
                 "Телефон",
             ]
         )
@@ -330,7 +330,7 @@ class PatientsPage(QWidget):
         return table
 
     def _load_patients(self):
-        """Загрузка пациентов"""
+        """Загрузка категорий АА"""
         self.table.setRowCount(0)
 
         patients = Patient.get_all(
@@ -386,9 +386,9 @@ class PatientsPage(QWidget):
 
             # Тип
             type_dict = {
-                "adult": "Взрослый",
-                "child": "Детский",
-                "undefined": "Неопределённый",
+                "adult": "Категория А",
+                "child": "Категория Д",
+                "undefined": "Категория К",
             }
             self.table.setItem(
                 row, 4, QTableWidgetItem(type_dict.get(patient.patient_type, ""))
@@ -397,7 +397,7 @@ class PatientsPage(QWidget):
             # Отделение
             self.table.setItem(row, 5, QTableWidgetItem(patient.department_display))
 
-            # Врач
+            # Работник
             doctor_name = patient.doctor.full_name if patient.doctor else "—"
             self.table.setItem(row, 6, QTableWidgetItem(doctor_name))
 
@@ -435,7 +435,7 @@ class PatientsPage(QWidget):
 
         self.doctor_combo.blockSignals(True)
         self.doctor_combo.clear()
-        self.doctor_combo.addItem("Все врачи", 0)
+        self.doctor_combo.addItem("Все работники", 0)
 
         doctors = User.get_by_role(User.ROLE_DOCTOR)
         if selected_dept:
@@ -490,7 +490,7 @@ class PatientsPage(QWidget):
                 self.user.role == User.ROLE_LEAD
                 and patient.department != self.user.department
             ):
-                pass  # LEAD не может редактировать пациентов другого отделения
+                pass  # LEAD не может редактировать категории АА другого отделения
             else:
                 edit_action = menu.addAction("Редактировать")
                 edit_action.triggered.connect(lambda: self._edit_patient(patient_id))
@@ -516,7 +516,7 @@ class PatientsPage(QWidget):
         menu.exec(self.table.viewport().mapToGlobal(pos))
 
     def _get_selected_patient_id(self) -> int:
-        """Получение ID выбранного пациента"""
+        """Получение ID выбранной категории АА"""
         current_row = self.table.currentRow()
         if current_row >= 0:
             item = self.table.item(current_row, 0)
@@ -552,7 +552,7 @@ class PatientsPage(QWidget):
             QMessageBox.information(
                 self,
                 "Экспорт выбранных",
-                "Выберите одного или нескольких пациентов в таблице",
+                "Выберите одну или несколько категорий АА в таблице",
             )
             return
 
@@ -560,7 +560,7 @@ class PatientsPage(QWidget):
 
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Экспорт выбранных пациентов",
+            "Экспорт выбранных категорий АА",
             build_export_filename(self.user),
             "Пакет обмена PULSAR (*.pulsarzip)",
         )
@@ -607,7 +607,7 @@ class PatientsPage(QWidget):
             "Экспорт завершен",
             (
                 f"Пакет сохранен:\n{result['path']}\n\n"
-                f"Пациенты: {counts.get('patients', 0)}\n"
+                f"Категории АА: {counts.get('patients', 0)}\n"
                 f"Документы: {counts.get('documents', 0)}\n"
                 f"Встречи: {counts.get('encounters', 0)}\n"
                 f"Пункты планов: {counts.get('treatment_plan_items', 0)}\n"
@@ -616,12 +616,12 @@ class PatientsPage(QWidget):
         )
 
     def _open_patient(self, index):
-        """Открытие пациента (двойной клик)"""
+        """Открытие категории АА (двойной клик)"""
         patient_id = self.table.item(index.row(), 0).data(Qt.ItemDataRole.UserRole)
         self._open_patient_by_id(patient_id)
 
     def _open_patient_by_id(self, patient_id: int):
-        """Открытие карточки пациента"""
+        """Открытие карточки категории АА"""
         from ui.patient_detail import PatientDetailDialog
 
         dialog = PatientDetailDialog(self.user, patient_id)
@@ -631,7 +631,7 @@ class PatientsPage(QWidget):
         self._safe_load_patients()
 
     def _add_patient(self):
-        """Добавление пациента"""
+        """Добавление категории АА"""
         from ui.patient_form import PatientFormDialog
 
         dialog = PatientFormDialog(self.user, None)
@@ -639,7 +639,7 @@ class PatientsPage(QWidget):
             self._safe_load_patients()
 
     def _edit_patient(self, patient_id: int):
-        """Редактирование пациента"""
+        """Редактирование категории АА"""
         from ui.patient_form import PatientFormDialog
 
         patient = Patient.get_by_id(patient_id)
@@ -648,12 +648,12 @@ class PatientsPage(QWidget):
             self._safe_load_patients()
 
     def _hide_patient(self, patient_id: int):
-        """Скрытие пациента"""
+        """Скрытие категории АА"""
         patient = Patient.get_by_id(patient_id)
         reply = QMessageBox.question(
             self,
             "Подтверждение",
-            f"Скрыть пациента {patient.full_name}?",
+            f"Скрыть категорию АА {patient.full_name}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
@@ -661,16 +661,16 @@ class PatientsPage(QWidget):
             self._safe_load_patients()
 
     def _restore_patient(self, patient_id: int):
-        """Восстановление пациента"""
+        """Восстановление категории АА"""
         patient = Patient.get_by_id(patient_id)
         patient.restore()
         self._safe_load_patients()
 
     def _generate_certificate_selected(self):
-        """Генерация справки для выбранного пациента"""
+        """Генерация справки для выбранной категории АА"""
         patient_id = self._get_selected_patient_id()
         if not patient_id:
-            QMessageBox.information(self, "Информация", "Выберите пациента из таблицы")
+            QMessageBox.information(self, "Информация", "Выберите категорию АА из таблицы")
             return
         self._generate_certificate(patient_id)
 
@@ -682,7 +682,7 @@ class PatientsPage(QWidget):
         patient = Patient.get_by_id(patient_id)
 
         if not patient:
-            QMessageBox.warning(self, "Ошибка", "Пациент не найден")
+            QMessageBox.warning(self, "Ошибка", "Категория АА не найдена")
             return
 
         # Генерация текста справки
@@ -695,10 +695,10 @@ class PatientsPage(QWidget):
 Дата рождения: {patient.birth_date.strftime("%d.%m.%Y")}
 Пол: {"Мужской" if patient.gender == "M" else "Женский"}
 Отделение: {patient.department_display}
-{f"Лечащий врач: {patient.doctor.full_name}" if patient.doctor else ""}
+{f"Лечащий работник: {patient.doctor.full_name}" if patient.doctor else ""}
 {f"Место размещения: {patient.facility.name}" if patient.facility else ""}
 
-Дана в том, что пациент действительно проходит лечение в нашем учреждении.
+Дана в том, что категория АА действительно проходит лечение в нашем учреждении.
 
 Справка действительна в течение 30 дней с даты выдачи.
 Дата выдачи: {datetime.now().strftime("%d.%m.%Y")}

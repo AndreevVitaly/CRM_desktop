@@ -130,8 +130,8 @@ class UserFormDialog(QDialog):
 
         self.role_combo.addItem("Регистратор", User.ROLE_REGISTRAR)
         self.role_combo.addItem("Начальник отделения", User.ROLE_LEAD)
-        self.role_combo.addItem("Врач", User.ROLE_DOCTOR)
-        self.role_combo.addItem("Медсестра", User.ROLE_NURSE)
+        self.role_combo.addItem("Работник", User.ROLE_DOCTOR)
+        self.role_combo.addItem("Делопроизводитель", User.ROLE_NURSE)
 
         if self.current_user.role == User.ROLE_REGISTRAR:
             removable_indexes = []

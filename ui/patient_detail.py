@@ -1,5 +1,5 @@
 """
-Детальная карточка пациента
+Детальная карточка категории АА
 """
 
 from PyQt6.QtWidgets import (
@@ -49,13 +49,13 @@ from ui.styles import get_colors, FONTS, RADIUS
 
 
 class PatientDetailDialog(QDialog):
-    """Диалог детальной информации о пациенте"""
+    """Диалог детальной информации о категории АА"""
 
     def __init__(self, user: User, patient_id: int):
         super().__init__()
         self.user = user
         self.patient = Patient.get_by_id(patient_id)
-        self.setWindowTitle(f"Пациент: {self.patient.full_name}")
+        self.setWindowTitle(f"Категория АА: {self.patient.full_name}")
         self.setWindowFlags(
             self.windowFlags()
             | Qt.WindowType.WindowMinimizeButtonHint
@@ -147,7 +147,7 @@ class PatientDetailDialog(QDialog):
                 widget.deleteLater()
 
     def update_theme(self):
-        """Обновление темы у уже открытой карточки пациента."""
+        """Обновление темы у уже открытой карточки категории АА."""
         current_tab = self.tabs.currentIndex() if hasattr(self, "tabs") else 0
         self._init_ui()
         if hasattr(self, "tabs") and 0 <= current_tab < self.tabs.count():
@@ -175,7 +175,7 @@ class PatientDetailDialog(QDialog):
         return QColor(status_colors.get(status, colors["text"]))
 
     def _create_header(self) -> QFrame:
-        """Заголовок с информацией о пациенте"""
+        """Заголовок с информацией о категории АА"""
         colors = get_colors()
 
         header = QFrame()
@@ -207,7 +207,7 @@ class PatientDetailDialog(QDialog):
         details = f"{self.patient.age} лет • {'Мужской' if self.patient.gender == 'M' else 'Женский'}"
         details += f" • {self.patient.department_display}"
         if self.patient.doctor:
-            details += f" • Врач: {self.patient.doctor.full_name}"
+            details += f" • Работник: {self.patient.doctor.full_name}"
 
         details_label = QLabel(details)
         details_label.setObjectName("muted")
@@ -283,11 +283,11 @@ class PatientDetailDialog(QDialog):
         # Личные данные (левая колонка)
         fields = [
             (
-                "Тип пациента:",
+                "Тип категории АА:",
                 {
-                    "adult": "Взрослый",
-                    "child": "Детский",
-                    "undefined": "Неопределённый",
+                    "adult": "Категория А",
+                    "child": "Категория Д",
+                    "undefined": "Категория К",
                 }.get(self.patient.patient_type, "—"),
             ),
             ("Позывной:", self.patient.callsign or "—"),
@@ -300,7 +300,7 @@ class PatientDetailDialog(QDialog):
             ),
             ("Отделение:", self.patient.department_display or "—"),
             (
-                "Лечащий врач:",
+                "Лечащий работник:",
                 self.patient.doctor.full_name if self.patient.doctor else "Не назначен",
             ),
         ]
@@ -645,7 +645,7 @@ class PatientDetailDialog(QDialog):
         self.encounters_table.setHorizontalHeaderLabels(
             [
                 "Дата",
-                "Врач",
+                "Работник",
                 "Результат",
                 "Причина",
                 "Признак",
@@ -688,7 +688,7 @@ class PatientDetailDialog(QDialog):
 
         from models.db_models import Document, DOCUMENT_TYPE_MEETING, Encounter
 
-        # Получаем все документы типа "Встреча" пациента
+        # Получаем все документы типа "Встреча" категории АА
         documents = Document.get_by_patient(self.patient.id)
         encounter_docs = [d for d in documents if d.doc_type == DOCUMENT_TYPE_MEETING]
         selected_status = ""
@@ -714,7 +714,7 @@ class PatientDetailDialog(QDialog):
             date_item.setData(Qt.ItemDataRole.UserRole, doc.id)
             self.encounters_table.setItem(row, 0, date_item)
 
-            # Автор документа (врач)
+            # Автор документа (работник)
             author_name = doc.author.full_name if doc.author else "—"
             self.encounters_table.setItem(row, 1, QTableWidgetItem(author_name))
 
@@ -740,7 +740,7 @@ class PatientDetailDialog(QDialog):
             status_item.setForeground(self._get_encounter_status_color(status))
             self.encounters_table.setItem(row, 5, status_item)
 
-            # Информация от пациента (кратко)
+            # Информация от категории АА (кратко)
             patient_info_short = "—"
             if encounter and encounter.patient_info:
                 patient_info_short = encounter.patient_info[:50] + (
@@ -840,7 +840,7 @@ class PatientDetailDialog(QDialog):
         )
 
         if not collect_patient_encounter_rows(self.patient):
-            QMessageBox.information(self, "Экспорт Excel", "У пациента нет встреч")
+            QMessageBox.information(self, "Экспорт Excel", "У категории АА нет встреч")
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
@@ -1129,7 +1129,7 @@ class PatientDetailDialog(QDialog):
         """Загрузка пунктов плана из всех документов-планов"""
         self.plan_table.setRowCount(0)
 
-        # Загружаем все документы-планы пациента
+        # Загружаем все документы-планы категории АА
         plans = Document.get_by_patient(self.patient.id)
         plan_docs = [d for d in plans if d.doc_type == DOCUMENT_TYPE_PLAN]
 
@@ -1467,7 +1467,7 @@ class PatientDetailDialog(QDialog):
             ("Вид документа:", doc.doc_type or "—"),
             ("Краткое содержание:", doc.summary or "—"),
             ("Куда приобщён:", doc.location or "—"),
-            ("Личный номер пациента:", current_patient_number),
+            ("Личный номер категории АА:", current_patient_number),
         ]
 
         for label, value in fields:
@@ -1543,7 +1543,7 @@ class PatientDetailDialog(QDialog):
         return Document.get_by_id(doc_id)
 
     def _open_document_edit_dialog(self, doc):
-        """Единая точка редактирования документов пациента."""
+        """Единая точка редактирования документов категории АА."""
 
         from ui.document_form import DocumentFormDialog
 
@@ -1909,7 +1909,7 @@ class PatientDetailDialog(QDialog):
                 self._log_interaction("plan_item_delete", f"Удалён пункт: {item.event}")
 
     def _edit_patient(self):
-        """Редактирование пациента"""
+        """Редактирование категории АА"""
         from ui.patient_form import PatientFormDialog
 
         dialog = PatientFormDialog(self.user, self.patient)

@@ -314,7 +314,7 @@ class AdminPage(QWidget):
                 (
                     f"Польз.: {self._summary_short(users)}; "
                     f"Места: {self._summary_short(facilities)}; "
-                    f"Пациенты: {self._summary_short(patients)}; "
+                    f"Категории АА: {self._summary_short(patients)}; "
                     f"Д: {self._summary_short(documents)}; "
                     f"В: {self._summary_short(encounters)}; "
                     f"П: {self._summary_short(plans)}; "
@@ -347,7 +347,7 @@ class AdminPage(QWidget):
         card, layout = self._card("Обмен данными")
         colors = get_colors()
         note = QLabel(
-            "Экспорт создает защищенный пакет. Импорт применяет пользователей, места, пациентов, документы, встречи, планы и КМ после подтверждения."
+            "Экспорт создает защищенный пакет. Импорт применяет пользователей, места, категории АА, документы, встречи, планы и КМ после подтверждения."
         )
         note.setWordWrap(True)
         note.setObjectName("adminNoteLabel")

@@ -128,7 +128,7 @@ class MeetingDocumentPickerDialog(QDialog):
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText(
-            "Поиск по пациенту, личному номеру, автору, типу или номеру документа"
+            "Поиск по категории АА, личному номеру, автору, типу или номеру документа"
         )
         self.search_input.textChanged.connect(self._load_documents)
         layout.addWidget(self.search_input)
@@ -136,7 +136,7 @@ class MeetingDocumentPickerDialog(QDialog):
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(
-            ["Дата", "Пациент", "Личный номер", "Автор", "Документ"]
+            ["Дата", "Категория АА", "Личный номер", "Автор", "Документ"]
         )
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)

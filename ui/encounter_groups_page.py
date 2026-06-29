@@ -63,7 +63,7 @@ class EncounterGroupDetailDialog(QDialog):
         for index, (caption, value_label) in enumerate(
             (
                 ("Встреч всего", self.total_label),
-                ("Пациентов", self.patients_label),
+                ("Категорий АА", self.patients_label),
                 ("Завершено", self.finished_label),
                 ("В работе", self.active_label),
                 ("Последняя встреча", self.latest_label),
@@ -81,9 +81,9 @@ class EncounterGroupDetailDialog(QDialog):
         self.table.setHorizontalHeaderLabels(
             [
                 "Дата",
-                "Пациент",
+                "Категория АА",
                 "Личный номер",
-                "Врач",
+                "Работник",
                 "Результат",
                 "Статус",
                 "Информация",
@@ -236,7 +236,7 @@ class EncounterGroupsPage(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText(
-            "Поиск по условному наименованию, пациенту или личному номеру"
+            "Поиск по условному наименованию, категории АА или личному номеру"
         )
         self.search_input.setMinimumWidth(320)
         self.search_input.setFixedHeight(34)
@@ -280,7 +280,7 @@ class EncounterGroupsPage(QWidget):
                 "Признак",
                 "Встреч",
                 "Последняя встреча",
-                "Пациенты",
+                "Категории АА",
                 "Личные номера",
             ]
         )

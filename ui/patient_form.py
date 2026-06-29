@@ -1,5 +1,5 @@
 """
-Форма добавления/редактирования пациента
+Форма добавления/редактирования категории АА
 """
 
 from PyQt6.QtWidgets import (
@@ -32,7 +32,7 @@ from ui.styles import get_colors, FONTS, RADIUS
 
 
 class PatientFormDialog(QDialog):
-    """Диалог формы пациента"""
+    """Диалог формы категории АА"""
 
     def __init__(self, user: User, patient: Patient = None):
         super().__init__()
@@ -40,7 +40,7 @@ class PatientFormDialog(QDialog):
         self.patient = patient
         self.is_edit = patient is not None and patient.id is not None
 
-        title = "Редактирование пациента" if self.is_edit else "Новый пациент"
+        title = "Редактирование категории АА" if self.is_edit else "Новая категория АА"
         self.setWindowTitle(title)
         self.setMinimumSize(600, 700)
         self._init_ui()
@@ -158,12 +158,12 @@ class PatientFormDialog(QDialog):
             self.gender_combo.addItem(label, value)
         layout.addRow("Пол*", self.gender_combo)
 
-        # Тип пациента
+        # Тип категории АА
         self.type_combo = QComboBox()
         self.type_combo.setFrame(False)
         for value, label in PATIENT_TYPE_CHOICES:
             self.type_combo.addItem(label, value)
-        layout.addRow("Тип пациента*", self.type_combo)
+        layout.addRow("Тип категории АА*", self.type_combo)
 
         # Отделение
         self.dept_combo = QComboBox()
@@ -338,7 +338,7 @@ class PatientFormDialog(QDialog):
             self.facility_combo.addItem(f.name, f.id)
         layout.addRow("Учреждение", self.facility_combo)
 
-        # Врач (только для ADMIN, REG, LEAD)
+        # Работник (только для ADMIN, REG, LEAD)
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             self.doctor_combo = QComboBox()
             self.doctor_combo.setFrame(False)
@@ -347,7 +347,7 @@ class PatientFormDialog(QDialog):
                 lambda _index: self._populate_doctor_combo()
             )
 
-            layout.addRow("Лечащий врач*", self.doctor_combo)
+            layout.addRow("Лечащий работник*", self.doctor_combo)
 
         group.setLayout(layout)
         return group
@@ -377,7 +377,7 @@ class PatientFormDialog(QDialog):
         self.doctor_combo.blockSignals(False)
 
     def _fill_data(self):
-        """Заполнение данными пациента"""
+        """Заполнение данными категории АА"""
         if not self.patient:
             return
 
@@ -395,12 +395,12 @@ class PatientFormDialog(QDialog):
             "Мужской" if self.patient.gender == "M" else "Женский"
         )
         type_display = {
-            "adult": "Взрослый",
-            "child": "Детский",
-            "undefined": "Неопределённый",
+            "adult": "Категория А",
+            "child": "Категория Д",
+            "undefined": "Категория К",
         }
         self.type_combo.setCurrentText(
-            type_display.get(self.patient.patient_type, "Взрослый")
+            type_display.get(self.patient.patient_type, "Категория А")
         )
 
         # Найти отделение в списке
@@ -467,12 +467,12 @@ class PatientFormDialog(QDialog):
             if facility_index >= 0:
                 self.facility_combo.setCurrentIndex(facility_index)
 
-        # Врач
+        # Работник
         if hasattr(self, "doctor_combo") and self.patient.doctor_id:
             self._populate_doctor_combo(self.patient.doctor_id)
 
     def _save(self):
-        """Сохранение пациента"""
+        """Сохранение категории АА"""
         # Валидация
         if not self.callsign_input.text().strip():
             QMessageBox.warning(self, "Ошибка", "Введите позывной")
@@ -483,7 +483,7 @@ class PatientFormDialog(QDialog):
             return
 
         if hasattr(self, "doctor_combo") and not self.doctor_combo.currentData():
-            QMessageBox.warning(self, "Ошибка", "Выберите лечащего врача")
+            QMessageBox.warning(self, "Ошибка", "Выберите лечащего работника")
             return
 
         selected_department = self.dept_combo.currentData()
@@ -494,11 +494,11 @@ class PatientFormDialog(QDialog):
                 QMessageBox.warning(
                     self,
                     "Ошибка",
-                    "Лечащий врач должен относиться к выбранному отделению",
+                    "Лечащий работник должен относиться к выбранному отделению",
                 )
                 return
 
-        # Создание/обновление пациента
+        # Создание/обновление категории АА
         if not self.patient:
             self.patient = Patient()
 
@@ -551,13 +551,13 @@ class PatientFormDialog(QDialog):
                 QMessageBox.warning(
                     self,
                     "Ошибка",
-                    "Вы можете создавать пациентов только своего отделения",
+                    "Вы можете создавать категории АА только своего отделения",
                 )
                 return
 
         self.patient.save()
 
         QMessageBox.information(
-            self, "Успешно", f"Пациент {self.patient.full_name} сохранён"
+            self, "Успешно", f"Категория АА {self.patient.full_name} сохранена"
         )
         self.accept()

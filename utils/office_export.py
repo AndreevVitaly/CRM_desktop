@@ -1,5 +1,5 @@
 """
-Экспорт встреч пациента в офисные форматы.
+Экспорт встреч категории АА в офисные форматы.
 """
 
 from __future__ import annotations
@@ -82,20 +82,20 @@ def export_patient_encounters_to_xlsx(
     sheet = workbook.active
     sheet.title = "Встречи"
 
-    title = f"Встречи пациента: {patient.callsign or '—'}"
+    title = f"Встречи категории АА: {patient.callsign or '—'}"
     sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=10)
     title_cell = sheet.cell(row=1, column=1, value=title)
     title_cell.font = Font(bold=True, size=14)
 
     headers = [
         "Дата",
-        "Пациент",
+        "Категория АА",
         "Личный номер",
-        "Врач",
+        "Работник",
         "Результат",
         "Причина",
         "Статус",
-        "Информация от пациента",
+        "Информация от категории АА",
         "Документ",
         "Заметки",
     ]
@@ -150,7 +150,7 @@ def _export_patient_encounters_with_xlsx_template(
 ):
     sheet = workbook.active
     context = {
-        "title": f"Встречи пациента: {patient.callsign or '—'}",
+        "title": f"Встречи категории АА: {patient.callsign or '—'}",
         "patient": {
             "callsign": patient.callsign or "—",
             "personal_number": patient.personal_number or "—",
@@ -512,10 +512,10 @@ def _build_encounter_word_title(patient: Patient, encounter: Encounter) -> str:
     if encounter.meeting_result == "message":
         return f"Сообщение от {patient_part}"
     if encounter.meeting_result == "certificate":
-        return f"Справка о встрече с пациентом {patient_part}"
+        return f"Справка о встрече с категорией АА {patient_part}"
     if encounter.meeting_result_display:
         return f"{encounter.meeting_result_display} {patient_part}"
-    return f"Встреча с пациентом {patient_part}"
+    return f"Встреча с категорией АА {patient_part}"
 
 
 def _insert_informants_table(paragraph, informants: list[EncounterInformant]):

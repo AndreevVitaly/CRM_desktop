@@ -56,7 +56,7 @@ class EncountersPage(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText(
-            "Поиск по пациенту, номеру, врачу, документу или признаку"
+            "Поиск по категории АА, номеру, работнику, документу или признаку"
         )
         self.search_input.setMinimumWidth(300)
         self.search_input.setFixedHeight(34)
@@ -101,9 +101,9 @@ class EncountersPage(QWidget):
         self.table.setHorizontalHeaderLabels(
             [
                 "Дата",
-                "Пациент",
+                "Категория АА",
                 "Личный номер",
-                "Врач",
+                "Работник",
                 "Результат",
                 "Причина",
                 "Признак",
@@ -429,9 +429,9 @@ class EncountersPage(QWidget):
             sheet.title = "Встречи"
             headers = [
                 "Дата",
-                "Пациент",
+                "Категория АА",
                 "Личный номер",
-                "Врач",
+                "Работник",
                 "Результат",
                 "Причина",
                 "Признак",

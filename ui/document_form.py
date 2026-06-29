@@ -110,7 +110,7 @@ class DocumentFormDialog(QDialog):
         self.doc_type_selector.setMinimumHeight(34)
         self.doc_type_selector.setFrame(False)
         self.doc_type_selector.addItem("Выберите тип документа", "")
-        self.doc_type_selector.addItem("План работы с пациентом", DOCUMENT_TYPE_PLAN)
+        self.doc_type_selector.addItem("План работы с категорией АА", DOCUMENT_TYPE_PLAN)
         self.doc_type_selector.addItem("Встреча", DOCUMENT_TYPE_MEETING)
         self.doc_type_selector.addItem("Иной документ (ручной ввод)", "custom")
         form_layout.addRow("Тип документа*", self.doc_type_selector)

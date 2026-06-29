@@ -25,7 +25,7 @@ from ui.styles import get_colors, RADIUS, FONTS, get_main_stylesheet
 
 
 class DocumentsPage(QWidget):
-    """Единый реестр документов по всем пациентам"""
+    """Единый реестр документов по всем категориям АА"""
 
     def __init__(self, user: User):
         super().__init__()
@@ -69,7 +69,7 @@ class DocumentsPage(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setObjectName("searchInput")
         self.search_input.setPlaceholderText(
-            "Поиск по пациенту, номеру документа, типу, содержанию, месту приобщения..."
+            "Поиск по категории АА, номеру документа, типу, содержанию, месту приобщения..."
         )
         self.search_input.setFixedWidth(520)
         self.search_input.setFixedHeight(34)
@@ -141,7 +141,7 @@ class DocumentsPage(QWidget):
         table.setHorizontalHeaderLabels(
             [
                 "ID",
-                "Пациент",
+                "Категория АА",
                 "Личный номер",
                 "№ док.",
                 "Гриф",
@@ -250,7 +250,7 @@ class DocumentsPage(QWidget):
 
     def _get_doc_type_display(self, doc: Document) -> str:
         if doc.doc_type == DOCUMENT_TYPE_PLAN:
-            return "План работы с пациентом"
+            return "План работы с категорией АА"
         if doc.doc_type == DOCUMENT_TYPE_MEETING:
             return "Встреча"
         return doc.doc_type or "—"
@@ -283,7 +283,7 @@ class DocumentsPage(QWidget):
             QMessageBox.warning(
                 self,
                 "Ошибка",
-                "Не удалось открыть документ: пациент, связанный с документом, не найден",
+                "Не удалось открыть документ: категория АА, связанная с документом, не найдена",
             )
             return
 
@@ -347,7 +347,7 @@ class DocumentsPage(QWidget):
         )
 
         fields = [
-            ("Пациент:", patient.callsign if patient else "—"),
+            ("Категория АА:", patient.callsign if patient else "—"),
             ("Номер документа:", str(doc.doc_number) if doc.doc_number else "—"),
             ("Гриф секретности:", doc.classification_display),
             ("Дата:", doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"),
@@ -355,7 +355,7 @@ class DocumentsPage(QWidget):
             ("Вид документа:", self._get_doc_type_display(doc)),
             ("Краткое содержание:", doc.summary or "—"),
             ("Куда приобщён:", doc.location or "—"),
-            ("Личный номер пациента:", current_patient_number),
+            ("Личный номер категории АА:", current_patient_number),
         ]
 
         for label, value in fields:

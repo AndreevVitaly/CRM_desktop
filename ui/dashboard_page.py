@@ -214,8 +214,8 @@ class DashboardPage(QWidget):
             events_today = len(Event.get_all(include_completed=False))
 
             return [
-                ("Всего пациентов", str(len(total_patients)), "активных"),
-                ("Врачей", str(total_doctors), "в системе"),
+                ("Всего категорий АА", str(len(total_patients)), "активных"),
+                ("Работников", str(total_doctors), "в системе"),
                 ("Встреч", str(visits_today), "сегодня"),
                 ("Мероприятий", str(events_today), "запланировано"),
             ]
@@ -225,7 +225,7 @@ class DashboardPage(QWidget):
             total_users = len(User.get_all())
 
             return [
-                ("Всего пациентов", str(len(total_patients)), "активных"),
+                ("Всего категорий АА", str(len(total_patients)), "активных"),
                 ("Пользователей", str(total_users), "в системе"),
                 ("Встреч", "—", "сегодня"),
                 ("Мероприятий", "—", "запланировано"),
@@ -237,8 +237,8 @@ class DashboardPage(QWidget):
             dept_doctors = [d for d in dept_doctors if d.department == user.department]
 
             return [
-                ("Пациентов отделения", str(len(dept_patients)), ""),
-                ("Врачей в отделении", str(len(dept_doctors)), ""),
+                ("Категорий АА отделения", str(len(dept_patients)), ""),
+                ("Работников в отделении", str(len(dept_doctors)), ""),
                 ("Встреч", "—", "сегодня"),
                 ("Мероприятий", "—", "отделение"),
             ]
@@ -248,7 +248,7 @@ class DashboardPage(QWidget):
             my_encounters = Encounter.get_unique_meetings(user=user)
 
             return [
-                ("Моих пациентов", str(len(my_patients)), ""),
+                ("Моих категорий АА", str(len(my_patients)), ""),
                 ("Встреч", str(len(my_encounters)), "всего"),
                 ("Планов", "—", "лечения"),
                 ("Мероприятий", "—", ""),
@@ -258,14 +258,14 @@ class DashboardPage(QWidget):
             dept_patients = Patient.get_all(user=user)
 
             return [
-                ("Пациентов отделения", str(len(dept_patients)), ""),
+                ("Категорий АА отделения", str(len(dept_patients)), ""),
                 ("Встреч", "—", "сегодня"),
                 ("Процедур", "—", "запланировано"),
                 ("Мероприятий", "—", ""),
             ]
 
         return [
-            ("Пациентов", "0", ""),
+            ("Категорий АА", "0", ""),
             ("Встреч", "0", ""),
             ("Планов", "0", ""),
             ("Мероприятий", "0", ""),

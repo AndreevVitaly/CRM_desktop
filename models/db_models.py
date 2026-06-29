@@ -17,16 +17,16 @@ from dataclasses import dataclass
 # ============================================================================
 
 DEFAULT_DEPARTMENT_SEED = [
-    ("cardiology", "Кардиология"),
-    ("therapy", "Терапия"),
-    ("psychiatry", "Психиатрия"),
-    ("neurology", "Неврология"),
+    ("therapy", "1 отделение"),
+    ("cardiology", "2 отделение"),
+    ("neurology", "3 отделение"),
+    ("psychiatry", "4 отделение"),
 ]
 
 PATIENT_TYPE_CHOICES = [
-    ("adult", "Взрослый"),
-    ("child", "Детский"),
-    ("undefined", "Неопределённый"),
+    ("adult", "Категория А"),
+    ("child", "Категория Д"),
+    ("undefined", "Категория К"),
 ]
 
 GENDER_CHOICES = [
@@ -53,7 +53,7 @@ INTERACTION_ACTIONS = [
     ("visit_closed", "Закрыт визит"),
     ("note_add", "Добавлена заметка"),
     ("rx_add", "Назначение лекарства"),
-    ("patient_update", "Обновлена информация о пациенте"),
+    ("patient_update", "Обновлена информация о категории АА"),
     ("facility_update", "Обновлена информация о месте размещения"),
     ("plan_item_add", "Добавлен пункт плана"),
     ("plan_item_delete", "Удалён пункт плана"),
@@ -67,7 +67,7 @@ DOCUMENT_CLASSIFICATION_CHOICES = [
     ("SS", "СС"),
 ]
 
-DOCUMENT_TYPE_PLAN = "plan_work"  # План работы с пациентом
+DOCUMENT_TYPE_PLAN = "plan_work"  # План работы с категорией АА
 DOCUMENT_TYPE_MEETING = "meeting"  # Встреча
 
 
@@ -166,6 +166,14 @@ class Database:
             """,
                 (code, name),
             )
+            cursor.execute(
+                """
+                UPDATE departments
+                SET name = ?
+                WHERE code = ? AND name != ?
+            """,
+                (name, code, name),
+            )
 
         # Таблица мест размещения
         cursor.execute(
@@ -179,7 +187,7 @@ class Database:
         """
         )
 
-        # Таблица пациентов
+        # Таблица категорий АА
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS patients (
@@ -500,7 +508,7 @@ class Database:
         """
         )
 
-        # Миграция пациентов: замена first_name/last_name/middle_name на callsign/personal_number
+        # Миграция категорий АА: замена first_name/last_name/middle_name на callsign/personal_number
         try:
             cursor.execute("SELECT first_name FROM patients LIMIT 1")
             # Создаём временную таблицу с новой структурой
@@ -539,7 +547,7 @@ class Database:
                  insurance_number, employer, address, emergency_contact, is_active, created_at)
                 SELECT
                     id,
-                    COALESCE(NULLIF(last_name, '') || ' ' || NULLIF(first_name, '') || ' ' || COALESCE(NULLIF(middle_name, ''), ''), 'Пациент') as callsign,
+                    COALESCE(NULLIF(last_name, '') || ' ' || NULLIF(first_name, '') || ' ' || COALESCE(NULLIF(middle_name, ''), ''), 'Категория АА') as callsign,
                     NULL as personal_number,
                     birth_date, gender, patient_type,
                     department, doctor_id, facility_id, phone, email, document_id,
@@ -552,7 +560,7 @@ class Database:
         except Exception:
             pass  # Миграция уже выполнена или таблица ещё пуста
 
-        # Миграция: добавление новых полей для документов пациента
+        # Миграция: добавление новых полей для документов категории АА
         new_columns = [
             ("study_case_number", "TEXT DEFAULT ''"),
             ("study_sheet_numbers", "TEXT DEFAULT ''"),
@@ -791,7 +799,7 @@ def calculate_age(birth_date: date) -> int:
 
 
 def is_child(birth_date: date) -> bool:
-    """Проверка, является ли пациент несовершеннолетним"""
+    """Проверка, является ли категория АА несовершеннолетней"""
     return calculate_age(birth_date) < 18
 
 
@@ -834,8 +842,8 @@ class User:
             self.ROLE_ADMIN: "Администратор",
             self.ROLE_REGISTRAR: "Регистратор",
             self.ROLE_LEAD: "Начальник отделения",
-            self.ROLE_DOCTOR: "Врач",
-            self.ROLE_NURSE: "Медсестра",
+            self.ROLE_DOCTOR: "Работник",
+            self.ROLE_NURSE: "Делопроизводитель",
             self.ROLE_PHARMACIST: "Провизор",
             self.ROLE_LAB: "Лаборант",
         }
@@ -912,7 +920,7 @@ class User:
 
     @classmethod
     def get_doctors_by_department(cls, department: str) -> List["User"]:
-        """Получение врачей по отделению"""
+        """Получение работников по отделению"""
         rows = db.fetchall(
             "SELECT * FROM users WHERE role = 'DOC' AND department = ? AND is_active = 1 ORDER BY last_name",
             (department,),
@@ -1229,7 +1237,7 @@ class Patient:
         patient_type: str = "",
         facility_id: int = 0,
     ) -> List["Patient"]:
-        """Получение пациентов с фильтрацией по ролям"""
+        """Получение категорий АА с фильтрацией по ролям"""
         query = "SELECT * FROM patients WHERE 1=1"
         params = []
 
@@ -1237,7 +1245,7 @@ class Patient:
         if not include_inactive:
             query += " AND is_active = 1"
 
-        # Тип пациента
+        # Тип категории АА
         if patient_type:
             query += " AND patient_type = ?"
             params.append(patient_type)
@@ -1564,7 +1572,7 @@ class Encounter:
     document_id: Optional[int] = None  # Связь с документом
     group_id: Optional[int] = None  # Объединяющий признак встречи
     meeting_result: str = ""  # Результат встречи
-    patient_info: str = ""  # Информация от пациента
+    patient_info: str = ""  # Информация от категории АА
     meeting_description: str = ""  # Описание встречи
     information_relevance: str = ""  # Относимость информации
     information_importance: str = ""  # Важность информации
@@ -1572,8 +1580,8 @@ class Encounter:
     information_completeness: str = ""  # Полнота информации
     information_novelty: str = ""  # Новизна информации
     information_reliability: str = ""  # Достоверность информации
-    patient_tasks: str = ""  # Мероприятия для исполнения пациентом
-    patient_measures: str = ""  # Мероприятия в отношении пациента
+    patient_tasks: str = ""  # Мероприятия для исполнения категорией АА
+    patient_measures: str = ""  # Мероприятия в отношении категории АА
     general_measures: str = ""  # Мероприятия общего формата
 
     updated_at: Optional[datetime] = None
@@ -1781,11 +1789,11 @@ class Encounter:
                 )"""
                 params.append(user.department)
             elif user.role == User.ROLE_DOCTOR:
-                # Врач видит только свои визиты
+                # Работник видит только свои визиты
                 query += " AND doctor_id = ?"
                 params.append(user.id)
             elif user.role == User.ROLE_NURSE:
-                # Медсестра видит визиты своего отделения
+                # Делопроизводитель видит визиты своего отделения
                 query += """ AND patient_id IN (
                     SELECT id FROM patients WHERE department = ?
                 )"""
@@ -2379,7 +2387,7 @@ class Document:
 
     @classmethod
     def get_by_patient(cls, patient_id: int) -> List["Document"]:
-        """Получение всех документов пациента"""
+        """Получение всех документов категории АА"""
         rows = db.fetchall(
             "SELECT * FROM documents WHERE patient_id = ? ORDER BY doc_date DESC",
             (patient_id,),
@@ -2913,7 +2921,7 @@ class StatsCache:
         else:
             to_date = datetime(current_year, current_month + 1, 1)
 
-        # Получаем пациентов
+        # Получаем категории АА
         all_patients = Patient.get_all(user=None)
 
         # Фильтруем по отделению если нужно
@@ -3299,7 +3307,7 @@ def create_test_data():
         ),
         (
             "nur1",
-            "Медсестра",
+            "Делопроизводитель",
             "Сестринкина",
             "nur@hospital.ru",
             User.ROLE_NURSE,
@@ -3342,7 +3350,7 @@ def create_test_data():
         facility = Facility(name=name, type=ftype, address=address)
         facility.save()
 
-    # Создаём тестовых пациентов
+    # Создаём тестовые категории АА
     patients_data = [
         (
             "Иван",

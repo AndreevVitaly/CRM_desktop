@@ -268,9 +268,9 @@ class MeetingSchedulePage(QWidget):
         self.type_combo.setFrame(False)
         self.type_combo.setObjectName("filterCombo")
         self.type_combo.addItem("Все типы", "")
-        self.type_combo.addItem("Взрослые", "adult")
-        self.type_combo.addItem("Дети", "child")
-        self.type_combo.addItem("Неопределенные", "undefined")
+        self.type_combo.addItem("Категория А", "adult")
+        self.type_combo.addItem("Категория Д", "child")
+        self.type_combo.addItem("Категория К", "undefined")
         self.type_combo.setFixedWidth(150)
         self.type_combo.setFixedHeight(34)
         self.type_combo.setStyleSheet(self._filter_combo_style())
@@ -402,7 +402,7 @@ class MeetingSchedulePage(QWidget):
     def _create_patient_table(self) -> QTableWidget:
         table = QTableWidget()
         table.setColumnCount(1)
-        table.setHorizontalHeaderLabels(["Пациенты"])
+        table.setHorizontalHeaderLabels(["Категории АА"])
         table.setMinimumWidth(170)
         table.setMaximumWidth(PATIENT_COLUMN_WIDTH)
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -450,7 +450,7 @@ class MeetingSchedulePage(QWidget):
         self.doctor_combo.blockSignals(True)
         self.doctor_combo.clear()
         if self.user.role != User.ROLE_DOCTOR:
-            self.doctor_combo.addItem("Все врачи", 0)
+            self.doctor_combo.addItem("Все работники", 0)
 
         doctors = User.get_by_role(User.ROLE_DOCTOR)
         if selected_dept:
@@ -582,7 +582,7 @@ class MeetingSchedulePage(QWidget):
                 row, total_col, self._create_total_item(patient.id, days_in_month)
             )
 
-        self.count_label.setText(f"Пациентов: {len(self.patients)}")
+        self.count_label.setText(f"Категорий АА: {len(self.patients)}")
 
     def _create_total_item(self, patient_id: int, days_in_month: int) -> QTableWidgetItem:
         month_dates = [
@@ -660,7 +660,7 @@ class MeetingSchedulePage(QWidget):
 
     def _show_cell_menu(self, pos):
         if not self.doctor_filter:
-            QMessageBox.information(self, "График встреч", "Сначала выберите врача.")
+            QMessageBox.information(self, "График встреч", "Сначала выберите работника.")
             return
 
         row = self.schedule_table.rowAt(pos.y())
@@ -676,7 +676,7 @@ class MeetingSchedulePage(QWidget):
         completed_action = menu.addAction("Исполнено")
         clear_action = menu.addAction("Очистить отметку")
         menu.addSeparator()
-        open_action = menu.addAction("Открыть карточку пациента")
+        open_action = menu.addAction("Открыть карточку категории АА")
 
         planned_action.triggered.connect(
             lambda: self._set_cell_status(

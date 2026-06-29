@@ -217,14 +217,14 @@ class MainWindow(QMainWindow):
             "dashboard": ("Главный экран", True),
         }
 
-        # Пациенты
+        # Категория АА
         if user.role in (
             User.ROLE_ADMIN,
             User.ROLE_REGISTRAR,
             User.ROLE_LEAD,
             User.ROLE_DOCTOR,
         ):
-            items["patients"] = ("Пациенты", True)
+            items["patients"] = ("Категория АА", True)
             items["meeting_schedule"] = ("График встреч", True)
             items["encounters"] = ("Встречи", True)
             items["encounter_groups"] = ("Признаки", True)
@@ -608,7 +608,7 @@ class MainWindow(QMainWindow):
             "Экспорт завершен",
             (
                 f"Пакет сохранен:\n{result['path']}\n\n"
-                f"Пациенты: {counts.get('patients', 0)}\n"
+                f"Категории АА: {counts.get('patients', 0)}\n"
                 f"Признаки: {counts.get('encounter_groups', 0)}\n"
                 f"Документы: {counts.get('documents', 0)}\n"
                 f"Встречи: {counts.get('encounters', 0)}\n"
@@ -650,7 +650,7 @@ class MainWindow(QMainWindow):
             "users": "Пользователи",
             "facilities": "Места размещения",
             "km_records": "КМ-записи",
-            "patients": "Пациенты",
+            "patients": "Категория АА",
             "encounter_groups": "Признаки",
             "documents": "Документы",
             "encounters": "Встречи",
@@ -690,9 +690,9 @@ class MainWindow(QMainWindow):
         }
         reply = QMessageBox.question(
             self,
-            "Применить импорт пациентов?",
+            "Применить импорт категорий АА?",
             (
-                "Сейчас будут импортированы только пациенты.\n\n"
+                "Сейчас будут импортированы только категории АА.\n\n"
                 f"Новых: {patient_preview.get('new', 0)}\n"
                 f"Обновлений: {patient_preview.get('package_newer', 0)}\n\n"
                 "Документы, встречи и планы пока не записываются."
@@ -712,14 +712,14 @@ class MainWindow(QMainWindow):
         summary = import_result["summary"]
         QMessageBox.information(
             self,
-            "Импорт пациентов завершен",
+            "Импорт категорий АА завершен",
             (
                 f"Добавлено: {summary.get('new', 0)}\n"
                 f"Обновлено: {summary.get('updated', 0)}\n"
                 f"Пропущено, локально свежее: {summary.get('skipped_local_newer', 0)}\n"
                 f"Пропущено без изменений: {summary.get('skipped_same_or_unknown', 0)}\n"
                 f"Пропущено без uuid: {summary.get('skipped_without_uuid', 0)}\n"
-                f"Пропущено без врача в локальной базе: {summary.get('skipped_unmapped_doctor', 0)}"
+                f"Пропущено без работника в локальной базе: {summary.get('skipped_unmapped_doctor', 0)}"
             ),
         )
         current_page = self.stacked_widget.currentWidget()

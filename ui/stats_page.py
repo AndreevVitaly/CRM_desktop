@@ -313,10 +313,10 @@ class StatsPage(QWidget):
 
         # Показатели для строк
         rows_data = [
-            ("Пациентов", "patients_total"),
-            ("Взрослых", "patients_adult"),
-            ("Детей", "patients_child"),
-            ("Неопределённых", "patients_undefined"),
+            ("Категорий АА", "patients_total"),
+            ("Категория А", "patients_adult"),
+            ("Категория Д", "patients_child"),
+            ("Категория К", "patients_undefined"),
             ("Встреч за месяц", "visits"),
         ]
 
