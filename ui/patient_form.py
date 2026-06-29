@@ -342,21 +342,39 @@ class PatientFormDialog(QDialog):
         if self.user.role in (User.ROLE_ADMIN, User.ROLE_REGISTRAR, User.ROLE_LEAD):
             self.doctor_combo = QComboBox()
             self.doctor_combo.setFrame(False)
-            self.doctor_combo.addItem("Не назначен", 0)
-
-            # Получаем врачей
-            if self.user.role == User.ROLE_LEAD:
-                doctors = User.get_doctors_by_department(self.user.department)
-            else:
-                doctors = User.get_by_role(User.ROLE_DOCTOR)
-
-            for doc in doctors:
-                self.doctor_combo.addItem(doc.full_name, doc.id)
+            self._populate_doctor_combo()
+            self.dept_combo.currentIndexChanged.connect(
+                lambda _index: self._populate_doctor_combo()
+            )
 
             layout.addRow("Лечащий врач*", self.doctor_combo)
 
         group.setLayout(layout)
         return group
+
+    def _selected_department(self) -> str:
+        if self.user.role == User.ROLE_LEAD:
+            return self.user.department or ""
+        return self.dept_combo.currentData() or ""
+
+    def _populate_doctor_combo(self, selected_doctor_id: int = 0):
+        if not hasattr(self, "doctor_combo"):
+            return
+
+        department = self._selected_department()
+        current_doctor_id = selected_doctor_id or self.doctor_combo.currentData() or 0
+
+        self.doctor_combo.blockSignals(True)
+        self.doctor_combo.clear()
+        self.doctor_combo.addItem("Не назначен", 0)
+
+        doctors = User.get_doctors_by_department(department) if department else []
+        for doctor in doctors:
+            self.doctor_combo.addItem(doctor.full_name or doctor.username, doctor.id)
+
+        index = self.doctor_combo.findData(current_doctor_id)
+        self.doctor_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.doctor_combo.blockSignals(False)
 
     def _fill_data(self):
         """Заполнение данными пациента"""
@@ -451,9 +469,7 @@ class PatientFormDialog(QDialog):
 
         # Врач
         if hasattr(self, "doctor_combo") and self.patient.doctor_id:
-            doctor_index = self.doctor_combo.findData(self.patient.doctor_id)
-            if doctor_index >= 0:
-                self.doctor_combo.setCurrentIndex(doctor_index)
+            self._populate_doctor_combo(self.patient.doctor_id)
 
     def _save(self):
         """Сохранение пациента"""
@@ -469,6 +485,18 @@ class PatientFormDialog(QDialog):
         if hasattr(self, "doctor_combo") and not self.doctor_combo.currentData():
             QMessageBox.warning(self, "Ошибка", "Выберите лечащего врача")
             return
+
+        selected_department = self.dept_combo.currentData()
+        if hasattr(self, "doctor_combo"):
+            doctor_id = self.doctor_combo.currentData()
+            doctor = User.get_by_id(doctor_id) if doctor_id else None
+            if doctor and doctor.department != selected_department:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Лечащий врач должен относиться к выбранному отделению",
+                )
+                return
 
         # Создание/обновление пациента
         if not self.patient:
