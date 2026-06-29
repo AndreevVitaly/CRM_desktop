@@ -214,7 +214,7 @@ class DashboardPage(QWidget):
             events_today = len(Event.get_all(include_completed=False))
 
             return [
-                ("Всего категорий АА", str(len(total_patients)), "активных"),
+                ("Всего в категории АА", str(len(total_patients)), "активных"),
                 ("Работников", str(total_doctors), "в системе"),
                 ("Встреч", str(visits_today), "сегодня"),
                 ("Мероприятий", str(events_today), "запланировано"),
@@ -225,7 +225,7 @@ class DashboardPage(QWidget):
             total_users = len(User.get_all())
 
             return [
-                ("Всего категорий АА", str(len(total_patients)), "активных"),
+                ("Всего в категории АА", str(len(total_patients)), "активных"),
                 ("Пользователей", str(total_users), "в системе"),
                 ("Встреч", "—", "сегодня"),
                 ("Мероприятий", "—", "запланировано"),
