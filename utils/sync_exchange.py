@@ -201,6 +201,24 @@ def _collect_selected_patient_data(patient_ids: set[int]) -> dict[str, list[dict
         if document_ids:
             conditions.append("document_id IN (" + ",".join("?" for _ in document_ids) + ")")
             params.extend(sorted(document_ids))
+
+        personal_numbers = {
+            str(row.get("personal_number") or "").strip()
+            for row in patients
+            if str(row.get("personal_number") or "").strip()
+        }
+        callsigns = {
+            str(row.get("callsign") or "").strip()
+            for row in patients
+            if str(row.get("callsign") or "").strip()
+        }
+        if personal_numbers:
+            conditions.append("personal_number IN (" + ",".join("?" for _ in personal_numbers) + ")")
+            params.extend(sorted(personal_numbers))
+        if callsigns:
+            conditions.append("callsign IN (" + ",".join("?" for _ in callsigns) + ")")
+            params.extend(sorted(callsigns))
+
         if conditions:
             km_records = _rows(
                 "SELECT * FROM km_records WHERE " + " OR ".join(conditions) + " ORDER BY id",

@@ -89,8 +89,8 @@ class PatientDetailDialog(QDialog):
             self.tabs = QTabWidget()
             self.tabs.addTab(self._create_info_tab(), "Информация")
             self.tabs.addTab(self._create_encounters_tab(), "Встречи")
-            self.plan_tab_index = 2  # Индекс вкладки "План лечения"
-            self.tabs.addTab(self._create_plan_tab(), "План лечения")
+            self.plan_tab_index = 2  # Индекс вкладки "План"
+            self.tabs.addTab(self._create_plan_tab(), "План")
             self.tabs.addTab(self._create_documents_tab(), "Документы")
             self.tabs.addTab(self._create_log_tab(), "Журнал")
 
@@ -1394,7 +1394,7 @@ class PatientDetailDialog(QDialog):
         if not doc:
             return
 
-        # Для плана работы — переключаемся на вкладку "План лечения" и выбираем план
+        # Для плана работы — переключаемся на вкладку "План" и выбираем план
         if doc.doc_type == DOCUMENT_TYPE_PLAN:
             self.tabs.setCurrentIndex(self.plan_tab_index)
             # Находим строку плана в таблице
@@ -1729,7 +1729,7 @@ class PatientDetailDialog(QDialog):
             if doc and doc.doc_type == DOCUMENT_TYPE_PLAN:
                 self._load_plans()
                 self._load_documents()
-                # Переключаемся на вкладку "План лечения" и выбираем новый план
+                # Переключаемся на вкладку "План" и выбираем новый план
                 self.tabs.setCurrentIndex(self.plan_tab_index)
                 for r in range(self.plans_table.rowCount()):
                     item = self.plans_table.item(r, 0)
@@ -1754,7 +1754,7 @@ class PatientDetailDialog(QDialog):
             QMessageBox.warning(self, "Ошибка", "Не удалось найти план")
             return
 
-        # Переключаемся на вкладку "План лечения"
+        # Переключаемся на вкладку "План"
         self.tabs.setCurrentIndex(self.plan_tab_index)
 
     def _export_selected_plan_word(self):
