@@ -161,6 +161,118 @@ def _collect_full_database_data() -> dict[str, list[dict[str, Any]]]:
     }
 
 
+def _collect_selected_patient_data(patient_ids: set[int]) -> dict[str, list[dict[str, Any]]]:
+    table_names = set(_application_table_names())
+    selected_ids = {int(patient_id) for patient_id in patient_ids if patient_id is not None}
+    data = {
+        table_name: []
+        for table_name in APPLICATION_TABLE_IMPORT_ORDER
+        if table_name in table_names
+    }
+    if not selected_ids:
+        return data
+
+    patients = _select_by_ids("patients", selected_ids)
+    actual_patient_ids = {row["id"] for row in patients if row.get("id") is not None}
+    encounters = _select_by_column_ids("encounters", "patient_id", actual_patient_ids)
+    documents = _select_by_column_ids("documents", "patient_id", actual_patient_ids)
+    plan_items = _select_by_column_ids("treatment_plan_items", "patient_id", actual_patient_ids)
+    patient_interactions = _select_by_column_ids("patient_interactions", "patient_id", actual_patient_ids)
+    meeting_schedule = _select_by_column_ids("patient_meeting_schedule", "patient_id", actual_patient_ids)
+
+    encounter_ids = {row["id"] for row in encounters if row.get("id") is not None}
+    document_ids = {row["id"] for row in documents if row.get("id") is not None}
+    group_ids = {row["group_id"] for row in encounters if row.get("group_id") is not None}
+
+    encounter_groups = _select_by_ids("encounter_groups", group_ids)
+    encounter_informants = _select_by_column_ids("encounter_informants", "encounter_id", encounter_ids)
+    notes = _select_by_column_ids("notes", "encounter_id", encounter_ids)
+    diagnoses = _select_by_column_ids("diagnoses", "encounter_id", encounter_ids)
+    prescriptions = _select_by_column_ids("prescriptions", "encounter_id", encounter_ids)
+    attachments = _select_by_column_ids("attachments", "encounter_id", encounter_ids)
+
+    km_records = []
+    if "km_records" in table_names:
+        conditions = []
+        params = []
+        if encounter_ids:
+            conditions.append("encounter_id IN (" + ",".join("?" for _ in encounter_ids) + ")")
+            params.extend(sorted(encounter_ids))
+        if document_ids:
+            conditions.append("document_id IN (" + ",".join("?" for _ in document_ids) + ")")
+            params.extend(sorted(document_ids))
+        if conditions:
+            km_records = _rows(
+                "SELECT * FROM km_records WHERE " + " OR ".join(conditions) + " ORDER BY id",
+                tuple(params),
+            )
+
+    events = []
+    event_report_positions = []
+    if "events" in table_names:
+        event_ids: set[int] = set()
+        if document_ids:
+            placeholders = ",".join("?" for _ in document_ids)
+            event_rows = _rows(
+                f"SELECT * FROM events WHERE meeting_document_id IN ({placeholders}) ORDER BY id",
+                tuple(sorted(document_ids)),
+            )
+            events.extend(event_rows)
+            event_ids.update(row["id"] for row in event_rows if row.get("id") is not None)
+            position_rows = _rows(
+                f"SELECT * FROM event_report_positions WHERE document_id IN ({placeholders}) ORDER BY id",
+                tuple(sorted(document_ids)),
+            )
+            event_report_positions.extend(position_rows)
+            event_ids.update(row["event_id"] for row in position_rows if row.get("event_id") is not None)
+        if event_ids:
+            known_event_ids = {row["id"] for row in events if row.get("id") is not None}
+            missing_event_ids = event_ids - known_event_ids
+            events.extend(_select_by_ids("events", missing_event_ids))
+            all_position_rows = _select_by_column_ids("event_report_positions", "event_id", event_ids)
+            seen_position_ids = {row.get("id") for row in event_report_positions}
+            event_report_positions.extend(
+                row for row in all_position_rows if row.get("id") not in seen_position_ids
+            )
+
+    facility_ids = {row["facility_id"] for row in patients if row.get("facility_id") is not None}
+    user_ids = set()
+    user_ids.update(row["doctor_id"] for row in patients if row.get("doctor_id") is not None)
+    user_ids.update(row["doctor_id"] for row in encounters if row.get("doctor_id") is not None)
+    user_ids.update(row["author_id"] for row in documents if row.get("author_id") is not None)
+    user_ids.update(row["created_by_id"] for row in encounter_groups if row.get("created_by_id") is not None)
+    user_ids.update(row["author_id"] for row in notes if row.get("author_id") is not None)
+    user_ids.update(row["user_id"] for row in patient_interactions if row.get("user_id") is not None)
+    user_ids.update(row["doctor_id"] for row in meeting_schedule if row.get("doctor_id") is not None)
+    user_ids.update(row["created_by_id"] for row in meeting_schedule if row.get("created_by_id") is not None)
+    user_ids.update(row["responsible_id"] for row in events if row.get("responsible_id") is not None)
+    user_ids.update(row["created_by_id"] for row in events if row.get("created_by_id") is not None)
+    user_ids.update(row["created_by_id"] for row in event_report_positions if row.get("created_by_id") is not None)
+
+    data.update(
+        {
+            "departments": _rows("SELECT * FROM departments ORDER BY code") if "departments" in table_names else [],
+            "users": _public_users(user_ids),
+            "facilities": _select_by_ids("facilities", facility_ids),
+            "patients": patients,
+            "encounter_groups": encounter_groups,
+            "documents": documents,
+            "treatment_plan_items": plan_items,
+            "encounters": encounters,
+            "encounter_informants": encounter_informants,
+            "notes": notes,
+            "diagnoses": diagnoses,
+            "prescriptions": prescriptions,
+            "attachments": attachments,
+            "km_records": km_records,
+            "patient_interactions": patient_interactions,
+            "events": events,
+            "patient_meeting_schedule": meeting_schedule,
+            "event_report_positions": event_report_positions,
+        }
+    )
+    return data
+
 def _insert_or_replace_rows(table_name: str, rows: list[dict[str, Any]]) -> dict[str, int]:
     summary = _empty_import_summary()
     table_columns = _table_columns(table_name)
@@ -226,6 +338,8 @@ def _patient_scope_label(user: User) -> str:
 def _collect_package_data(
     user: User, patient_ids: set[int] | None = None
 ) -> dict[str, Any]:
+    if patient_ids is not None:
+        return _collect_selected_patient_data(patient_ids)
     return _collect_full_database_data()
 
 
@@ -257,6 +371,7 @@ def export_sync_package(
         "encrypted": True,
         "exported_at": exported_at,
         "scope": _patient_scope_label(user),
+        "data_scope": "selected_patients" if selected_patient_ids is not None else "full_workspace",
         "exported_by": {
             "id": user.id,
             "username": user.username,
@@ -1020,6 +1135,198 @@ def _apply_patient_interactions(
         summary["new"] += 1
     return summary
 
+def _find_existing_mapped_row(table_name: str, prepared: dict[str, Any], columns: list[str]):
+    if not columns:
+        return None
+    where = " AND ".join(f"{column} IS ?" for column in columns)
+    return db.fetchone(
+        f"SELECT id FROM {table_name} WHERE {where} LIMIT 1",
+        tuple(prepared.get(column) for column in columns),
+    )
+
+
+def _apply_mapped_rows(
+    table_name: str,
+    rows: list[dict[str, Any]],
+    column_maps: dict[str, dict[int, int | None]],
+) -> dict[str, int]:
+    summary = _empty_import_summary()
+    table_columns = _table_columns(table_name)
+    for row in rows:
+        prepared = dict(row)
+        skip = False
+        for column, id_map in column_maps.items():
+            remote_id = prepared.get(column)
+            if remote_id is None:
+                continue
+            local_id = id_map.get(remote_id)
+            if local_id is None:
+                summary["skipped_unmapped_reference"] += 1
+                skip = True
+                break
+            prepared[column] = local_id
+        if skip:
+            continue
+
+        if "uuid" in table_columns and prepared.get("uuid"):
+            _insert_or_update_by_uuid(table_name, prepared, table_columns, summary)
+            continue
+
+        insert_columns = [
+            column for column in table_columns if column != "id" and column in prepared
+        ]
+        existing = _find_existing_mapped_row(table_name, prepared, insert_columns)
+        if existing:
+            summary["skipped_same_or_unknown"] += 1
+            continue
+        db.execute(
+            f"INSERT INTO {table_name} ("
+            + ", ".join(insert_columns)
+            + ") VALUES ("
+            + ", ".join("?" for _ in insert_columns)
+            + ")",
+            tuple(prepared.get(column) for column in insert_columns),
+        )
+        summary["new"] += 1
+    return summary
+
+
+def _apply_selected_patient_import(
+    file_path: str | Path,
+    current_user: User,
+    manifest: dict[str, Any],
+    data: dict[str, Any],
+    password: str | None = None,
+) -> dict[str, Any]:
+    conn = db.connect()
+    try:
+        summaries = {
+            "departments": _apply_departments(data.get("departments", [])),
+            "users": _apply_users(data.get("users", [])),
+            "facilities": _apply_facilities(data.get("facilities", [])),
+        }
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    patient_result = apply_patient_import(file_path, current_user, password)
+    summaries["patients"] = patient_result["summary"]
+    user_map = _user_id_map(data.get("users", []))
+
+    conn = db.connect()
+    try:
+        patients = data.get("patients", [])
+        documents = data.get("documents", [])
+        plan_items = data.get("treatment_plan_items", [])
+        encounter_groups = data.get("encounter_groups", [])
+        encounters = data.get("encounters", [])
+        event_rows = data.get("events", [])
+
+        patient_map = _remote_to_local_id_map("patients", patients)
+        encounter_map = _remote_to_local_id_map("encounters", encounters)
+
+        summaries["documents"] = _apply_documents(
+            documents,
+            patient_map,
+            encounter_map,
+            user_map,
+        )
+        document_map = _remote_to_local_id_map("documents", documents)
+
+        summaries["treatment_plan_items"] = _apply_treatment_plan_items(
+            plan_items,
+            patient_map,
+            document_map,
+        )
+        plan_item_map = _remote_to_local_id_map("treatment_plan_items", plan_items)
+
+        summaries["encounter_groups"] = _apply_encounter_groups(
+            encounter_groups,
+            user_map,
+        )
+        group_map = _remote_to_local_id_map("encounter_groups", encounter_groups)
+
+        summaries["encounters"] = _apply_encounters(
+            encounters,
+            patient_map,
+            user_map,
+            document_map,
+            plan_item_map,
+            group_map,
+        )
+        encounter_map = _remote_to_local_id_map("encounters", encounters)
+        summaries["relinked_documents"] = _relink_document_encounters(documents, encounter_map)
+        document_map = _remote_to_local_id_map("documents", documents)
+
+        summaries["encounter_informants"] = _apply_mapped_rows(
+            "encounter_informants",
+            data.get("encounter_informants", []),
+            {"encounter_id": encounter_map},
+        )
+        summaries["notes"] = _apply_mapped_rows(
+            "notes",
+            data.get("notes", []),
+            {"encounter_id": encounter_map, "author_id": user_map},
+        )
+        summaries["diagnoses"] = _apply_mapped_rows(
+            "diagnoses",
+            data.get("diagnoses", []),
+            {"encounter_id": encounter_map},
+        )
+        summaries["prescriptions"] = _apply_mapped_rows(
+            "prescriptions",
+            data.get("prescriptions", []),
+            {"encounter_id": encounter_map},
+        )
+        summaries["attachments"] = _apply_attachments(
+            data.get("attachments", []),
+            encounter_map,
+        )
+        summaries["km_records"] = _apply_km_records(
+            data.get("km_records", []),
+            encounter_map,
+            document_map,
+        )
+        summaries["patient_interactions"] = _apply_patient_interactions(
+            data.get("patient_interactions", []),
+            patient_map,
+            user_map,
+        )
+        summaries["patient_meeting_schedule"] = _apply_patient_meeting_schedule(
+            data.get("patient_meeting_schedule", []),
+            patient_map,
+            user_map,
+        )
+        summaries["events"] = _apply_events(
+            event_rows,
+            user_map,
+            document_map,
+        )
+        event_map = _event_id_map(event_rows)
+        summaries["event_report_positions"] = _apply_event_report_positions(
+            data.get("event_report_positions", []),
+            event_map,
+            document_map,
+            user_map,
+        )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    aggregate = _empty_import_summary()
+    aggregate["skipped_unmapped_doctor"] = 0
+    for table_summary in summaries.values():
+        if isinstance(table_summary, dict):
+            for key, value in table_summary.items():
+                aggregate[key] = aggregate.get(key, 0) + value
+    aggregate["details"] = summaries
+    aggregate["relinked_documents"] = summaries.get("relinked_documents", 0)
+    _write_import_log(file_path, current_user, manifest, aggregate)
+    return {"manifest": manifest, "summary": aggregate}
+
 def _relink_document_encounters(
     documents: list[dict[str, Any]], encounter_map: dict[int, int]
 ) -> int:
@@ -1050,6 +1357,9 @@ def apply_sync_import(
 
     manifest, payload = _read_package(file_path, password)
     data = payload.get("data", {})
+    if manifest.get("data_scope") == "selected_patients":
+        return _apply_selected_patient_import(file_path, current_user, manifest, data, password)
+
     existing_tables = set(_application_table_names())
     ordered_tables = [table for table in APPLICATION_TABLE_IMPORT_ORDER if table in data]
     ordered_tables.extend(table for table in data.keys() if table not in set(ordered_tables))
