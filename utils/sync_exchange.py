@@ -203,27 +203,62 @@ def _collect_selected_patient_data(patient_ids: set[int]) -> dict[str, list[dict
             params.extend(sorted(document_ids))
 
         personal_numbers = {
-            str(row.get("personal_number") or "").strip()
+            str(row.get("personal_number") or "").strip().casefold()
             for row in patients
             if str(row.get("personal_number") or "").strip()
         }
         callsigns = {
-            str(row.get("callsign") or "").strip()
+            str(row.get("callsign") or "").strip().casefold()
             for row in patients
             if str(row.get("callsign") or "").strip()
         }
+        document_numbers = {
+            str(row.get("doc_number") or "").strip().casefold()
+            for row in documents
+            if str(row.get("doc_number") or "").strip()
+        }
         if personal_numbers:
-            conditions.append("personal_number IN (" + ",".join("?" for _ in personal_numbers) + ")")
+            conditions.append(
+                "LOWER(TRIM(COALESCE(personal_number, ''))) IN ("
+                + ",".join("?" for _ in personal_numbers)
+                + ")"
+            )
             params.extend(sorted(personal_numbers))
         if callsigns:
-            conditions.append("callsign IN (" + ",".join("?" for _ in callsigns) + ")")
+            conditions.append(
+                "LOWER(TRIM(COALESCE(callsign, ''))) IN ("
+                + ",".join("?" for _ in callsigns)
+                + ")"
+            )
             params.extend(sorted(callsigns))
+        if document_numbers:
+            conditions.append(
+                "LOWER(TRIM(COALESCE(document_number, ''))) IN ("
+                + ",".join("?" for _ in document_numbers)
+                + ")"
+            )
+            params.extend(sorted(document_numbers))
 
         if conditions:
             km_records = _rows(
                 "SELECT * FROM km_records WHERE " + " OR ".join(conditions) + " ORDER BY id",
                 tuple(params),
             )
+
+        def _norm(value: Any) -> str:
+            return str(value or "").strip().casefold()
+
+        seen_km_ids = {row.get("id") for row in km_records}
+        for row in _rows("SELECT * FROM km_records ORDER BY id"):
+            if row.get("id") in seen_km_ids:
+                continue
+            if (
+                _norm(row.get("personal_number")) in personal_numbers
+                or _norm(row.get("callsign")) in callsigns
+                or _norm(row.get("document_number")) in document_numbers
+            ):
+                km_records.append(row)
+                seen_km_ids.add(row.get("id"))
 
     events = []
     event_report_positions = []
