@@ -677,10 +677,7 @@ class MainWindow(QMainWindow):
             ),
         )
 
-        apply_count = 0
-        for table_name in ("users", "facilities", "patients", "encounter_groups", "documents", "encounters", "treatment_plan_items", "km_records"):
-            item = preview.get(table_name, {})
-            apply_count += item.get("new", 0) + item.get("package_newer", 0)
+        apply_count = sum(item.get("incoming", 0) for item in preview.values())
         if apply_count <= 0:
             return
 
