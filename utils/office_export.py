@@ -512,7 +512,7 @@ def _build_encounter_word_title(patient: Patient, encounter: Encounter) -> str:
     if encounter.meeting_result == "message":
         return f"Сообщение от {patient_part}"
     if encounter.meeting_result == "certificate":
-        return f"Справка о встрече с категорией АА {patient_part}"
+        return f"Справка о встрече с {patient_part}"
     if encounter.meeting_result_display:
         return f"{encounter.meeting_result_display} {patient_part}"
     return f"Встреча с категорией АА {patient_part}"
