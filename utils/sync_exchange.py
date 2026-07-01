@@ -919,6 +919,44 @@ def _apply_km_records(
         if remote_document_id is not None and prepared.get("document_id") is None:
             summary["skipped_unmapped_reference"] += 1
             continue
+
+        if prepared.get("uuid"):
+            local = db.fetchone(
+                "SELECT * FROM km_records WHERE uuid = ?",
+                (prepared["uuid"],),
+            )
+            if local:
+                incoming_ts = _parse_timestamp(prepared.get("updated_at"))
+                local_ts = _parse_timestamp(local["updated_at"])
+                if local_ts and incoming_ts and local_ts > incoming_ts:
+                    summary["skipped_local_newer"] += 1
+                    continue
+
+                writable_columns = [
+                    column
+                    for column in columns
+                    if column not in ("id", "uuid") and column in prepared
+                ]
+                changed_columns = [
+                    column
+                    for column in writable_columns
+                    if str(local[column] or "") != str(prepared.get(column) or "")
+                ]
+                if not changed_columns:
+                    summary["skipped_same_or_unknown"] += 1
+                    continue
+
+                values = [prepared.get(column) for column in writable_columns]
+                values.append(local["id"])
+                db.execute(
+                    "UPDATE km_records SET "
+                    + ", ".join(f"{column} = ?" for column in writable_columns)
+                    + " WHERE id = ?",
+                    tuple(values),
+                )
+                summary["updated"] += 1
+                continue
+
         _insert_or_update_by_uuid("km_records", prepared, columns, summary)
     return summary
 
