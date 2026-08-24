@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
     QLabel,
     QPushButton,
     QFormLayout,
@@ -176,8 +177,10 @@ class EncounterEditDialog(QDialog):
         self.informants_modified = False
 
         self.setWindowTitle(self._get_window_title())
-        self.setMinimumSize(800, 700)
+        self.setMinimumSize(1180, 680)
+        self.resize(1280, 760)
         self._init_ui()
+        self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
 
     def _get_window_title(self) -> str:
         doc_number = "б/н"
@@ -197,19 +200,27 @@ class EncounterEditDialog(QDialog):
         colors = get_colors()
 
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(16)
-        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(14, 12, 14, 12)
 
-        # Скролл для контента
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.Box)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setStyleSheet("border: none; background-color: transparent;")
 
+        # Две колонки внутри прокручиваемой области.
         content_widget = QWidget()
-        layout = QVBoxLayout()
-        layout.setSpacing(16)
+        layout = QGridLayout()
+        layout.setHorizontalSpacing(14)
+        layout.setVerticalSpacing(8)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setColumnStretch(0, 1)
+        layout.setColumnStretch(1, 1)
+        layout.setRowStretch(0, 0)
+        layout.setRowStretch(1, 0)
+        layout.setRowStretch(2, 0)
+        layout.setRowStretch(3, 1)
 
         # Группа 1: Результат встречи
         result_group = QGroupBox("Результат встречи")
@@ -230,13 +241,12 @@ class EncounterEditDialog(QDialog):
         """
         )
         result_layout = QFormLayout()
-        result_layout.setSpacing(10)
+        self._configure_form_layout(result_layout)
 
         # Выпадающий список результата встречи
         self.meeting_result_combo = QComboBox()
         self.meeting_result_combo.setFrame(False)
-        self.meeting_result_combo.setMinimumHeight(36)
-        self.meeting_result_combo.setMaximumWidth(420)
+        self._set_row_control_size(self.meeting_result_combo)
         self.meeting_result_combo.setMaxVisibleItems(4)
         self.meeting_result_combo.addItem("Выберите результат", "")
         for value, label in self._get_meeting_result_choices():
@@ -249,8 +259,7 @@ class EncounterEditDialog(QDialog):
 
         self.status_combo = QComboBox()
         self.status_combo.setFrame(False)
-        self.status_combo.setMinimumHeight(36)
-        self.status_combo.setMaximumWidth(420)
+        self._set_row_control_size(self.status_combo)
         self.status_combo.setMaxVisibleItems(3)
         self.status_combo.addItem("Запланирован", Encounter.STATUS_PLANNED)
         self.status_combo.addItem("В процессе", Encounter.STATUS_INPROGRESS)
@@ -261,14 +270,13 @@ class EncounterEditDialog(QDialog):
         group_row.setSpacing(8)
         self.group_combo = QComboBox()
         self.group_combo.setFrame(False)
-        self.group_combo.setMinimumHeight(36)
-        self.group_combo.setMaximumWidth(420)
+        self._set_row_control_size(self.group_combo)
         self.group_combo.setMaxVisibleItems(12)
         group_row.addWidget(self.group_combo, 1)
 
         new_group_btn = QPushButton("Новый")
         new_group_btn.setObjectName("secondaryBtn")
-        new_group_btn.setFixedHeight(36)
+        new_group_btn.setFixedHeight(38)
         new_group_btn.setFixedWidth(86)
         new_group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         new_group_btn.clicked.connect(self._create_encounter_group)
@@ -277,7 +285,7 @@ class EncounterEditDialog(QDialog):
 
         clear_group_btn = QPushButton("Очистить")
         clear_group_btn.setObjectName("secondaryBtn")
-        clear_group_btn.setFixedHeight(36)
+        clear_group_btn.setFixedHeight(38)
         clear_group_btn.setFixedWidth(96)
         clear_group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_group_btn.clicked.connect(lambda: self.group_combo.setCurrentIndex(0))
@@ -297,7 +305,7 @@ class EncounterEditDialog(QDialog):
         result_layout.addRow("", personal_number_label)
 
         result_group.setLayout(result_layout)
-        layout.addWidget(result_group)
+        layout.addWidget(result_group, 0, 0)
 
         # Группа 2: Информация от категории АА
         patient_info_group = QGroupBox("Информация от категории АА")
@@ -322,12 +330,12 @@ class EncounterEditDialog(QDialog):
 
         self.patient_info_input = QTextEdit()
         self.patient_info_input.setPlaceholderText("Введите информацию от категории АА")
-        self.patient_info_input.setMinimumHeight(92)
+        self.patient_info_input.setMinimumHeight(96)
         self.patient_info_input.setMaximumHeight(120)
         patient_info_layout.addWidget(self.patient_info_input)
 
         patient_info_group.setLayout(patient_info_layout)
-        layout.addWidget(patient_info_group)
+        layout.addWidget(patient_info_group, 1, 0)
 
         # Группа 3: Описание встречи
         description_group = QGroupBox("Описание встречи")
@@ -352,16 +360,15 @@ class EncounterEditDialog(QDialog):
 
         self.meeting_description_input = QTextEdit()
         self.meeting_description_input.setPlaceholderText("Введите описание встречи")
-        self.meeting_description_input.setMinimumHeight(92)
+        self.meeting_description_input.setMinimumHeight(96)
         self.meeting_description_input.setMaximumHeight(120)
         description_layout.addWidget(self.meeting_description_input)
 
         information_quality_layout = QFormLayout()
-        information_quality_layout.setSpacing(10)
+        self._configure_form_layout(information_quality_layout)
 
         self.information_relevance_input = QLineEdit()
-        self.information_relevance_input.setMinimumHeight(36)
-        self.information_relevance_input.setMaximumWidth(420)
+        self._set_row_control_size(self.information_relevance_input)
         self.information_relevance_input.setPlaceholderText(
             "Введите относимость информации"
         )
@@ -370,8 +377,7 @@ class EncounterEditDialog(QDialog):
         )
 
         self.information_importance_input = QLineEdit()
-        self.information_importance_input.setMinimumHeight(36)
-        self.information_importance_input.setMaximumWidth(420)
+        self._set_row_control_size(self.information_importance_input)
         self.information_importance_input.setPlaceholderText(
             "Введите важность информации"
         )
@@ -409,7 +415,7 @@ class EncounterEditDialog(QDialog):
         description_layout.addLayout(information_quality_layout)
 
         description_group.setLayout(description_layout)
-        layout.addWidget(description_group)
+        layout.addWidget(description_group, 2, 0)
 
         # Группа 4: Мероприятия для исполнения категорией АА
         patient_tasks_group = QGroupBox("Мероприятия для исполнения категорией АА")
@@ -430,18 +436,18 @@ class EncounterEditDialog(QDialog):
         """
         )
         patient_tasks_layout = QFormLayout()
-        patient_tasks_layout.setSpacing(10)
+        self._configure_form_layout(patient_tasks_layout)
 
         self.patient_tasks_input = QTextEdit()
         self.patient_tasks_input.setPlaceholderText("Мероприятия и способ исполнения")
-        self.patient_tasks_input.setMinimumHeight(92)
+        self.patient_tasks_input.setMinimumHeight(96)
         self.patient_tasks_input.setMaximumHeight(120)
         patient_tasks_layout.addRow(
             "Мероприятия и способ исполнения", self.patient_tasks_input
         )
 
         patient_tasks_group.setLayout(patient_tasks_layout)
-        layout.addWidget(patient_tasks_group)
+        layout.addWidget(patient_tasks_group, 0, 1)
 
         # Группа 5: Мероприятия в отношении категории АА (из плана)
         patient_measures_group = QGroupBox(
@@ -519,9 +525,12 @@ class EncounterEditDialog(QDialog):
         self.plan_items_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.plan_items_table.doubleClicked.connect(self._toggle_plan_item_selection)
         self.plan_items_table.verticalHeader().setVisible(False)
+        self.plan_items_table.verticalHeader().setDefaultSectionSize(34)
+        self.plan_items_table.verticalHeader().setMinimumSectionSize(34)
         self.plan_items_table.setMinimumHeight(220)
-        self.plan_items_table.setMaximumHeight(320)
+        self.plan_items_table.setMaximumHeight(260)
         plan_header = self.plan_items_table.horizontalHeader()
+        plan_header.setFixedHeight(36)
         plan_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         plan_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         plan_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -559,7 +568,7 @@ class EncounterEditDialog(QDialog):
         self._load_encounter_groups()
 
         patient_measures_group.setLayout(patient_measures_layout)
-        layout.addWidget(patient_measures_group)
+        layout.addWidget(patient_measures_group, 1, 1)
 
         # Группа 6: Мероприятия общего формата
         general_measures_group = QGroupBox("Мероприятия общего формата")
@@ -586,12 +595,12 @@ class EncounterEditDialog(QDialog):
         self.general_measures_input.setPlaceholderText(
             "Введите мероприятия общего формата"
         )
-        self.general_measures_input.setMinimumHeight(92)
+        self.general_measures_input.setMinimumHeight(96)
         self.general_measures_input.setMaximumHeight(120)
         general_measures_layout.addWidget(self.general_measures_input)
 
         general_measures_group.setLayout(general_measures_layout)
-        layout.addWidget(general_measures_group)
+        layout.addWidget(general_measures_group, 2, 1)
 
         # Группа 7: О ком сообщила категория АА (Информаторы)
         informants_group = QGroupBox("О ком сообщила категория АА")
@@ -633,9 +642,12 @@ class EncounterEditDialog(QDialog):
         )
         self.informants_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.informants_table.verticalHeader().setVisible(False)
-        self.informants_table.setMinimumHeight(200)
-        self.informants_table.setMaximumHeight(400)
+        self.informants_table.verticalHeader().setDefaultSectionSize(34)
+        self.informants_table.verticalHeader().setMinimumSectionSize(34)
+        self.informants_table.setMinimumHeight(220)
+        self.informants_table.setMaximumHeight(260)
         informants_header = self.informants_table.horizontalHeader()
+        informants_header.setFixedHeight(36)
         informants_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         informants_header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         informants_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -725,7 +737,7 @@ class EncounterEditDialog(QDialog):
         self._load_informants()
 
         informants_group.setLayout(informants_layout)
-        layout.addWidget(informants_group)
+        layout.addWidget(informants_group, 3, 0, 1, 2)
 
         content_widget.setLayout(layout)
         scroll.setWidget(content_widget)
@@ -767,11 +779,29 @@ class EncounterEditDialog(QDialog):
         ]
 
     @staticmethod
-    def _create_information_combo(choices):
+    def _configure_form_layout(form_layout: QFormLayout):
+        form_layout.setHorizontalSpacing(12)
+        form_layout.setVerticalSpacing(10)
+        form_layout.setLabelAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        form_layout.setFormAlignment(Qt.AlignmentFlag.AlignTop)
+        form_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+        )
+        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+
+    @staticmethod
+    def _set_row_control_size(widget):
+        widget.setMinimumHeight(38)
+        widget.setMaximumHeight(38)
+        widget.setMinimumWidth(260)
+        widget.setMaximumWidth(16777215)
+
+    def _create_information_combo(self, choices):
         combo = QComboBox()
         combo.setFrame(False)
-        combo.setMinimumHeight(36)
-        combo.setMaximumWidth(420)
+        self._set_row_control_size(combo)
         combo.addItem("Не указано", "")
         for value, label in choices:
             combo.addItem(label, value)
