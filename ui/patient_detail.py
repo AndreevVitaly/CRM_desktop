@@ -278,19 +278,36 @@ class EncounterViewDialog(QDialog):
         colors = self.colors
         return f"""
             QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }}
-            QLabel {{ color: {colors['text']}; }}
+            QLabel {{
+                color: {colors['text']};
+                background-color: transparent;
+                border: none;
+            }}
             QLabel#muted, QLabel#fieldLabel {{ color: {colors['text_muted']}; }}
             QFrame#viewPanel {{
                 background-color: {colors['surface']};
                 border: 1px solid {colors['line']};
                 border-radius: {RADIUS['sm']}px;
             }}
+            QFrame#viewPanel QLabel,
+            QFrame#viewPanel QWidget {{
+                background-color: {colors['surface']};
+                border: none;
+            }}
             QScrollArea {{ border: none; background-color: {colors['bg']}; }}
+            QScrollArea QWidget {{ background-color: {colors['bg']}; }}
             QTableWidget {{
                 background-color: {colors['surface']};
+                alternate-background-color: {colors['surface']};
                 color: {colors['text']};
                 border: 1px solid {colors['line']};
                 gridline-color: {colors['line']};
+            }}
+            QTableWidget::viewport {{ background-color: {colors['surface']}; }}
+            QTableWidget::item {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                border: none;
             }}
             QHeaderView::section {{
                 background-color: {colors['table_header_bg']};
