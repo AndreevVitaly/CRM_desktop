@@ -44,6 +44,11 @@ def build_plan_docx_filename(patient: Patient, plan_document: Document) -> str:
     return f"pulsar_plan_{patient_part}_{number_part}_{date_part}.docx"
 
 
+
+def build_encounter_group_summary_docx_filename(group) -> str:
+    group_name = safe_export_name(getattr(group, "name", "") or "group", "group")
+    stamp = datetime.now().strftime("%Y%m%d")
+    return f"pulsar_group_summary_{group_name}_{stamp}.docx"
 def build_planning_year_docx_filename(user: User, year: int) -> str:
     username = safe_export_name(user.username or user.full_name, "user")
     return f"pulsar_planning_{year}_{username}.docx"
@@ -353,6 +358,183 @@ def export_encounter_to_docx(
     except WordTemplateError as exc:
         raise RuntimeError(str(exc)) from exc
 
+
+
+def export_encounter_group_summary_to_docx(
+    group,
+    encounters: list[Encounter],
+    file_path: str | Path,
+):
+    try:
+        from docx import Document as DocxDocument
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.shared import Pt
+    except ImportError as exc:
+        raise RuntimeError(
+            "Для экспорта в Word нужен пакет python-docx. Установите зависимости из requirements.txt."
+        ) from exc
+
+    doc = DocxDocument()
+    styles = doc.styles
+    styles["Normal"].font.name = "Times New Roman"
+    styles["Normal"].font.size = Pt(12)
+
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run = title.add_run(f"Сводка по признаку: {getattr(group, 'name', '') or '—'}")
+    title_run.bold = True
+    title_run.font.size = Pt(14)
+
+    category = doc.add_paragraph(f"Признак: {getattr(group, 'category_display', '') or '—'}")
+    category.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph(f"Дата формирования: {_format_datetime(datetime.now())}")
+
+    patient_ids = {
+        encounter.patient_id
+        for encounter in encounters
+        if encounter.patient_id is not None
+    }
+    finished = sum(1 for encounter in encounters if encounter.status == Encounter.STATUS_FINISHED)
+    active = len(encounters) - finished
+    latest = _encounter_group_date(encounters[0]) if encounters else None
+
+    stats = doc.add_table(rows=2, cols=5)
+    stats.style = "Table Grid"
+    captions = ["Встреч всего", "Категорий АА", "Завершено", "В работе", "Последняя встреча"]
+    values = [
+        str(len(encounters)),
+        str(len(patient_ids)),
+        str(finished),
+        str(active),
+        _format_date(latest),
+    ]
+    for index, caption in enumerate(captions):
+        stats.cell(0, index).text = caption
+        stats.cell(1, index).text = values[index]
+
+    _add_group_summary_section(doc, "Категории АА", _group_summary_patients(encounters))
+    _add_group_summary_section(doc, "Даты и документы", _group_summary_documents(encounters))
+    _add_group_summary_section(doc, "Информация", _group_summary_field(encounters, "patient_info", "reason"))
+    _add_group_summary_section(doc, "Описание встреч", _group_summary_field(encounters, "meeting_description"))
+    _add_group_summary_section(doc, "Результаты", _group_summary_counter(encounters, "meeting_result_display"))
+    _add_group_summary_section(doc, "Статусы", _group_summary_counter(encounters, "status_display"))
+    _add_group_summary_section(doc, "Работники", _group_summary_doctors(encounters))
+    _add_group_summary_section(doc, "Мероприятия", _group_summary_measures(encounters))
+
+    doc.add_heading("Входящие встречи", level=2)
+    table = doc.add_table(rows=1, cols=7)
+    table.style = "Table Grid"
+    headers = ["Дата", "Категория АА", "Личный номер", "Работник", "Результат", "Статус", "Документ"]
+    for index, header in enumerate(headers):
+        table.cell(0, index).text = header
+    for encounter in encounters:
+        patient = encounter.patient
+        doctor = encounter.doctor
+        document = encounter.document
+        cells = table.add_row().cells
+        cells[0].text = _format_date(_encounter_group_date(encounter))
+        cells[1].text = patient.callsign if patient else "—"
+        cells[2].text = patient.personal_number if patient and patient.personal_number else "—"
+        cells[3].text = doctor.full_name if doctor else "—"
+        cells[4].text = encounter.meeting_result_display if encounter.meeting_result else "—"
+        cells[5].text = encounter.status_display or "—"
+        cells[6].text = str(document.doc_number or f"#{document.id}") if document else "—"
+
+    doc.save(str(file_path))
+
+
+def _encounter_group_date(encounter: Encounter):
+    document = encounter.document
+    return document.doc_date if document and document.doc_date else encounter.started_at
+
+
+def _unique_text_lines(lines: list[str]) -> str:
+    unique = []
+    for line in lines:
+        clean = line.strip()
+        if clean and clean != "—" and clean not in unique:
+            unique.append(clean)
+    return "\n".join(unique) if unique else "—"
+
+
+def _group_summary_patients(encounters: list[Encounter]) -> str:
+    lines = []
+    for encounter in encounters:
+        patient = encounter.patient
+        if not patient:
+            continue
+        number = f" л.н. {patient.personal_number}" if patient.personal_number else ""
+        lines.append(f"{patient.callsign or patient.full_name}{number}")
+    return _unique_text_lines(lines)
+
+
+def _group_summary_documents(encounters: list[Encounter]) -> str:
+    lines = []
+    for encounter in encounters:
+        patient = encounter.patient
+        document = encounter.document
+        date_text = _format_date(_encounter_group_date(encounter))
+        patient_text = patient.callsign if patient else "—"
+        doc_text = str(document.doc_number or f"#{document.id}") if document else "—"
+        lines.append(f"{date_text} - {patient_text} - {doc_text}")
+    return "\n".join(lines) if lines else "—"
+
+
+def _group_summary_doctors(encounters: list[Encounter]) -> str:
+    return _unique_text_lines([
+        encounter.doctor.full_name
+        for encounter in encounters
+        if encounter.doctor
+    ])
+
+
+def _group_summary_counter(encounters: list[Encounter], attr_name: str) -> str:
+    counts: dict[str, int] = {}
+    for encounter in encounters:
+        value = getattr(encounter, attr_name, "") or "—"
+        counts[str(value)] = counts.get(str(value), 0) + 1
+    return "\n".join(f"{name}: {count}" for name, count in counts.items()) if counts else "—"
+
+
+def _group_summary_field(
+    encounters: list[Encounter],
+    attr_name: str,
+    fallback_attr: str | None = None,
+) -> str:
+    lines = []
+    for encounter in encounters:
+        value = getattr(encounter, attr_name, "") or ""
+        if not value and fallback_attr:
+            value = getattr(encounter, fallback_attr, "") or ""
+        if not value:
+            continue
+        patient = encounter.patient
+        date_text = _format_date(_encounter_group_date(encounter))
+        patient_text = patient.callsign if patient else "—"
+        lines.append(f"{date_text} - {patient_text}\n{value}")
+    return "\n\n".join(lines) if lines else "—"
+
+
+def _group_summary_measures(encounters: list[Encounter]) -> str:
+    sections = []
+    fields = [
+        ("Для исполнения источником", "patient_tasks"),
+        ("В отношении категории АА", "patient_measures"),
+        ("Общего формата", "general_measures"),
+    ]
+    for title, attr_name in fields:
+        value = _group_summary_field(encounters, attr_name)
+        if value != "—":
+            sections.append(f"{title}\n{value}")
+    return "\n\n".join(sections) if sections else "—"
+
+
+def _add_group_summary_section(doc, title: str, text: str):
+    from docx.shared import Pt
+
+    doc.add_heading(title, level=2)
+    paragraph = doc.add_paragraph(text or "—")
+    paragraph.paragraph_format.space_after = Pt(6)
 
 def export_plan_to_docx(
     patient: Patient,

@@ -7,21 +7,336 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from models.db_models import Encounter, EncounterGroup, User
 from ui.styles import FONTS, RADIUS, get_colors, get_main_stylesheet
+
+
+
+class EncounterGroupSummaryDialog(QDialog):
+    """Полноэкранная сводка по всем встречам выбранного признака."""
+
+    def __init__(self, parent, user: User, group: EncounterGroup):
+        super().__init__(parent)
+        self.user = user
+        self.group = group
+        self.colors = get_colors()
+        self._encounters = self._load_group_encounters()
+        self.setWindowTitle(f"Сводка по признаку: {group.name}")
+        self.setWindowFlags(
+            self.windowFlags()
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        self.setMinimumSize(1100, 760)
+        self._init_ui()
+        self.showMaximized()
+
+    @staticmethod
+    def _encounter_date(encounter: Encounter):
+        document = encounter.document
+        return document.doc_date if document and document.doc_date else encounter.started_at
+
+    @staticmethod
+    def _format_date(value) -> str:
+        if not value:
+            return "—"
+        return value.strftime("%d.%m.%Y") if hasattr(value, "strftime") else str(value)
+
+    def _load_group_encounters(self) -> list[Encounter]:
+        encounters = [
+            encounter
+            for encounter in Encounter.get_all(self.user, include_inactive=False)
+            if encounter.group_id == self.group.id
+        ]
+        encounters.sort(
+            key=lambda encounter: self._encounter_date(encounter) or datetime.min,
+            reverse=True,
+        )
+        return encounters
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 20)
+        layout.setSpacing(16)
+
+        title = QLabel(self.group.name or "Без наименования")
+        title.setObjectName("summaryTitle")
+        layout.addWidget(title)
+
+        category = QLabel(f"Признак: {self.group.category_display}")
+        category.setObjectName("muted")
+        layout.addWidget(category)
+
+        stats = self._stats_panel()
+        layout.addWidget(stats)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        grid = QGridLayout(content)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(20)
+        grid.setVerticalSpacing(14)
+
+        left = QVBoxLayout()
+        left.setSpacing(12)
+        right = QVBoxLayout()
+        right.setSpacing(12)
+
+        left.addWidget(self._text_panel("Категории АА", self._patients_text()))
+        left.addWidget(self._text_panel("Даты и документы", self._documents_text()))
+        left.addWidget(self._text_panel("Информация", self._field_text("patient_info", fallback_attr="reason")))
+        left.addWidget(self._text_panel("Описание встреч", self._field_text("meeting_description")))
+        left.addStretch()
+
+        right.addWidget(self._text_panel("Результаты", self._counter_text("meeting_result_display")))
+        right.addWidget(self._text_panel("Статусы", self._counter_text("status_display")))
+        right.addWidget(self._text_panel("Работники", self._doctors_text()))
+        right.addWidget(self._text_panel("Мероприятия", self._measures_text()))
+        right.addStretch()
+
+        left_widget = QWidget()
+        left_widget.setLayout(left)
+        right_widget = QWidget()
+        right_widget.setLayout(right)
+        grid.addWidget(left_widget, 0, 0)
+        grid.addWidget(right_widget, 0, 1)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+        word_btn = QPushButton("WORD")
+        word_btn.setObjectName("secondaryBtn")
+        word_btn.setFixedHeight(40)
+        word_btn.setMinimumWidth(120)
+        word_btn.clicked.connect(self._export_word)
+        buttons.addWidget(word_btn)
+
+        close_btn = QPushButton("Закрыть")
+        close_btn.setObjectName("secondaryBtn")
+        close_btn.setFixedHeight(40)
+        close_btn.setMinimumWidth(120)
+        close_btn.clicked.connect(self.accept)
+        buttons.addWidget(close_btn)
+        layout.addLayout(buttons)
+
+        self.setStyleSheet(self._style())
+
+    def _export_word(self):
+        from utils.office_export import (
+            build_encounter_group_summary_docx_filename,
+            export_encounter_group_summary_to_docx,
+        )
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить сводку признака в Word",
+            build_encounter_group_summary_docx_filename(self.group),
+            "Word (*.docx)",
+            options=QFileDialog.Option.DontConfirmOverwrite,
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".docx"):
+            file_path += ".docx"
+
+        try:
+            export_encounter_group_summary_to_docx(
+                self.group,
+                self._encounters,
+                file_path,
+            )
+        except RuntimeError as exc:
+            QMessageBox.warning(self, "Экспорт Word", str(exc))
+            return
+        except PermissionError:
+            QMessageBox.warning(
+                self,
+                "Экспорт Word",
+                "Не удалось заменить файл. Закройте его в Word и попробуйте снова.",
+            )
+            return
+        except Exception as exc:
+            QMessageBox.critical(self, "Экспорт Word", f"Не удалось создать файл:\n{exc}")
+            return
+
+        QMessageBox.information(self, "Экспорт Word", "Сводка сохранена в Word")
+    def _stats_panel(self) -> QFrame:
+        patients = {
+            encounter.patient_id
+            for encounter in self._encounters
+            if encounter.patient_id is not None
+        }
+        finished = sum(1 for encounter in self._encounters if encounter.status == Encounter.STATUS_FINISHED)
+        active = len(self._encounters) - finished
+        latest = self._encounter_date(self._encounters[0]) if self._encounters else None
+        values = [
+            ("Встреч всего", str(len(self._encounters))),
+            ("Категорий АА", str(len(patients))),
+            ("Завершено", str(finished)),
+            ("В работе", str(active)),
+            ("Последняя встреча", self._format_date(latest)),
+        ]
+        frame = QFrame()
+        frame.setObjectName("summaryPanel")
+        layout = QGridLayout(frame)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setHorizontalSpacing(28)
+        layout.setVerticalSpacing(8)
+        for column, (caption, value) in enumerate(values):
+            caption_label = QLabel(caption)
+            caption_label.setObjectName("muted")
+            value_label = QLabel(value)
+            value_label.setObjectName("statValue")
+            layout.addWidget(caption_label, 0, column)
+            layout.addWidget(value_label, 1, column)
+        return frame
+
+    @staticmethod
+    def _unique_lines(lines: list[str]) -> str:
+        unique = []
+        for line in lines:
+            clean = line.strip()
+            if clean and clean != "—" and clean not in unique:
+                unique.append(clean)
+        return "\n".join(unique) if unique else "—"
+
+    def _patients_text(self) -> str:
+        lines = []
+        for encounter in self._encounters:
+            patient = encounter.patient
+            if not patient:
+                continue
+            number = f" л.н. {patient.personal_number}" if patient.personal_number else ""
+            lines.append(f"{patient.callsign or patient.full_name}{number}")
+        return self._unique_lines(lines)
+
+    def _documents_text(self) -> str:
+        lines = []
+        for encounter in self._encounters:
+            patient = encounter.patient
+            document = encounter.document
+            date_text = self._format_date(self._encounter_date(encounter))
+            patient_text = patient.callsign if patient else "—"
+            doc_text = str(document.doc_number or f"#{document.id}") if document else "—"
+            lines.append(f"{date_text} • {patient_text} • {doc_text}")
+        return "\n".join(lines) if lines else "—"
+
+    def _doctors_text(self) -> str:
+        lines = []
+        for encounter in self._encounters:
+            if encounter.doctor:
+                lines.append(encounter.doctor.full_name)
+        return self._unique_lines(lines)
+
+    def _counter_text(self, attr_name: str) -> str:
+        counts: dict[str, int] = {}
+        for encounter in self._encounters:
+            value = getattr(encounter, attr_name, "") or "—"
+            counts[str(value)] = counts.get(str(value), 0) + 1
+        if not counts:
+            return "—"
+        return "\n".join(f"{name}: {count}" for name, count in counts.items())
+
+    def _field_text(self, attr_name: str, fallback_attr: str | None = None) -> str:
+        lines = []
+        for encounter in self._encounters:
+            value = getattr(encounter, attr_name, "") or ""
+            if not value and fallback_attr:
+                value = getattr(encounter, fallback_attr, "") or ""
+            if not value:
+                continue
+            patient = encounter.patient
+            date_text = self._format_date(self._encounter_date(encounter))
+            patient_text = patient.callsign if patient else "—"
+            lines.append(f"{date_text} • {patient_text}\n{value}")
+        return "\n\n".join(lines) if lines else "—"
+
+    def _measures_text(self) -> str:
+        sections = []
+        fields = [
+            ("Для исполнения источником", "patient_tasks"),
+            ("В отношении категории АА", "patient_measures"),
+            ("Общего формата", "general_measures"),
+        ]
+        for title, attr_name in fields:
+            value = self._field_text(attr_name)
+            if value != "—":
+                sections.append(f"{title}\n{value}")
+        return "\n\n".join(sections) if sections else "—"
+
+    def _text_panel(self, title: str, text: str) -> QFrame:
+        frame = QFrame()
+        frame.setObjectName("summaryPanel")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(8)
+        label = QLabel(title)
+        label.setObjectName("sectionTitle")
+        editor = QTextEdit()
+        editor.setReadOnly(True)
+        editor.setPlainText(text or "—")
+        editor.setMinimumHeight(120)
+        editor.setFrameShape(QFrame.Shape.NoFrame)
+        layout.addWidget(label)
+        layout.addWidget(editor)
+        return frame
+
+    def _style(self) -> str:
+        colors = self.colors
+        return get_main_stylesheet() + f"""
+            QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }}
+            QLabel#summaryTitle {{
+                color: {colors['text']};
+                font-size: {FONTS['size_header']}pt;
+                font-weight: 700;
+                background-color: transparent;
+            }}
+            QLabel#sectionTitle {{
+                color: {colors['text']};
+                font-size: {FONTS['size_medium']}pt;
+                font-weight: 700;
+                background-color: transparent;
+            }}
+            QFrame#summaryPanel {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+            }}
+            QFrame#summaryPanel QLabel {{ background-color: transparent; border: none; }}
+            QScrollArea {{ border: none; background-color: {colors['bg']}; }}
+            QScrollArea QWidget {{ background-color: {colors['bg']}; }}
+            QTextEdit {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                border: none;
+                selection-background-color: {colors['accent']};
+                selection-color: #FFFFFF;
+            }}
+        """
 
 
 class EncounterGroupDetailDialog(QDialog):
@@ -32,8 +347,15 @@ class EncounterGroupDetailDialog(QDialog):
         self.on_changed = on_changed
         self._encounters: list[Encounter] = []
         self.setWindowTitle(f"Признак: {group.name}")
+        self.setWindowFlags(
+            self.windowFlags()
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self.setMinimumSize(980, 640)
         self._init_ui()
+        self.showMaximized()
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
@@ -103,6 +425,12 @@ class EncounterGroupDetailDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch()
+        summary_btn = QPushButton("Сводка")
+        summary_btn.setObjectName("secondaryBtn")
+        summary_btn.setFixedHeight(40)
+        summary_btn.clicked.connect(self._open_summary)
+        buttons.addWidget(summary_btn)
+
         close_btn = QPushButton("Закрыть")
         close_btn.setObjectName("secondaryBtn")
         close_btn.setFixedHeight(40)
@@ -192,6 +520,10 @@ class EncounterGroupDetailDialog(QDialog):
                     )
                 self.table.setItem(row, column, item)
 
+    def _open_summary(self):
+        dialog = EncounterGroupSummaryDialog(self, self.user, self.group)
+        dialog.exec()
+
     def _selected_encounter(self) -> Encounter | None:
         selected = self.table.selectionModel().selectedRows()
         if not selected:
@@ -256,6 +588,15 @@ class EncounterGroupsPage(QWidget):
         filter_layout.addWidget(self.category_filter)
 
         filter_layout.addStretch()
+
+        summary_btn = QPushButton("СВОДКА")
+        summary_btn.setObjectName("filterButton")
+        summary_btn.setFixedHeight(34)
+        summary_btn.setMinimumWidth(92)
+        summary_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        summary_btn.setStyleSheet(self._filter_button_style())
+        summary_btn.clicked.connect(self._open_selected_group_summary)
+        filter_layout.addWidget(summary_btn)
 
         refresh_btn = QPushButton("Обновить")
         refresh_btn.setObjectName("filterButton")
@@ -448,6 +789,18 @@ class EncounterGroupsPage(QWidget):
         if not item:
             return None
         return item.data(Qt.ItemDataRole.UserRole)
+
+    def _open_selected_group_summary(self):
+        group_id = self._selected_group_id()
+        if not group_id:
+            QMessageBox.information(self, "Сводка", "Выберите признак в таблице")
+            return
+        group = EncounterGroup.get_by_id(group_id)
+        if not group:
+            QMessageBox.warning(self, "Сводка", "Не удалось найти выбранный признак")
+            return
+        dialog = EncounterGroupSummaryDialog(self, self.user, group)
+        dialog.exec()
 
     def _open_selected_group(self, _index=None):
         group_id = self._selected_group_id()
