@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QMenu,
     QFileDialog,
+    QScrollArea,
 )
 from PyQt6.QtCore import Qt, QDate, QTime
 from PyQt6.QtGui import QFont, QCursor, QColor
@@ -48,6 +49,265 @@ from models.db_models import (
 from ui.styles import get_colors, FONTS, RADIUS
 
 
+
+class EncounterViewDialog(QDialog):
+    """Полноэкранный просмотр данных встречи без режима редактирования."""
+
+    def __init__(self, user: User, patient: Patient, document: Document, encounter: Encounter, parent=None):
+        super().__init__(parent)
+        self.user = user
+        self.patient = patient
+        self.document = document
+        self.encounter = encounter
+        self.colors = get_colors()
+        self.setWindowTitle(f"Данные встречи: {patient.full_name}")
+        self.setWindowFlags(
+            self.windowFlags()
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        self.setMinimumSize(1100, 760)
+        self._init_ui()
+        self.showMaximized()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 20)
+        layout.setSpacing(16)
+
+        title = QLabel(self._title_text())
+        title.setFont(QFont(FONTS["family"], 18, QFont.Weight.Bold))
+        title.setWordWrap(True)
+        layout.addWidget(title)
+
+        meta = QLabel(self._meta_text())
+        meta.setObjectName("muted")
+        meta.setWordWrap(True)
+        layout.addWidget(meta)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        grid = QGridLayout(content)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(20)
+        grid.setVerticalSpacing(14)
+
+        left = QVBoxLayout()
+        left.setSpacing(12)
+        right = QVBoxLayout()
+        right.setSpacing(12)
+
+        left.addWidget(self._section_title("Основные данные"))
+        left.addWidget(self._info_grid([
+            ("Дата", self._format_datetime(self.encounter.started_at or self.document.doc_date)),
+            ("Работник", self._doctor_name()),
+            ("Результат", self.encounter.meeting_result_display or "—"),
+            ("Статус", self.encounter.status_display or "—"),
+            ("Признак", self.encounter.group.name if self.encounter.group else "—"),
+            ("Документ", self.document.doc_number or f"#{self.document.id}"),
+            ("Причина", self.encounter.reason or self.document.summary or "—"),
+        ]))
+
+        left.addWidget(self._text_block("Информация от источника", self.encounter.patient_info))
+        left.addWidget(self._text_block("Описание встречи", self.encounter.meeting_description))
+        left.addWidget(self._text_block("Мероприятия для исполнения источником", self.encounter.patient_tasks))
+        left.addStretch()
+
+        right.addWidget(self._section_title("Оценка информации"))
+        right.addWidget(self._info_grid([
+            ("Актуальность", self.encounter.information_relevance or "—"),
+            ("Важность", self.encounter.information_importance or "—"),
+            ("Своевременность", self._choice_label(Encounter.INFORMATION_TIMELINESS_CHOICES, self.encounter.information_timeliness)),
+            ("Полнота", self._choice_label(Encounter.INFORMATION_COMPLETENESS_CHOICES, self.encounter.information_completeness)),
+            ("Новизна", self._choice_label(Encounter.INFORMATION_NOVELTY_CHOICES, self.encounter.information_novelty)),
+            ("Достоверность", self._choice_label(Encounter.INFORMATION_RELIABILITY_CHOICES, self.encounter.information_reliability)),
+        ]))
+
+        right.addWidget(self._text_block("Мероприятия в отношении категории АА", self.encounter.patient_measures))
+        right.addWidget(self._text_block("Мероприятия общего формата", self.encounter.general_measures))
+        right.addWidget(self._informants_table())
+        right.addStretch()
+
+        left_widget = QWidget()
+        left_widget.setLayout(left)
+        right_widget = QWidget()
+        right_widget.setLayout(right)
+        grid.addWidget(left_widget, 0, 0)
+        grid.addWidget(right_widget, 0, 1)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+        close_btn = QPushButton("Закрыть")
+        close_btn.setFixedHeight(40)
+        close_btn.setMinimumWidth(120)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.clicked.connect(self.accept)
+        buttons.addWidget(close_btn)
+        layout.addLayout(buttons)
+
+        self.setStyleSheet(self._style())
+
+    def _title_text(self) -> str:
+        patient_part = f"{self.patient.callsign or '—'} л.н. {self.patient.personal_number or '—'}"
+        if self.encounter.meeting_result == "message":
+            return f"Сообщение от {patient_part}"
+        if self.encounter.meeting_result == "certificate":
+            return f"Справка о встрече с {patient_part}"
+        if self.encounter.meeting_result_display:
+            return f"{self.encounter.meeting_result_display} {patient_part}"
+        return f"Встреча с {patient_part}"
+
+    def _meta_text(self) -> str:
+        parts = [
+            self._format_datetime(self.encounter.started_at or self.document.doc_date),
+            self._doctor_name(),
+            self.document.doc_number or f"#{self.document.id}",
+        ]
+        return " • ".join(part for part in parts if part and part != "—")
+
+    def _doctor_name(self) -> str:
+        if self.encounter.doctor:
+            return self.encounter.doctor.full_name
+        if self.document.author:
+            return self.document.author.full_name
+        return "—"
+
+    @staticmethod
+    def _format_datetime(value) -> str:
+        if not value:
+            return "—"
+        if isinstance(value, datetime):
+            return value.strftime("%d.%m.%Y %H:%M")
+        if hasattr(value, "strftime"):
+            return value.strftime("%d.%m.%Y")
+        return str(value)
+
+    @staticmethod
+    def _choice_label(choices, value) -> str:
+        if not value:
+            return "—"
+        return dict(choices).get(value, value)
+
+    def _section_title(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setFont(QFont(FONTS["family"], 12, QFont.Weight.Bold))
+        return label
+
+    def _info_grid(self, rows: list[tuple[str, str]]) -> QWidget:
+        widget = QFrame()
+        widget.setObjectName("viewPanel")
+        layout = QGridLayout(widget)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setHorizontalSpacing(14)
+        layout.setVerticalSpacing(8)
+        for row, (label_text, value_text) in enumerate(rows):
+            label = QLabel(label_text)
+            label.setObjectName("fieldLabel")
+            value = QLabel(value_text or "—")
+            value.setWordWrap(True)
+            layout.addWidget(label, row, 0, Qt.AlignmentFlag.AlignTop)
+            layout.addWidget(value, row, 1)
+        layout.setColumnStretch(1, 1)
+        return widget
+
+    def _text_block(self, title: str, text: str) -> QWidget:
+        widget = QFrame()
+        widget.setObjectName("viewPanel")
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(8)
+        label = QLabel(title)
+        label.setFont(QFont(FONTS["family"], 11, QFont.Weight.Bold))
+        value = QLabel(text or "—")
+        value.setWordWrap(True)
+        value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(label)
+        layout.addWidget(value)
+        return widget
+
+    def _informants_table(self) -> QWidget:
+        from models.db_models import EncounterInformant
+
+        widget = QFrame()
+        widget.setObjectName("viewPanel")
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(10)
+        layout.addWidget(self._section_title("О ком сообщил источник"))
+
+        table = QTableWidget()
+        table.setColumnCount(5)
+        table.setHorizontalHeaderLabels(["ФИО", "Должность", "Дата рождения", "Место работы", "Суть информации / меры"])
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.verticalHeader().setVisible(False)
+        table.setShowGrid(True)
+        table.setMinimumHeight(220)
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+
+        informants = EncounterInformant.get_by_encounter(self.encounter.id) if self.encounter.id else []
+        table.setRowCount(len(informants) if informants else 1)
+        if not informants:
+            table.setSpan(0, 0, 1, 5)
+            table.setItem(0, 0, QTableWidgetItem("—"))
+        for row, item in enumerate(informants):
+            birth_date = item.birth_date.strftime("%d.%m.%Y") if item.birth_date else "—"
+            info = "\n".join(part for part in (item.info_essence, item.measures_taken) if part) or "—"
+            values = [item.full_name or "—", item.position or "—", birth_date, item.workplace or "—", info]
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(value)
+                table.setItem(row, column, cell)
+        table.resizeRowsToContents()
+        layout.addWidget(table)
+        return widget
+
+    def _style(self) -> str:
+        colors = self.colors
+        return f"""
+            QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }}
+            QLabel {{ color: {colors['text']}; }}
+            QLabel#muted, QLabel#fieldLabel {{ color: {colors['text_muted']}; }}
+            QFrame#viewPanel {{
+                background-color: {colors['surface']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['sm']}px;
+            }}
+            QScrollArea {{ border: none; background-color: {colors['bg']}; }}
+            QTableWidget {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                border: 1px solid {colors['line']};
+                gridline-color: {colors['line']};
+            }}
+            QHeaderView::section {{
+                background-color: {colors['table_header_bg']};
+                color: {colors['text_muted']};
+                border: none;
+                border-bottom: 1px solid {colors['line']};
+                padding: 8px;
+            }}
+            QPushButton {{
+                background-color: {colors['surface']};
+                color: {colors['text']};
+                border: 1px solid {colors['line']};
+                border-radius: {RADIUS['md']}px;
+                padding: 8px 18px;
+            }}
+            QPushButton:hover {{ background-color: {colors['surface_muted']}; }}
+        """
 class PatientDetailDialog(QDialog):
     """Диалог детальной информации о категории АА"""
 
@@ -623,6 +883,13 @@ class PatientDetailDialog(QDialog):
 
         filter_layout.addStretch()
 
+        edit_encounter_btn = QPushButton("РЕДАКТИРОВАТЬ")
+        edit_encounter_btn.setObjectName("actionButton")
+        edit_encounter_btn.setFixedHeight(36)
+        edit_encounter_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_encounter_btn.clicked.connect(self._edit_encounter)
+        filter_layout.addWidget(edit_encounter_btn)
+
         word_btn = QPushButton("WORD")
         word_btn.setObjectName("actionButton")
         word_btn.setFixedHeight(36)
@@ -673,7 +940,7 @@ class PatientDetailDialog(QDialog):
         self.encounters_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.encounters_table.verticalHeader().setVisible(False)
         self.encounters_table.setShowGrid(False)
-        self.encounters_table.doubleClicked.connect(self._edit_encounter)
+        self.encounters_table.doubleClicked.connect(self._open_encounter_view)
 
         layout.addWidget(self.encounters_table, 1)
 
@@ -1666,6 +1933,24 @@ class PatientDetailDialog(QDialog):
                 self._load_documents()
                 self._log_interaction("visit_created", "Создана новая встреча")
 
+    def _open_encounter_view(self, index):
+        """Открыть полноэкранный просмотр данных встречи по двойному клику."""
+        row = index.row() if index is not None and index.isValid() else -1
+        if row < 0:
+            selected = self.encounters_table.selectedItems()
+            if not selected:
+                QMessageBox.warning(self, "Предупреждение", "Выберите встречу")
+                return
+            row = selected[0].row()
+
+        document = self._get_encounter_document_by_row(row)
+        if not document:
+            QMessageBox.warning(self, "Предупреждение", "Не удалось найти встречу")
+            return
+
+        encounter = self._encounter_from_document_for_export(document)
+        dialog = EncounterViewDialog(self.user, self.patient, document, encounter, self)
+        dialog.exec()
     def _edit_encounter(self, index):
         """Редактирование встречи (двойной клик) - открывает расширенную форму встречи"""
         selected = self.encounters_table.selectedItems()
