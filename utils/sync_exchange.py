@@ -183,6 +183,7 @@ def _collect_selected_patient_data(patient_ids: set[int]) -> dict[str, list[dict
     encounter_ids = {row["id"] for row in encounters if row.get("id") is not None}
     document_ids = {row["id"] for row in documents if row.get("id") is not None}
     group_ids = {row["group_id"] for row in encounters if row.get("group_id") is not None}
+    group_ids.update(row["group_id"] for row in documents if row.get("group_id") is not None)
 
     encounter_groups = _select_by_ids("encounter_groups", group_ids)
     encounter_informants = _select_by_column_ids("encounter_informants", "encounter_id", encounter_ids)
@@ -816,6 +817,7 @@ def _apply_documents(
     documents: list[dict[str, Any]],
     patient_map: dict[int, int],
     encounter_map: dict[int, int],
+    group_map: dict[int, int],
     user_map: dict[int, int | None],
 ) -> dict[str, int]:
     summary = _empty_import_summary()
@@ -824,13 +826,21 @@ def _apply_documents(
         prepared = dict(row)
         patient_id = prepared.get("patient_id")
         author_id = prepared.get("author_id")
-        if patient_id not in patient_map or author_id not in user_map or user_map[author_id] is None:
+        if author_id not in user_map or user_map[author_id] is None:
             summary["skipped_unmapped_reference"] += 1
             continue
-        prepared["patient_id"] = patient_map[patient_id]
+        if patient_id in (None, 0):
+            prepared["patient_id"] = 0
+        elif patient_id in patient_map:
+            prepared["patient_id"] = patient_map[patient_id]
+        else:
+            summary["skipped_unmapped_reference"] += 1
+            continue
         prepared["author_id"] = user_map[author_id]
         remote_encounter_id = prepared.get("encounter_id")
         prepared["encounter_id"] = encounter_map.get(remote_encounter_id)
+        remote_group_id = prepared.get("group_id")
+        prepared["group_id"] = group_map.get(remote_group_id)
         _insert_or_update_by_uuid("documents", prepared, columns, summary)
     return summary
 
@@ -1317,10 +1327,17 @@ def _apply_selected_patient_import(
         patient_map = _remote_to_local_id_map("patients", patients)
         encounter_map = _remote_to_local_id_map("encounters", encounters)
 
+        summaries["encounter_groups"] = _apply_encounter_groups(
+            encounter_groups,
+            user_map,
+        )
+        group_map = _remote_to_local_id_map("encounter_groups", encounter_groups)
+
         summaries["documents"] = _apply_documents(
             documents,
             patient_map,
             encounter_map,
+            group_map,
             user_map,
         )
         document_map = _remote_to_local_id_map("documents", documents)
@@ -1331,12 +1348,6 @@ def _apply_selected_patient_import(
             document_map,
         )
         plan_item_map = _remote_to_local_id_map("treatment_plan_items", plan_items)
-
-        summaries["encounter_groups"] = _apply_encounter_groups(
-            encounter_groups,
-            user_map,
-        )
-        group_map = _remote_to_local_id_map("encounter_groups", encounter_groups)
 
         summaries["encounters"] = _apply_encounters(
             encounters,

@@ -25,6 +25,7 @@ from models.db_models import (
     User,
     Patient,
     Document,
+    EncounterGroup,
     DOCUMENT_CLASSIFICATION_CHOICES,
     DOCUMENT_TYPE_PLAN,
     DOCUMENT_TYPE_MEETING,
@@ -35,11 +36,18 @@ from ui.styles import get_colors, FONTS, RADIUS
 class DocumentFormDialog(QDialog):
     """Диалог формы документа"""
 
-    def __init__(self, user: User, patient: Patient, document: Document = None):
+    def __init__(
+        self,
+        user: User,
+        patient: Patient | None,
+        document: Document = None,
+        allow_patient_select: bool = False,
+    ):
         super().__init__()
         self.user = user
         self.patient = patient
         self.document = document
+        self.allow_patient_select = allow_patient_select
         self.is_edit = document is not None and document.id is not None
 
         title = "Редактирование документа" if self.is_edit else "Новый документ"
@@ -78,6 +86,29 @@ class DocumentFormDialog(QDialog):
         form_layout.setFieldGrowthPolicy(
             QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
         )
+
+        if self.allow_patient_select:
+            self.patient_combo = QComboBox()
+            self.patient_combo.setFrame(False)
+            self.patient_combo.setFont(compact_font)
+            self.patient_combo.setMinimumHeight(34)
+            self.patient_combo.addItem("Без категории АА", None)
+            for patient in Patient.get_all(user=self.user, include_inactive=False):
+                number = f" · {patient.personal_number}" if patient.personal_number else ""
+                self.patient_combo.addItem(f"{patient.callsign}{number}", patient.id)
+            form_layout.addRow("Категория АА", self.patient_combo)
+
+        self.group_combo = QComboBox()
+        self.group_combo.setFrame(False)
+        self.group_combo.setFont(compact_font)
+        self.group_combo.setMinimumHeight(34)
+        self.group_combo.addItem("Без признака", None)
+        for group in EncounterGroup.get_all():
+            self.group_combo.addItem(
+                f"{group.name} · {group.category_display}",
+                group.id,
+            )
+        form_layout.addRow("Признак", self.group_combo)
 
         # Гриф секретности
         self.classification_combo = QComboBox()
@@ -240,6 +271,8 @@ class DocumentFormDialog(QDialog):
         """
 
         for widget in (
+            getattr(self, "patient_combo", None),
+            self.group_combo,
             self.classification_combo,
             self.doc_date_input,
             self.doc_number_input,
@@ -247,7 +280,8 @@ class DocumentFormDialog(QDialog):
             self.doc_type_input,
             self.location_input,
         ):
-            widget.setStyleSheet(input_style)
+            if widget is not None:
+                widget.setStyleSheet(input_style)
 
         self.summary_input.setStyleSheet(text_edit_style)
 
@@ -283,6 +317,15 @@ class DocumentFormDialog(QDialog):
         """Заполнение данными документа"""
         if not self.document:
             return
+
+        if self.allow_patient_select and hasattr(self, "patient_combo"):
+            patient_index = self.patient_combo.findData(self.document.patient_id)
+            if patient_index >= 0:
+                self.patient_combo.setCurrentIndex(patient_index)
+
+        group_index = self.group_combo.findData(self.document.group_id)
+        if group_index >= 0:
+            self.group_combo.setCurrentIndex(group_index)
 
         # Гриф секретности
         class_index = self.classification_combo.findData(self.document.classification)
@@ -345,14 +388,25 @@ class DocumentFormDialog(QDialog):
         if not self.document:
             self.document = Document()
 
-        self.document.patient_id = self.patient.id
+        selected_patient = self.patient
+        if self.allow_patient_select and hasattr(self, "patient_combo"):
+            selected_patient_id = self.patient_combo.currentData()
+            selected_patient = (
+                Patient.get_by_id(selected_patient_id) if selected_patient_id else None
+            )
+
+        self.patient = selected_patient
+        self.document.patient_id = selected_patient.id if selected_patient else 0
+        self.document.group_id = self.group_combo.currentData()
         self.document.classification = self.classification_combo.currentData()
         self.document.doc_date = self.doc_date_input.date().toPyDate()
         self.document.author_id = self.user.id
         self.document.doc_type = doc_type
         self.document.summary = self.summary_input.toPlainText().strip()
         self.document.location = self.location_input.toPlainText().strip()
-        self.document.patient_personal_number = self.patient.personal_number or ""
+        self.document.patient_personal_number = (
+            selected_patient.personal_number if selected_patient else ""
+        ) or ""
 
         # Номер документа (пустая строка сохраняется как None)
         doc_number_str = self.doc_number_input.text().strip()

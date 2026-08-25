@@ -79,6 +79,15 @@ class DocumentsPage(QWidget):
         layout.addStretch()
 
         if self.user.role != User.ROLE_NURSE:
+            add_btn = QPushButton("Новый документ")
+            add_btn.setObjectName("filterButton")
+            add_btn.setFixedHeight(34)
+            add_btn.setMinimumWidth(122)
+            add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            add_btn.setStyleSheet(self._filter_button_style())
+            add_btn.clicked.connect(self._add_document)
+            layout.addWidget(add_btn)
+
             edit_btn = QPushButton("Редактировать")
             edit_btn.setObjectName("filterButton")
             edit_btn.setFixedHeight(34)
@@ -137,13 +146,14 @@ class DocumentsPage(QWidget):
 
     def _create_table(self) -> QTableWidget:
         table = QTableWidget()
-        table.setColumnCount(10)
+        table.setColumnCount(11)
         table.setHorizontalHeaderLabels(
             [
                 "ID",
                 "Категория АА",
                 "Личный номер",
                 "№ док.",
+                "Признак",
                 "Гриф",
                 "Дата",
                 "Вид документа",
@@ -161,9 +171,10 @@ class DocumentsPage(QWidget):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(10, QHeaderView.ResizeMode.ResizeToContents)
 
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -187,6 +198,7 @@ class DocumentsPage(QWidget):
         for doc in documents:
             patient = doc.patient
             author = doc.author
+            group = doc.group
 
             search_blob = " ".join(
                 str(part or "")
@@ -196,6 +208,8 @@ class DocumentsPage(QWidget):
                     patient.personal_number if patient else "",
                     doc.patient_personal_number,
                     doc.doc_number,
+                    group.name if group else "",
+                    group.category_display if group else "",
                     doc.classification_display,
                     self._get_doc_type_display(doc),
                     doc.summary,
@@ -212,6 +226,7 @@ class DocumentsPage(QWidget):
         for row, doc in enumerate(self.filtered_documents):
             patient = doc.patient
             author = doc.author
+            group = doc.group
 
             self.table.insertRow(row)
 
@@ -231,19 +246,20 @@ class DocumentsPage(QWidget):
                 ),
             )
             self.table.setItem(row, 3, QTableWidgetItem(doc.doc_number or "—"))
-            self.table.setItem(row, 4, QTableWidgetItem(doc.classification_display))
+            self.table.setItem(row, 4, QTableWidgetItem(group.name if group else "—"))
+            self.table.setItem(row, 5, QTableWidgetItem(doc.classification_display))
             self.table.setItem(
                 row,
-                5,
+                6,
                 QTableWidgetItem(
                     doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"
                 ),
             )
-            self.table.setItem(row, 6, QTableWidgetItem(self._get_doc_type_display(doc)))
-            self.table.setItem(row, 7, QTableWidgetItem(doc.summary or "—"))
-            self.table.setItem(row, 8, QTableWidgetItem(doc.location or "—"))
+            self.table.setItem(row, 7, QTableWidgetItem(self._get_doc_type_display(doc)))
+            self.table.setItem(row, 8, QTableWidgetItem(doc.summary or "—"))
+            self.table.setItem(row, 9, QTableWidgetItem(doc.location or "—"))
             self.table.setItem(
-                row, 9, QTableWidgetItem(author.full_name if author else "—")
+                row, 10, QTableWidgetItem(author.full_name if author else "—")
             )
 
         self.count_label.setText(f"Документов найдено: {len(self.filtered_documents)}")
@@ -266,6 +282,21 @@ class DocumentsPage(QWidget):
 
         return self.filtered_documents[row]
 
+    def _add_document(self):
+        if self.user.role == User.ROLE_NURSE:
+            return
+
+        from ui.document_form import DocumentFormDialog
+
+        dialog = DocumentFormDialog(
+            self.user,
+            None,
+            None,
+            allow_patient_select=True,
+        )
+        if dialog.exec():
+            self._load_documents()
+
     def _edit_selected_document(self):
         if self.user.role == User.ROLE_NURSE:
             self._open_selected_document()
@@ -278,18 +309,14 @@ class DocumentsPage(QWidget):
             )
             return
 
-        patient = doc.patient
-        if not patient:
-            QMessageBox.warning(
-                self,
-                "Ошибка",
-                "Не удалось открыть документ: категория АА, связанная с документом, не найдена",
-            )
-            return
-
         from ui.document_form import DocumentFormDialog
 
-        dialog = DocumentFormDialog(self.user, patient, doc)
+        dialog = DocumentFormDialog(
+            self.user,
+            doc.patient,
+            doc,
+            allow_patient_select=True,
+        )
 
         if dialog.exec():
             self._load_documents()
@@ -307,6 +334,7 @@ class DocumentsPage(QWidget):
     def _open_document_dialog(self, doc: Document):
         patient = doc.patient
         author = doc.author
+        group = doc.group
 
         dialog = QDialog(self)
         doc_title_number = doc.doc_number or f"ID {doc.id}"
@@ -348,6 +376,7 @@ class DocumentsPage(QWidget):
 
         fields = [
             ("Категория АА:", patient.callsign if patient else "—"),
+            ("Признак:", group.name if group else "—"),
             ("Номер документа:", str(doc.doc_number) if doc.doc_number else "—"),
             ("Гриф секретности:", doc.classification_display),
             ("Дата:", doc.doc_date.strftime("%d.%m.%Y") if doc.doc_date else "—"),

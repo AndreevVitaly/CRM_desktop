@@ -594,19 +594,22 @@ class Database:
                 patient_personal_number TEXT,
                 doc_number TEXT,
                 encounter_id INTEGER,
+                group_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (patient_id) REFERENCES patients(id),
                 FOREIGN KEY (author_id) REFERENCES users(id),
-                FOREIGN KEY (encounter_id) REFERENCES encounters(id)
+                FOREIGN KEY (encounter_id) REFERENCES encounters(id),
+                FOREIGN KEY (group_id) REFERENCES encounter_groups(id)
             )
         """
         )
 
-        # Миграция: добавление колонок doc_number и encounter_id
+        # Миграция: добавление колонок документов
         doc_new_columns = [
             ("doc_number", "TEXT"),
             ("encounter_id", "INTEGER"),
+            ("group_id", "INTEGER"),
         ]
         for col_name, col_type in doc_new_columns:
             try:
@@ -615,7 +618,6 @@ class Database:
                 )
             except Exception:
                 pass  # Колонка уже существует
-
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS event_report_positions (
@@ -2293,6 +2295,7 @@ class Document:
     patient_personal_number: str = ""
     doc_number: Optional[str] = None
     encounter_id: Optional[int] = None  # Связь с встречей
+    group_id: Optional[int] = None  # Связь с признаком
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -2321,6 +2324,12 @@ class Document:
         return None
 
     @property
+    def group(self) -> Optional[EncounterGroup]:
+        if self.group_id:
+            return EncounterGroup.get_by_id(self.group_id)
+        return None
+
+    @property
     def classification_display(self) -> str:
         class_dict = dict(DOCUMENT_CLASSIFICATION_CHOICES)
         return class_dict.get(self.classification, self.classification)
@@ -2330,8 +2339,8 @@ class Document:
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO documents
-            (id, uuid, patient_id, classification, doc_date, author_id, doc_type, summary, location, patient_personal_number, doc_number, encounter_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, uuid, patient_id, classification, doc_date, author_id, doc_type, summary, location, patient_personal_number, doc_number, encounter_id, group_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -2346,6 +2355,7 @@ class Document:
                 self.patient_personal_number,
                 self.doc_number,
                 self.encounter_id,
+                self.group_id,
                 self.created_at.isoformat() if self.created_at else None,
                 self.updated_at.isoformat() if self.updated_at else None,
             ),
