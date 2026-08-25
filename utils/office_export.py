@@ -365,30 +365,6 @@ def export_encounter_group_summary_to_docx(
     encounters: list[Encounter],
     file_path: str | Path,
 ):
-    try:
-        from docx import Document as DocxDocument
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.shared import Pt
-    except ImportError as exc:
-        raise RuntimeError(
-            "Для экспорта в Word нужен пакет python-docx. Установите зависимости из requirements.txt."
-        ) from exc
-
-    doc = DocxDocument()
-    styles = doc.styles
-    styles["Normal"].font.name = "Times New Roman"
-    styles["Normal"].font.size = Pt(12)
-
-    title = doc.add_paragraph()
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_run = title.add_run(f"Сводка по признаку: {getattr(group, 'name', '') or '—'}")
-    title_run.bold = True
-    title_run.font.size = Pt(14)
-
-    category = doc.add_paragraph(f"Признак: {getattr(group, 'category_display', '') or '—'}")
-    category.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph(f"Дата формирования: {_format_datetime(datetime.now())}")
-
     patient_ids = {
         encounter.patient_id
         for encounter in encounters
@@ -397,50 +373,46 @@ def export_encounter_group_summary_to_docx(
     finished = sum(1 for encounter in encounters if encounter.status == Encounter.STATUS_FINISHED)
     active = len(encounters) - finished
     latest = _encounter_group_date(encounters[0]) if encounters else None
-
-    stats = doc.add_table(rows=2, cols=5)
-    stats.style = "Table Grid"
-    captions = ["Встреч всего", "Категорий АА", "Завершено", "В работе", "Последняя встреча"]
-    values = [
-        str(len(encounters)),
-        str(len(patient_ids)),
-        str(finished),
-        str(active),
-        _format_date(latest),
+    context = {
+        "summary": {
+            "title": f"Сводка по признаку: {getattr(group, 'name', '') or '—'}",
+            "group_name": getattr(group, "name", "") or "—",
+            "group_category": getattr(group, "category_display", "") or "—",
+            "created_at": _format_datetime(datetime.now()),
+            "encounters_total": str(len(encounters)),
+            "patients_total": str(len(patient_ids)),
+            "finished_total": str(finished),
+            "active_total": str(active),
+            "latest_encounter": _format_date(latest),
+        }
+    }
+    sections = [
+        ("Категории АА", _group_summary_patients(encounters)),
+        ("Даты и документы", _group_summary_documents(encounters)),
+        ("Информация", _group_summary_field(encounters, "patient_info", "reason")),
+        ("Описание встреч", _group_summary_field(encounters, "meeting_description")),
+        ("Результаты", _group_summary_counter(encounters, "meeting_result_display")),
+        ("Статусы", _group_summary_counter(encounters, "status_display")),
+        ("Работники", _group_summary_doctors(encounters)),
+        ("Мероприятия", _group_summary_measures(encounters)),
     ]
-    for index, caption in enumerate(captions):
-        stats.cell(0, index).text = caption
-        stats.cell(1, index).text = values[index]
 
-    _add_group_summary_section(doc, "Категории АА", _group_summary_patients(encounters))
-    _add_group_summary_section(doc, "Даты и документы", _group_summary_documents(encounters))
-    _add_group_summary_section(doc, "Информация", _group_summary_field(encounters, "patient_info", "reason"))
-    _add_group_summary_section(doc, "Описание встреч", _group_summary_field(encounters, "meeting_description"))
-    _add_group_summary_section(doc, "Результаты", _group_summary_counter(encounters, "meeting_result_display"))
-    _add_group_summary_section(doc, "Статусы", _group_summary_counter(encounters, "status_display"))
-    _add_group_summary_section(doc, "Работники", _group_summary_doctors(encounters))
-    _add_group_summary_section(doc, "Мероприятия", _group_summary_measures(encounters))
-
-    doc.add_heading("Входящие встречи", level=2)
-    table = doc.add_table(rows=1, cols=7)
-    table.style = "Table Grid"
-    headers = ["Дата", "Категория АА", "Личный номер", "Работник", "Результат", "Статус", "Документ"]
-    for index, header in enumerate(headers):
-        table.cell(0, index).text = header
-    for encounter in encounters:
-        patient = encounter.patient
-        doctor = encounter.doctor
-        document = encounter.document
-        cells = table.add_row().cells
-        cells[0].text = _format_date(_encounter_group_date(encounter))
-        cells[1].text = patient.callsign if patient else "—"
-        cells[2].text = patient.personal_number if patient and patient.personal_number else "—"
-        cells[3].text = doctor.full_name if doctor else "—"
-        cells[4].text = encounter.meeting_result_display if encounter.meeting_result else "—"
-        cells[5].text = encounter.status_display or "—"
-        cells[6].text = str(document.doc_number or f"#{document.id}") if document else "—"
-
-    doc.save(str(file_path))
+    try:
+        render_word_template(
+            "encounter_group_summary.docx",
+            context,
+            file_path,
+            blocks={
+                "group_summary_sections": lambda paragraph: _insert_group_summary_sections(
+                    paragraph, sections
+                ),
+                "group_summary_encounters": lambda paragraph: _insert_group_summary_encounters_table(
+                    paragraph, encounters
+                ),
+            },
+        )
+    except WordTemplateError as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def _encounter_group_date(encounter: Encounter):
@@ -535,6 +507,82 @@ def _add_group_summary_section(doc, title: str, text: str):
     doc.add_heading(title, level=2)
     paragraph = doc.add_paragraph(text or "—")
     paragraph.paragraph_format.space_after = Pt(6)
+
+
+def _insert_group_summary_sections(paragraph, sections: list[tuple[str, str]]):
+    from docx.shared import Pt
+
+    run_properties = getattr(paragraph, "_template_run_properties", None)
+    cursor = paragraph._p
+    parent = paragraph._parent
+    for title, text in sections:
+        heading = parent.add_paragraph()
+        heading.style = "Heading 2"
+        heading.paragraph_format.space_before = Pt(8)
+        heading.paragraph_format.space_after = Pt(3)
+        heading_run = _add_formatted_run(heading, title, run_properties)
+        heading_run.bold = True
+        cursor.addnext(heading._p)
+        cursor = heading._p
+
+        body = parent.add_paragraph()
+        body.paragraph_format.space_after = Pt(6)
+        _add_formatted_run(body, text or "—", run_properties)
+        cursor.addnext(body._p)
+        cursor = body._p
+
+
+def _insert_group_summary_encounters_table(
+    paragraph,
+    encounters: list[Encounter],
+):
+    run_properties = getattr(paragraph, "_template_run_properties", None)
+    from docx.shared import Inches
+
+    table = paragraph._parent.add_table(rows=1, cols=7, width=Inches(9.0))
+    table.style = "Table Grid"
+    paragraph._p.addnext(table._tbl)
+
+    headers = [
+        "Дата",
+        "Категория АА",
+        "Личный номер",
+        "Работник",
+        "Результат",
+        "Статус",
+        "Документ",
+    ]
+    for index, header in enumerate(headers):
+        _set_cell_text(table.rows[0].cells[index], header, run_properties)
+
+    if not encounters:
+        row = table.add_row().cells
+        _set_cell_text(row[0], "—", run_properties)
+        _set_cell_text(row[1], "Встречи по признаку не найдены", run_properties)
+        for cell in row[2:]:
+            _set_cell_text(cell, "—", run_properties)
+        return
+
+    for encounter in encounters:
+        patient = encounter.patient
+        doctor = encounter.doctor
+        document = encounter.document
+        row = table.add_row().cells
+        _set_cell_text(row[0], _format_date(_encounter_group_date(encounter)), run_properties)
+        _set_cell_text(row[1], patient.callsign if patient else "—", run_properties)
+        _set_cell_text(
+            row[2],
+            patient.personal_number if patient and patient.personal_number else "—",
+            run_properties,
+        )
+        _set_cell_text(row[3], doctor.full_name if doctor else "—", run_properties)
+        _set_cell_text(
+            row[4],
+            encounter.meeting_result_display if encounter.meeting_result else "—",
+            run_properties,
+        )
+        _set_cell_text(row[5], encounter.status_display or "—", run_properties)
+        _set_cell_text(row[6], _document_number(document), run_properties)
 
 def export_plan_to_docx(
     patient: Patient,

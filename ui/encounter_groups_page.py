@@ -128,13 +128,6 @@ class EncounterGroupSummaryDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch()
-        word_btn = QPushButton("WORD")
-        word_btn.setObjectName("secondaryBtn")
-        word_btn.setFixedHeight(40)
-        word_btn.setMinimumWidth(120)
-        word_btn.clicked.connect(self._export_word)
-        buttons.addWidget(word_btn)
-
         close_btn = QPushButton("Закрыть")
         close_btn.setObjectName("secondaryBtn")
         close_btn.setFixedHeight(40)
@@ -145,45 +138,6 @@ class EncounterGroupSummaryDialog(QDialog):
 
         self.setStyleSheet(self._style())
 
-    def _export_word(self):
-        from utils.office_export import (
-            build_encounter_group_summary_docx_filename,
-            export_encounter_group_summary_to_docx,
-        )
-
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Сохранить сводку признака в Word",
-            build_encounter_group_summary_docx_filename(self.group),
-            "Word (*.docx)",
-            options=QFileDialog.Option.DontConfirmOverwrite,
-        )
-        if not file_path:
-            return
-        if not file_path.lower().endswith(".docx"):
-            file_path += ".docx"
-
-        try:
-            export_encounter_group_summary_to_docx(
-                self.group,
-                self._encounters,
-                file_path,
-            )
-        except RuntimeError as exc:
-            QMessageBox.warning(self, "Экспорт Word", str(exc))
-            return
-        except PermissionError:
-            QMessageBox.warning(
-                self,
-                "Экспорт Word",
-                "Не удалось заменить файл. Закройте его в Word и попробуйте снова.",
-            )
-            return
-        except Exception as exc:
-            QMessageBox.critical(self, "Экспорт Word", f"Не удалось создать файл:\n{exc}")
-            return
-
-        QMessageBox.information(self, "Экспорт Word", "Сводка сохранена в Word")
     def _stats_panel(self) -> QFrame:
         patients = {
             encounter.patient_id
@@ -598,6 +552,15 @@ class EncounterGroupsPage(QWidget):
         summary_btn.clicked.connect(self._open_selected_group_summary)
         filter_layout.addWidget(summary_btn)
 
+        word_btn = QPushButton("WORD")
+        word_btn.setObjectName("filterButton")
+        word_btn.setFixedHeight(34)
+        word_btn.setMinimumWidth(92)
+        word_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        word_btn.setStyleSheet(self._filter_button_style())
+        word_btn.clicked.connect(self._export_selected_group_word)
+        filter_layout.addWidget(word_btn)
+
         refresh_btn = QPushButton("Обновить")
         refresh_btn.setObjectName("filterButton")
         refresh_btn.setFixedHeight(34)
@@ -801,6 +764,62 @@ class EncounterGroupsPage(QWidget):
             return
         dialog = EncounterGroupSummaryDialog(self, self.user, group)
         dialog.exec()
+
+    def _export_selected_group_word(self):
+        group_id = self._selected_group_id()
+        if not group_id:
+            QMessageBox.information(self, "Экспорт Word", "Выберите признак в таблице")
+            return
+        group = EncounterGroup.get_by_id(group_id)
+        if not group:
+            QMessageBox.warning(self, "Экспорт Word", "Не удалось найти выбранный признак")
+            return
+
+        encounters = [
+            encounter
+            for encounter in Encounter.get_all(self.user, include_inactive=False)
+            if encounter.group_id == group.id
+        ]
+        encounters.sort(
+            key=lambda encounter: EncounterGroupSummaryDialog._encounter_date(encounter)
+            or datetime.min,
+            reverse=True,
+        )
+
+        from utils.office_export import (
+            build_encounter_group_summary_docx_filename,
+            export_encounter_group_summary_to_docx,
+        )
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить сводку признака в Word",
+            build_encounter_group_summary_docx_filename(group),
+            "Word (*.docx)",
+            options=QFileDialog.Option.DontConfirmOverwrite,
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".docx"):
+            file_path += ".docx"
+
+        try:
+            export_encounter_group_summary_to_docx(group, encounters, file_path)
+        except RuntimeError as exc:
+            QMessageBox.warning(self, "Экспорт Word", str(exc))
+            return
+        except PermissionError:
+            QMessageBox.warning(
+                self,
+                "Экспорт Word",
+                "Не удалось заменить файл. Закройте его в Word и попробуйте снова.",
+            )
+            return
+        except Exception as exc:
+            QMessageBox.critical(self, "Экспорт Word", f"Не удалось создать файл:\n{exc}")
+            return
+
+        QMessageBox.information(self, "Экспорт Word", "Сводка сохранена в Word")
 
     def _open_selected_group(self, _index=None):
         group_id = self._selected_group_id()
