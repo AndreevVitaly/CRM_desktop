@@ -53,12 +53,13 @@ from ui.styles import get_colors, FONTS, RADIUS
 class EncounterViewDialog(QDialog):
     """Полноэкранный просмотр данных встречи без режима редактирования."""
 
-    def __init__(self, user: User, patient: Patient, document: Document, encounter: Encounter, parent=None):
+    def __init__(self, user: User, patient: Patient, document: Document, encounter: Encounter, parent=None, on_changed=None):
         super().__init__(parent)
         self.user = user
         self.patient = patient
         self.document = document
         self.encounter = encounter
+        self.on_changed = on_changed
         self.colors = get_colors()
         self.setWindowTitle(f"Данные встречи: {patient.full_name}")
         self.setWindowFlags(
@@ -145,6 +146,13 @@ class EncounterViewDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch()
+        edit_btn = QPushButton("Редактировать")
+        edit_btn.setFixedHeight(40)
+        edit_btn.setMinimumWidth(140)
+        edit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        edit_btn.clicked.connect(self._edit_encounter)
+        buttons.addWidget(edit_btn)
+
         close_btn = QPushButton("Закрыть")
         close_btn.setFixedHeight(40)
         close_btn.setMinimumWidth(120)
@@ -154,6 +162,24 @@ class EncounterViewDialog(QDialog):
         layout.addLayout(buttons)
 
         self.setStyleSheet(self._style())
+
+    def _edit_encounter(self):
+        from ui.encounter_edit_form import EncounterEditDialog
+
+        dialog = EncounterEditDialog(self.user, self.patient, self.encounter)
+        if dialog.exec():
+            if self.encounter.id and not self.document.encounter_id:
+                self.document.encounter_id = self.encounter.id
+                self.document.save()
+            refreshed = Encounter.get_by_id(self.encounter.id) if self.encounter.id else None
+            if refreshed:
+                self.encounter = refreshed
+            refreshed_document = Document.get_by_id(self.document.id) if self.document.id else None
+            if refreshed_document:
+                self.document = refreshed_document
+            if self.on_changed:
+                self.on_changed()
+            self.accept()
 
     def _title_text(self) -> str:
         patient_part = f"{self.patient.callsign or '—'} л.н. {self.patient.personal_number or '—'}"

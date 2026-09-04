@@ -122,7 +122,7 @@ class EncountersPage(QWidget):
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
-        self.table.doubleClicked.connect(self._edit_selected_encounter)
+        self.table.doubleClicked.connect(self._open_selected_encounter_view)
         layout.addWidget(self.table, 1)
 
         self.setStyleSheet(get_main_stylesheet())
@@ -334,6 +334,47 @@ class EncountersPage(QWidget):
         if row < 0 or row >= len(self._visible_rows):
             return None
         return self._visible_rows[row]
+
+    def _encounter_for_data(self, data: dict, save_missing: bool = False) -> Encounter:
+        encounter = data["encounter"]
+        if encounter:
+            return encounter
+
+        document = data["document"]
+        patient = data["patient"]
+        encounter = Encounter(
+            patient_id=patient.id,
+            doctor_id=(self.user.id if self.user.role == User.ROLE_DOCTOR else document.author_id or 0),
+            started_at=document.doc_date,
+            reason=document.summary or "",
+            status=Encounter.STATUS_FINISHED,
+            document_id=document.id,
+        )
+        if save_missing:
+            encounter.save()
+            document.encounter_id = encounter.id
+            document.save()
+            data["encounter"] = encounter
+        return encounter
+
+    def _open_selected_encounter_view(self, _index=None):
+        data = self._selected_data()
+        if not data:
+            QMessageBox.warning(self, "Встречи", "Выберите встречу")
+            return
+
+        from ui.patient_detail import EncounterViewDialog
+
+        encounter = self._encounter_for_data(data, save_missing=False)
+        dialog = EncounterViewDialog(
+            self.user,
+            data["patient"],
+            data["document"],
+            encounter,
+            self,
+            on_changed=self._load_encounters,
+        )
+        dialog.exec()
 
     def _edit_selected_encounter(self, _index=None):
         data = self._selected_data()
