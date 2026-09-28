@@ -219,15 +219,22 @@ class ModelPage(QWidget):
             [
                 "Порядковый номер",
                 "Угрозы",
-                "Необходимо А",
+                "Необходимо\nкатегории А",
                 "Категория А",
-                "Необходимо Д",
+                "Необходимо\nкатегории Д",
                 "Категория Д",
-                "Необходимо К",
+                "Необходимо\nкатегории К",
                 "Категория К",
             ]
         )
         header = self.table.horizontalHeader()
+        header.setMinimumHeight(42)
+        for column in (2, 4, 6):
+            item = self.table.horizontalHeaderItem(column)
+            item_font = item.font()
+            item_font.setPointSize(7)
+            item.setFont(item_font)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         for column in (2, 4, 6):
