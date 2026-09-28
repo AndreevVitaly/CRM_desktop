@@ -224,6 +224,7 @@ class MainWindow(QMainWindow):
             User.ROLE_LEAD,
             User.ROLE_DOCTOR,
         ):
+            items["model"] = ("Модель", True)
             items["patients"] = ("Категория АА", True)
             items["meeting_schedule"] = ("График встреч", True)
             items["encounters"] = ("Встречи", True)
@@ -741,6 +742,7 @@ class MainWindow(QMainWindow):
     def _load_page(self, page_id: str):
         """Загрузка страницы"""
         from ui.dashboard_page import DashboardPage
+        from ui.model_page import ModelPage
         from ui.patients_page import PatientsPage
         from ui.meeting_schedule_page import MeetingSchedulePage
         from ui.encounters_page import EncountersPage
@@ -761,6 +763,8 @@ class MainWindow(QMainWindow):
         # Создаём новую страницу
         if page_id == "dashboard":
             page = DashboardPage(self.user)
+        elif page_id == "model":
+            page = ModelPage(self.user)
         elif page_id == "patients":
             page = PatientsPage(self.user)
         elif page_id == "meeting_schedule":
@@ -983,6 +987,9 @@ class MainWindow(QMainWindow):
                 "dashboard": lambda: __import__(
                     "ui.dashboard_page", fromlist=["DashboardPage"]
                 ).DashboardPage(self.user),
+                "model": lambda: __import__(
+                    "ui.model_page", fromlist=["ModelPage"]
+                ).ModelPage(self.user),
                 "patients": lambda: __import__(
                     "ui.patients_page", fromlist=["PatientsPage"]
                 ).PatientsPage(self.user),

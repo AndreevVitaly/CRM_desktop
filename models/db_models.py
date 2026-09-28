@@ -217,6 +217,68 @@ class Database:
         """
         )
 
+        # Таблица модели угроз и наличия категорий АА
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS model_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                threat TEXT NOT NULL,
+                required_aa_count INTEGER NOT NULL DEFAULT 0,
+                required_a_count INTEGER NOT NULL DEFAULT 0,
+                required_d_count INTEGER NOT NULL DEFAULT 0,
+                required_k_count INTEGER NOT NULL DEFAULT 0,
+                patient_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (patient_id) REFERENCES patients(id)
+            )
+        """
+        )
+
+        model_count_columns_added = False
+        for column_name in (
+            "required_a_count",
+            "required_d_count",
+            "required_k_count",
+        ):
+            try:
+                cursor.execute(
+                    f"ALTER TABLE model_records ADD COLUMN {column_name} "
+                    "INTEGER NOT NULL DEFAULT 0"
+                )
+                model_count_columns_added = True
+            except Exception:
+                pass
+        if model_count_columns_added:
+            cursor.execute(
+                """
+                UPDATE model_records
+                SET required_a_count = required_aa_count
+                WHERE required_a_count = 0
+                  AND required_d_count = 0
+                  AND required_k_count = 0
+                """
+            )
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS model_record_patients (
+                model_record_id INTEGER NOT NULL,
+                patient_id INTEGER NOT NULL,
+                PRIMARY KEY (model_record_id, patient_id),
+                FOREIGN KEY (model_record_id) REFERENCES model_records(id) ON DELETE CASCADE,
+                FOREIGN KEY (patient_id) REFERENCES patients(id)
+            )
+        """
+        )
+        # Перенос ранее сохранённого одиночного значения «Наличие АА».
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO model_record_patients (model_record_id, patient_id)
+            SELECT id, patient_id FROM model_records WHERE patient_id IS NOT NULL
+        """
+        )
+
         # Таблица визитов (Encounters)
         cursor.execute(
             """
@@ -1295,6 +1357,174 @@ class Patient:
         """Полное удаление"""
         if self.id:
             db.execute("DELETE FROM patients WHERE id = ?", (self.id,))
+            db.commit()
+
+
+@dataclass
+class ModelRecord:
+    """Строка таблицы «Модель»."""
+
+    id: Optional[int] = None
+    threat: str = ""
+    required_aa_count: int = 0
+    required_a_count: int = 0
+    required_d_count: int = 0
+    required_k_count: int = 0
+    patient_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        if self.created_at is None:
+            self.created_at = datetime.now()
+        if self.updated_at is None:
+            self.updated_at = self.created_at
+
+    @property
+    def patient(self) -> Optional[Patient]:
+        if self.patient_id:
+            return Patient.get_by_id(self.patient_id)
+        return None
+
+    @property
+    def callsign(self) -> str:
+        return ", ".join(self.callsigns)
+
+    @property
+    def patient_ids(self) -> List[int]:
+        if not self.id:
+            return [self.patient_id] if self.patient_id else []
+        rows = db.fetchall(
+            """
+            SELECT patient_id FROM model_record_patients
+            WHERE model_record_id = ? ORDER BY patient_id
+            """,
+            (self.id,),
+        )
+        ids = [row["patient_id"] for row in rows]
+        if not ids and self.patient_id:
+            ids.append(self.patient_id)
+        return ids
+
+    @property
+    def callsigns(self) -> List[str]:
+        if not self.id:
+            patient = self.patient
+            return [patient.callsign] if patient else []
+        rows = db.fetchall(
+            """
+            SELECT p.callsign
+            FROM model_record_patients AS mrp
+            JOIN patients AS p ON p.id = mrp.patient_id
+            WHERE mrp.model_record_id = ?
+            ORDER BY p.callsign
+            """,
+            (self.id,),
+        )
+        return [row["callsign"] for row in rows]
+
+    def callsigns_by_type(self, patient_type: str) -> List[str]:
+        """Позывные выбранных категорий АА определённого типа."""
+        if not self.id:
+            patient = self.patient
+            if patient and patient.patient_type == patient_type:
+                return [patient.callsign]
+            return []
+        rows = db.fetchall(
+            """
+            SELECT p.callsign
+            FROM model_record_patients AS mrp
+            JOIN patients AS p ON p.id = mrp.patient_id
+            WHERE mrp.model_record_id = ? AND p.patient_type = ?
+            ORDER BY p.callsign
+            """,
+            (self.id, patient_type),
+        )
+        return [row["callsign"] for row in rows]
+
+    def set_patients(self, patient_ids: List[int]):
+        if not self.id:
+            return
+        unique_ids = list(dict.fromkeys(int(value) for value in patient_ids if value))
+        db.execute(
+            "DELETE FROM model_record_patients WHERE model_record_id = ?", (self.id,)
+        )
+        for patient_id in unique_ids:
+            db.execute(
+                """
+                INSERT INTO model_record_patients (model_record_id, patient_id)
+                VALUES (?, ?)
+                """,
+                (self.id, patient_id),
+            )
+        # Старое поле сохраняется как совместимый указатель на первый выбор.
+        self.patient_id = unique_ids[0] if unique_ids else None
+        db.execute(
+            "UPDATE model_records SET patient_id = ? WHERE id = ?",
+            (self.patient_id, self.id),
+        )
+        db.commit()
+
+    def save(self):
+        self.threat = self.threat.strip()
+        self.required_a_count = max(0, int(self.required_a_count or 0))
+        self.required_d_count = max(0, int(self.required_d_count or 0))
+        self.required_k_count = max(0, int(self.required_k_count or 0))
+        self.required_aa_count = (
+            self.required_a_count + self.required_d_count + self.required_k_count
+        )
+        self.updated_at = datetime.now()
+        cursor = db.execute(
+            """
+            INSERT OR REPLACE INTO model_records
+            (id, threat, required_aa_count, required_a_count, required_d_count,
+             required_k_count, patient_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                self.id,
+                self.threat,
+                self.required_aa_count,
+                self.required_a_count,
+                self.required_d_count,
+                self.required_k_count,
+                self.patient_id,
+                self.created_at.isoformat() if self.created_at else None,
+                self.updated_at.isoformat(),
+            ),
+        )
+        db.commit()
+        if self.id is None:
+            self.id = cursor.lastrowid
+
+    @classmethod
+    def _from_row(cls, row: dict) -> "ModelRecord":
+        data = dict(row)
+        for field in ("created_at", "updated_at"):
+            value = data.get(field)
+            if value and isinstance(value, str):
+                try:
+                    data[field] = datetime.fromisoformat(value)
+                except ValueError:
+                    data[field] = None
+        return cls(**data)
+
+    @classmethod
+    def get_by_id(cls, record_id: int) -> Optional["ModelRecord"]:
+        row = db.fetchone("SELECT * FROM model_records WHERE id = ?", (record_id,))
+        return cls._from_row(row) if row else None
+
+    @classmethod
+    def get_all(cls) -> List["ModelRecord"]:
+        rows = db.fetchall("SELECT * FROM model_records ORDER BY id")
+        return [cls._from_row(row) for row in rows]
+
+    def delete(self):
+        if self.id:
+            db.execute(
+                "DELETE FROM model_record_patients WHERE model_record_id = ?", (self.id,)
+            )
+            db.execute("DELETE FROM model_records WHERE id = ?", (self.id,))
             db.commit()
 
 
