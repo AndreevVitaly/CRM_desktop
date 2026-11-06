@@ -386,6 +386,7 @@ class ModelPage(QWidget):
 
     def update_styles(self):
         colors = get_colors()
+        self.setStyleSheet(get_main_stylesheet())
         panel = self.findChild(QFrame, "modelActionsPanel")
         if panel:
             panel.setStyleSheet(
