@@ -289,11 +289,18 @@ class Database:
                 )
             cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
         except Exception as exc:
-            cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
-            cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
+            try:
+                cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
+            except Exception as rollback_exc:
+                raise RuntimeError(
+                    f"Ошибка миграции таблицы {table_name}; также не удалось "
+                    f"выполнить откат: {rollback_exc}. Исходная ошибка: {exc}"
+                ) from exc
             raise RuntimeError(
                 f"Не удалось безопасно обновить структуру таблицы {table_name}. "
-                "Изменения схемы отменены."
+                f"Поля: {', '.join(name for name, _ in missing)}. "
+                f"Изменения схемы отменены. Причина: {exc}"
             ) from exc
 
     @staticmethod
@@ -662,20 +669,16 @@ class Database:
         """
         )
 
-        model_count_columns_added = False
-        for column_name in (
-            "required_a_count",
-            "required_d_count",
-            "required_k_count",
-        ):
-            try:
-                cursor.execute(
-                    f"ALTER TABLE model_records ADD COLUMN {column_name} "
-                    "INTEGER NOT NULL DEFAULT 0"
-                )
-                model_count_columns_added = True
-            except Exception:
-                pass
+        model_count_columns = [
+            ("required_a_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("required_d_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("required_k_count", "INTEGER NOT NULL DEFAULT 0"),
+        ]
+        existing_model_columns = self._table_columns(cursor, "model_records")
+        model_count_columns_added = any(
+            name not in existing_model_columns for name, _ in model_count_columns
+        )
+        self._ensure_table_columns(cursor, "model_records", model_count_columns)
         if model_count_columns_added:
             cursor.execute(
                 """
@@ -921,12 +924,9 @@ class Database:
         )
 
         # Миграция: добавление колонки plan_document_id
-        try:
-            cursor.execute(
-                "ALTER TABLE treatment_plan_items ADD COLUMN plan_document_id INTEGER"
-            )
-        except Exception:
-            pass  # Колонка уже существует
+        self._ensure_table_columns(
+            cursor, "treatment_plan_items", [("plan_document_id", "INTEGER")]
+        )
 
         # Таблица взаимодействий
         cursor.execute(
@@ -991,22 +991,17 @@ class Database:
         """
         )
 
-        try:
-            cursor.execute("ALTER TABLE events ADD COLUMN year INTEGER")
-        except Exception:
-            pass  # Колонка уже существует
+        self._ensure_table_columns(
+            cursor,
+            "events",
+            [
+                ("year", "INTEGER"),
+                ("meeting_document_id", "INTEGER"),
+                ("report_position_text", "TEXT"),
+            ],
+        )
 
         # Заполняем year из event_date для старых записей
-        try:
-            cursor.execute("ALTER TABLE events ADD COLUMN meeting_document_id INTEGER")
-        except Exception:
-            pass
-
-        try:
-            cursor.execute("ALTER TABLE events ADD COLUMN report_position_text TEXT")
-        except Exception:
-            pass
-
         cursor.execute(
             """
             UPDATE events SET year = CAST(strftime('%Y', event_date) AS INTEGER)
@@ -1029,11 +1024,7 @@ class Database:
             ("arrival_sanction_date", "DATE"),
         ]
 
-        for col_name, col_type in new_columns:
-            try:
-                cursor.execute(f"ALTER TABLE patients ADD COLUMN {col_name} {col_type}")
-            except Exception:
-                pass  # Колонка уже существует
+        self._ensure_table_columns(cursor, "patients", new_columns)
 
         # Таблица документов
         cursor.execute(
@@ -1068,13 +1059,7 @@ class Database:
             ("encounter_id", "INTEGER"),
             ("group_id", "INTEGER"),
         ]
-        for col_name, col_type in doc_new_columns:
-            try:
-                cursor.execute(
-                    f"ALTER TABLE documents ADD COLUMN {col_name} {col_type}"
-                )
-            except Exception:
-                pass  # Колонка уже существует
+        self._ensure_table_columns(cursor, "documents", doc_new_columns)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS event_report_positions (
@@ -1127,38 +1112,26 @@ class Database:
             "km_records": [("uuid", "TEXT"), ("updated_at", "TIMESTAMP")],
         }
         for table_name, columns in sync_columns.items():
-            for col_name, col_type in columns:
-                try:
-                    cursor.execute(
-                        f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
-                    )
-                except Exception:
-                    pass
+            self._ensure_table_columns(cursor, table_name, columns)
 
         for table_name in sync_columns:
-            try:
-                rows = cursor.execute(
-                    f"SELECT id FROM {table_name} WHERE uuid IS NULL OR uuid = ''"
-                ).fetchall()
-                for row in rows:
-                    cursor.execute(
-                        f"UPDATE {table_name} SET uuid = ? WHERE id = ?",
-                        (str(uuid_lib.uuid4()), row["id"]),
-                    )
-            except Exception:
-                pass
+            rows = cursor.execute(
+                f"SELECT id FROM {table_name} WHERE uuid IS NULL OR uuid = ''"
+            ).fetchall()
+            for row in rows:
+                cursor.execute(
+                    f"UPDATE {table_name} SET uuid = ? WHERE id = ?",
+                    (str(uuid_lib.uuid4()), row["id"]),
+                )
 
         for table_name in ("patients", "encounters", "encounter_groups", "documents", "km_records"):
-            try:
-                cursor.execute(
-                    f"""
-                    UPDATE {table_name}
-                    SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)
-                    WHERE updated_at IS NULL OR updated_at = ''
-                    """
-                )
-            except Exception:
-                pass
+            cursor.execute(
+                f"""
+                UPDATE {table_name}
+                SET updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)
+                WHERE updated_at IS NULL OR updated_at = ''
+                """
+            )
 
         cursor.execute(
             """

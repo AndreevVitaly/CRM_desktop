@@ -181,6 +181,35 @@ class DatabaseMigrationTests(unittest.TestCase):
         }
         self.assertTrue(required <= columns)
 
+    def test_column_migration_surfaces_real_sqlite_error_and_rolls_back(self):
+        connection = sqlite3.connect(self.db_path)
+        connection.execute("CREATE TABLE sample (id INTEGER PRIMARY KEY)")
+
+        class FailingCursor:
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def execute(self, statement, parameters=()):
+                if statement.startswith("ALTER TABLE sample"):
+                    raise sqlite3.OperationalError("simulated disk I/O error")
+                return self.wrapped.execute(statement, parameters)
+
+        database = Database(str(self.db_path), "")
+        cursor = FailingCursor(connection.cursor())
+        with self.assertRaisesRegex(
+            RuntimeError,
+            r"sample.*new_field.*simulated disk I/O error",
+        ):
+            database._ensure_table_columns(
+                cursor, "sample", [("new_field", "TEXT")]
+            )
+
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(sample)").fetchall()
+        }
+        self.assertNotIn("new_field", columns)
+        connection.close()
+
 
 if __name__ == "__main__":
     unittest.main()

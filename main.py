@@ -5,7 +5,6 @@ PULSAR - Десктопная CRM для работы с отделениями
 
 import sys
 import traceback
-from datetime import datetime
 from PyQt6.QtWidgets import QApplication, QMessageBox, QInputDialog, QLineEdit
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -15,7 +14,8 @@ from ui.login_window import LoginWindow
 from ui.main_window import MainWindow
 from ui.native_window_theme import apply_native_theme_to_app, install_native_theme_filter
 from ui.styles import FONTS, configure_ui_scale, get_main_stylesheet
-from utils.app_paths import get_app_base_dir, get_db_path
+from utils.app_paths import get_db_path, migrate_legacy_app_data
+from utils.crash_reporting import write_crash_report
 from utils.db_encryption import (
     encrypt_existing_database,
     is_encrypted_database,
@@ -32,23 +32,43 @@ app_state = {
 def exception_hook(exctype, value, tb):
     """Глобальный обработчик исключений"""
     error_msg = "".join(traceback.format_exception(exctype, value, tb))
-    print(f"Uncaught exception: {error_msg}", flush=True)
-    log_path = get_app_base_dir() / "crash.log"
     try:
-        with log_path.open("a", encoding="utf-8") as log_file:
-            log_file.write("\n" + "=" * 80 + "\n")
-            log_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
-            log_file.write(error_msg)
+        if sys.stderr is not None:
+            sys.stderr.write(f"Uncaught exception: {error_msg}\n")
+            sys.stderr.flush()
     except Exception:
         pass
+    report_result = write_crash_report(error_msg)
+
+    if report_result.path:
+        report_status = f"Отчёт сохранён:\n{report_result.path}"
+        if report_result.errors:
+            report_status += "\n\nОсновной путь был недоступен; использован резервный."
+    else:
+        report_status = (
+            "Не удалось записать отчёт об ошибке. Скопируйте подробности из окна."
+        )
+
+    logging_details = "\n".join(report_result.errors)
+    detailed_text = error_msg
+    if logging_details:
+        detailed_text += "\n\nОшибки записи журнала:\n" + logging_details
 
     # Показываем сообщение об ошибке
-    msg = QMessageBox()
-    msg.setIcon(QMessageBox.Icon.Critical)
-    msg.setWindowTitle("Ошибка")
-    msg.setText(f"Произошла ошибка: {value}")
-    msg.setDetailedText(error_msg)
-    msg.exec()
+    try:
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Icon.Critical)
+        msg.setWindowTitle("Ошибка")
+        msg.setText(f"Произошла ошибка: {value}\n\n{report_status}")
+        msg.setDetailedText(detailed_text)
+        msg.exec()
+    except Exception:
+        # Последний шанс для сборок, запущенных из терминала или отладчика.
+        try:
+            sys.__stderr__.write(detailed_text + "\n" + report_status + "\n")
+            sys.__stderr__.flush()
+        except Exception:
+            return
 
 
 def main():
@@ -70,6 +90,17 @@ def main():
     app.setStyleSheet(get_main_stylesheet())
     install_native_theme_filter(app)
     apply_native_theme_to_app(app)
+
+    try:
+        migrate_legacy_app_data()
+    except Exception as exc:
+        QMessageBox.critical(
+            None,
+            "Ошибка хранилища PULSAR",
+            "Не удалось подготовить пользовательский каталог данных.\n\n"
+            f"{exc}",
+        )
+        sys.exit(1)
 
     db_password = request_database_password()
     if db_password is None:
