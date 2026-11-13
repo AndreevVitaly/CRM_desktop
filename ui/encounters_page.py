@@ -344,7 +344,11 @@ class EncountersPage(QWidget):
         patient = data["patient"]
         encounter = Encounter(
             patient_id=patient.id,
-            doctor_id=(self.user.id if self.user.role == User.ROLE_DOCTOR else document.author_id or 0),
+            doctor_id=(
+                self.user.id
+                if self.user.role == User.ROLE_DOCTOR
+                else document.author_id or self.user.id
+            ),
             started_at=document.doc_date,
             reason=document.summary or "",
             status=Encounter.STATUS_FINISHED,
@@ -389,7 +393,9 @@ class EncountersPage(QWidget):
             encounter = Encounter(
                 patient_id=patient.id,
                 doctor_id=(
-                    self.user.id if self.user.role == User.ROLE_DOCTOR else 0
+                    self.user.id
+                    if self.user.role == User.ROLE_DOCTOR
+                    else document.author_id or self.user.id
                 ),
                 started_at=document.doc_date,
                 reason=document.summary or "",
@@ -420,7 +426,7 @@ class EncountersPage(QWidget):
 
         encounter = data["encounter"] or Encounter(
             patient_id=data["patient"].id,
-            doctor_id=data["document"].author_id or 0,
+            doctor_id=data["document"].author_id or self.user.id,
             started_at=data["document"].doc_date,
             reason=data["document"].summary or "",
             status=Encounter.STATUS_FINISHED,

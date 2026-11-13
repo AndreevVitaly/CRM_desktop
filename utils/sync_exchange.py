@@ -1469,7 +1469,9 @@ def apply_sync_import(
     summaries: dict[str, Any] = {}
     conn = db.connect()
     try:
-        db.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("PRAGMA foreign_keys = OFF")
+        if conn.execute("PRAGMA foreign_keys").fetchone()[0] != 0:
+            raise RuntimeError("Не удалось временно отключить проверку связей для импорта")
         for table_name in ordered_tables:
             rows = data.get(table_name, [])
             if not isinstance(rows, list):
@@ -1480,10 +1482,20 @@ def apply_sync_import(
                 summaries[table_name] = summary
                 continue
             summaries[table_name] = _insert_or_replace_rows(table_name, rows)
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if violations:
+            details = db._format_foreign_key_violations(violations)
+            raise ValueError(
+                "Импорт отменён: пакет содержит недействительные связи. " + details
+            )
         conn.commit()
     except Exception:
         conn.rollback()
         raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+        if conn.execute("PRAGMA foreign_keys").fetchone()[0] != 1:
+            raise RuntimeError("Не удалось восстановить проверку внешних ключей после импорта")
 
     aggregate = _empty_import_summary()
     aggregate["skipped_unmapped_doctor"] = 0

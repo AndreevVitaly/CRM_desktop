@@ -1087,7 +1087,7 @@ class PatientDetailDialog(QDialog):
 
         return Encounter(
             patient_id=self.patient.id,
-            doctor_id=document.author_id or 0,
+            doctor_id=document.author_id or self.user.id,
             started_at=document.doc_date,
             reason=document.summary or "",
             status=Encounter.STATUS_FINISHED,
@@ -2021,7 +2021,9 @@ class PatientDetailDialog(QDialog):
             encounter = Encounter()
             encounter.patient_id = self.patient.id
             encounter.doctor_id = (
-                self.user.id if self.user.role == User.ROLE_DOCTOR else 0
+                self.user.id
+                if self.user.role == User.ROLE_DOCTOR
+                else doc.author_id or self.user.id
             )
             encounter.started_at = doc.doc_date
             encounter.reason = doc.summary or ""

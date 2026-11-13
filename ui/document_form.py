@@ -398,15 +398,15 @@ class DocumentFormDialog(QDialog):
             )
 
         self.patient = selected_patient
-        if doc_type == DOCUMENT_TYPE_MEETING and selected_patient is None:
+        if selected_patient is None:
             QMessageBox.warning(
                 self,
                 "Ошибка",
-                "Для документа «Встреча» выберите категорию АА.",
+                "Выберите категорию АА для документа.",
             )
             return
 
-        self.document.patient_id = selected_patient.id if selected_patient else 0
+        self.document.patient_id = selected_patient.id
         self.document.group_id = self.group_combo.currentData()
         self.document.classification = self.classification_combo.currentData()
         self.document.doc_date = self.doc_date_input.date().toPyDate()

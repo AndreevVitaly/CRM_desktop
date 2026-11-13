@@ -128,6 +128,7 @@ class Database:
                 self._connection.row_factory = sqlite3.Row
             try:
                 self._create_tables()
+                self._prepare_foreign_key_integrity()
             except Exception:
                 self._connection.rollback()
                 self._connection.close()
@@ -294,6 +295,262 @@ class Database:
                 f"Не удалось безопасно обновить структуру таблицы {table_name}. "
                 "Изменения схемы отменены."
             ) from exc
+
+    @staticmethod
+    def _quote_identifier(value: str) -> str:
+        return '"' + value.replace('"', '""') + '"'
+
+    def _repair_nullable_foreign_keys(self, cursor) -> int:
+        """Заменяет недействительные необязательные ссылки на NULL."""
+        repaired = 0
+        tables = cursor.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+        for table_row in tables:
+            table_name = table_row[0]
+            table_sql = self._quote_identifier(table_name)
+            column_info = {
+                row[1]: row
+                for row in cursor.execute(
+                    f"PRAGMA table_info({table_sql})"
+                ).fetchall()
+            }
+            foreign_keys = cursor.execute(
+                f"PRAGMA foreign_key_list({table_sql})"
+            ).fetchall()
+            for foreign_key in foreign_keys:
+                parent_table = foreign_key[2]
+                column_name = foreign_key[3]
+                parent_column = foreign_key[4]
+                if column_info[column_name][3]:
+                    continue
+
+                column_sql = self._quote_identifier(column_name)
+                parent_table_sql = self._quote_identifier(parent_table)
+                parent_column_sql = self._quote_identifier(parent_column)
+                cursor.execute(
+                    f"""
+                    UPDATE {table_sql}
+                    SET {column_sql} = NULL
+                    WHERE {column_sql} IS NOT NULL
+                      AND (
+                          {column_sql} = 0
+                          OR NOT EXISTS (
+                              SELECT 1 FROM {parent_table_sql} AS parent
+                              WHERE parent.{parent_column_sql} = {table_sql}.{column_sql}
+                          )
+                      )
+                    """
+                )
+                repaired += max(cursor.rowcount, 0)
+        return repaired
+
+    @staticmethod
+    def _repair_required_foreign_keys(cursor) -> int:
+        """Восстанавливает обязательные ссылки только из однозначных источников."""
+        repair_statements = (
+            """
+            UPDATE documents
+            SET patient_id = (
+                SELECT e.patient_id FROM encounters e
+                JOIN patients p ON p.id = e.patient_id
+                WHERE e.document_id = documents.id
+                LIMIT 1
+            )
+            WHERE (patient_id = 0 OR NOT EXISTS (
+                SELECT 1 FROM patients p WHERE p.id = documents.patient_id
+            ))
+              AND EXISTS (
+                SELECT 1 FROM encounters e
+                JOIN patients p ON p.id = e.patient_id
+                WHERE e.document_id = documents.id
+            )
+            """,
+            """
+            UPDATE encounters
+            SET patient_id = (
+                SELECT d.patient_id FROM documents d
+                JOIN patients p ON p.id = d.patient_id
+                WHERE d.id = encounters.document_id
+            )
+            WHERE (patient_id = 0 OR NOT EXISTS (
+                SELECT 1 FROM patients p WHERE p.id = encounters.patient_id
+            ))
+              AND EXISTS (
+                SELECT 1 FROM documents d
+                JOIN patients p ON p.id = d.patient_id
+                WHERE d.id = encounters.document_id
+            )
+            """,
+            """
+            UPDATE encounters
+            SET doctor_id = COALESCE(
+                (
+                    SELECT d.author_id FROM documents d
+                    JOIN users u ON u.id = d.author_id
+                    WHERE d.id = encounters.document_id
+                ),
+                (
+                    SELECT p.doctor_id FROM patients p
+                    JOIN users u ON u.id = p.doctor_id
+                    WHERE p.id = encounters.patient_id
+                )
+            )
+            WHERE (doctor_id = 0 OR NOT EXISTS (
+                SELECT 1 FROM users u WHERE u.id = encounters.doctor_id
+            ))
+              AND COALESCE(
+                (
+                    SELECT d.author_id FROM documents d
+                    JOIN users u ON u.id = d.author_id
+                    WHERE d.id = encounters.document_id
+                ),
+                (
+                    SELECT p.doctor_id FROM patients p
+                    JOIN users u ON u.id = p.doctor_id
+                    WHERE p.id = encounters.patient_id
+                )
+              ) IS NOT NULL
+            """,
+            """
+            UPDATE documents
+            SET author_id = (
+                SELECT e.doctor_id FROM encounters e
+                JOIN users u ON u.id = e.doctor_id
+                WHERE e.document_id = documents.id
+                LIMIT 1
+            )
+            WHERE (author_id = 0 OR NOT EXISTS (
+                SELECT 1 FROM users u WHERE u.id = documents.author_id
+            ))
+              AND EXISTS (
+                SELECT 1 FROM encounters e
+                JOIN users u ON u.id = e.doctor_id
+                WHERE e.document_id = documents.id
+            )
+            """,
+            """
+            UPDATE notes
+            SET author_id = (
+                SELECT e.doctor_id FROM encounters e
+                JOIN users u ON u.id = e.doctor_id
+                WHERE e.id = notes.encounter_id
+            )
+            WHERE (author_id = 0 OR NOT EXISTS (
+                SELECT 1 FROM users u WHERE u.id = notes.author_id
+            ))
+              AND EXISTS (
+                SELECT 1 FROM encounters e
+                JOIN users u ON u.id = e.doctor_id
+                WHERE e.id = notes.encounter_id
+            )
+            """,
+            """
+            UPDATE patient_meeting_schedule
+            SET doctor_id = COALESCE(
+                (
+                    SELECT p.doctor_id FROM patients p
+                    JOIN users u ON u.id = p.doctor_id
+                    WHERE p.id = patient_meeting_schedule.patient_id
+                ),
+                (
+                    SELECT created_by_id FROM patient_meeting_schedule source
+                    JOIN users u ON u.id = source.created_by_id
+                    WHERE source.id = patient_meeting_schedule.id
+                )
+            )
+            WHERE (doctor_id = 0 OR NOT EXISTS (
+                SELECT 1 FROM users u
+                WHERE u.id = patient_meeting_schedule.doctor_id
+            ))
+              AND COALESCE(
+                (SELECT p.doctor_id FROM patients p
+                 JOIN users u ON u.id = p.doctor_id
+                 WHERE p.id = patient_meeting_schedule.patient_id),
+                (SELECT source.created_by_id FROM patient_meeting_schedule source
+                 JOIN users u ON u.id = source.created_by_id
+                 WHERE source.id = patient_meeting_schedule.id)
+              ) IS NOT NULL
+            """,
+            """
+            UPDATE treatment_plan_items
+            SET patient_id = (
+                SELECT d.patient_id FROM documents d
+                JOIN patients p ON p.id = d.patient_id
+                WHERE d.id = treatment_plan_items.plan_document_id
+            )
+            WHERE (patient_id = 0 OR NOT EXISTS (
+                SELECT 1 FROM patients p
+                WHERE p.id = treatment_plan_items.patient_id
+            ))
+              AND EXISTS (
+                SELECT 1 FROM documents d
+                JOIN patients p ON p.id = d.patient_id
+                WHERE d.id = treatment_plan_items.plan_document_id
+            )
+            """,
+            """
+            DELETE FROM model_record_patients
+            WHERE NOT EXISTS (
+                SELECT 1 FROM model_records m
+                WHERE m.id = model_record_patients.model_record_id
+            )
+               OR NOT EXISTS (
+                SELECT 1 FROM patients p
+                WHERE p.id = model_record_patients.patient_id
+            )
+            """,
+        )
+        repaired = 0
+        # Два прохода разрешают взаимные ссылки documents ↔ encounters.
+        for _ in range(2):
+            for statement in repair_statements:
+                cursor.execute(statement)
+                repaired += max(cursor.rowcount, 0)
+        return repaired
+
+    @staticmethod
+    def _foreign_key_violations(cursor):
+        return cursor.execute("PRAGMA foreign_key_check").fetchall()
+
+    @staticmethod
+    def _format_foreign_key_violations(violations, limit: int = 12) -> str:
+        lines = []
+        for row in violations[:limit]:
+            lines.append(
+                f"таблица {row[0]}, строка {row[1]}, родитель {row[2]}, связь {row[3]}"
+            )
+        if len(violations) > limit:
+            lines.append(f"...и ещё {len(violations) - limit}")
+        return "; ".join(lines)
+
+    def _prepare_foreign_key_integrity(self):
+        """Исправляет безопасные нарушения и включает контроль внешних ключей."""
+        cursor = self._connection.cursor()
+        nullable_repairs = self._repair_nullable_foreign_keys(cursor)
+        required_repairs = self._repair_required_foreign_keys(cursor)
+        violations = self._foreign_key_violations(cursor)
+        if violations:
+            details = self._format_foreign_key_violations(violations)
+            raise RuntimeError(
+                "В базе данных обнаружены несогласованные связи. "
+                "Автоматическое исправление неоднозначных записей остановлено. "
+                + details
+            )
+
+        self._connection.commit()
+        self._connection.execute("PRAGMA foreign_keys = ON")
+        enabled = self._connection.execute("PRAGMA foreign_keys").fetchone()[0]
+        if enabled != 1:
+            raise RuntimeError("Не удалось включить контроль внешних ключей SQLite")
+
+        if nullable_repairs or required_repairs:
+            print(
+                "Исправлены связи базы данных: "
+                f"необязательные — {nullable_repairs}, обязательные — {required_repairs}",
+                flush=True,
+            )
 
     def _create_tables(self):
         cursor = self._connection.cursor()
