@@ -1629,8 +1629,14 @@ class PatientDetailDialog(QDialog):
 
         dialog = DocumentFormDialog(self.user, self.patient, None)
         if dialog.exec():
-            self._load_documents()
+            self._refresh_document_views()
             self._log_interaction("document_add", "Добавлен документ")
+
+    def _refresh_document_views(self):
+        """Обновить связанные списки, не закрывая карточку категории АА."""
+        self._load_documents()
+        self._load_encounters()
+        self._load_plans()
 
     def _edit_document(self):
         """Редактирование документа"""
@@ -1860,8 +1866,7 @@ class PatientDetailDialog(QDialog):
         dialog = DocumentFormDialog(self.user, self.patient, doc)
 
         if dialog.exec():
-            self._load_documents()
-            self._load_plans()
+            self._refresh_document_views()
             if doc.doc_type == DOCUMENT_TYPE_PLAN:
                 selected = self.plans_table.selectionModel().selectedRows()
                 if selected:
@@ -1888,8 +1893,7 @@ class PatientDetailDialog(QDialog):
                 for item in items:
                     item.delete()
             doc.delete()
-            self._load_documents()
-            self._load_plans()
+            self._refresh_document_views()
             self._log_interaction("document_delete", f"Удалён документ №{doc.id}")
 
     def _create_log_tab(self) -> QWidget:
@@ -1954,6 +1958,7 @@ class PatientDetailDialog(QDialog):
 
         dialog = DocumentFormDialog(self.user, self.patient, None)
         if dialog.exec():
+            self._refresh_document_views()
             doc = dialog.document
             if doc and doc.doc_type == DOCUMENT_TYPE_MEETING:
                 # DocumentFormDialog атомарно создаёт и связывает встречу.
@@ -1969,8 +1974,6 @@ class PatientDetailDialog(QDialog):
                     )
                     return
 
-                self._load_encounters()
-                self._load_documents()
                 self._log_interaction("visit_created", "Создана новая встреча")
 
     def _open_encounter_view(self, index):
@@ -1989,7 +1992,10 @@ class PatientDetailDialog(QDialog):
             return
 
         encounter = self._encounter_from_document_for_export(document)
-        dialog = EncounterViewDialog(self.user, self.patient, document, encounter, self)
+        dialog = EncounterViewDialog(
+            self.user, self.patient, document, encounter, self,
+            on_changed=self._refresh_document_views,
+        )
         dialog.exec()
     def _edit_encounter(self, index):
         """Редактирование встречи (двойной клик) - открывает расширенную форму встречи"""
