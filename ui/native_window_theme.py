@@ -11,7 +11,7 @@ import ctypes
 import ctypes.wintypes
 import sys
 
-from PyQt6.QtCore import QEvent, QObject, QTimer
+from PyQt6.QtCore import QEvent, QObject, QTimer, Qt
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from ui.styles import get_colors
@@ -30,7 +30,8 @@ class NativeWindowThemeFilter(QObject):
             QEvent.Type.Show,
             QEvent.Type.WinIdChange,
         ):
-            QTimer.singleShot(0, lambda widget=obj: apply_native_window_theme(widget))
+            if _is_decorated_window(obj):
+                QTimer.singleShot(0, lambda widget=obj: apply_native_window_theme(widget))
         return super().eventFilter(obj, event)
 
 
@@ -58,7 +59,7 @@ def apply_native_window_theme(widget: QWidget | None):
     if not _is_windows() or widget is None:
         return
     try:
-        if not widget.isWindow():
+        if not _is_decorated_window(widget):
             return
         win_id = widget.winId()
         if win_id is None:
@@ -80,6 +81,17 @@ def apply_native_window_theme(widget: QWidget | None):
     _set_dwm_color(hwnd, DWMWA_CAPTION_COLOR, caption_color)
     _set_dwm_color(hwnd, DWMWA_TEXT_COLOR, text_color)
     _set_dwm_color(hwnd, DWMWA_BORDER_COLOR, border_color)
+
+
+def _is_decorated_window(widget: QWidget) -> bool:
+    # Qt owns the native handles of popups (including QDateEdit calendars).
+    # Requesting winId() for them during Show/WinIdChange can recreate their
+    # handles while Qt is still opening or destroying the popup.
+    return (
+        widget.isWindow()
+        and widget.windowType() in (Qt.WindowType.Window, Qt.WindowType.Dialog)
+        and not widget.windowFlags() & Qt.WindowType.FramelessWindowHint
+    )
 
 
 def _set_dwm_attribute(hwnd: int, attribute: int, value: ctypes.c_int):

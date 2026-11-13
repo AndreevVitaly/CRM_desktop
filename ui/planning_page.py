@@ -35,7 +35,7 @@ from models.db_models import (
     get_department_choices,
 )
 from ui.styles import get_colors, FONTS, RADIUS, scaled
-from ui.calendar_style import configure_date_edit
+from ui.calendar_style import configure_date_edit, get_calendar_colors
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -56,7 +56,7 @@ class PeriodCalendarWidget(QCalendarWidget):
         self.updateCells()
 
     def paintCell(self, painter, rect, qdate):
-        colors = get_colors()
+        colors = get_calendar_colors()
         day = qdate.toPyDate()
         selected = self.reference_date
         week_start = selected - timedelta(days=selected.weekday())
@@ -68,13 +68,13 @@ class PeriodCalendarWidget(QCalendarWidget):
         )
 
         if is_selected_day:
-            bg = QColor(colors["accent"])
+            bg = QColor(colors["calendar_selected"])
             fg = QColor("#FFFFFF")
-            border = QColor(colors["accent_strong"])
+            border = QColor(colors["calendar_link"])
             weight = QFont.Weight.Bold
         elif self.period_mode == "week" and in_selected_week:
             bg = QColor(colors["accent_light"])
-            fg = QColor(colors["accent_strong"])
+            fg = QColor(colors["calendar_link"])
             border = QColor(colors["accent_soft"])
             weight = QFont.Weight.DemiBold
         elif is_visible_month:
@@ -86,7 +86,7 @@ class PeriodCalendarWidget(QCalendarWidget):
             weight = QFont.Weight.Normal
         else:
             bg = QColor(colors["surface_muted"])
-            fg = QColor(colors["text_secondary"])
+            fg = QColor(colors["calendar_muted"])
             border = QColor(colors["line_light"])
             weight = QFont.Weight.Normal
 
@@ -368,28 +368,6 @@ class PlanningPage(QWidget):
             }}
             QDateEdit:focus {{
                 color: {colors['accent_strong']};
-            }}
-            """
-        )
-        self.period_date_input.calendarWidget().setStyleSheet(
-            f"""
-            QCalendarWidget QWidget {{
-                color: {colors['text']};
-                background-color: {colors['surface']};
-            }}
-            QCalendarWidget QToolButton {{
-                color: {colors['accent_strong']};
-                background-color: transparent;
-                font-weight: 600;
-                padding: 4px;
-            }}
-            QCalendarWidget QMenu {{
-                background-color: {colors['surface']};
-                color: {colors['text']};
-            }}
-            QCalendarWidget QWidget#qt_calendar_navigationbar {{
-                background-color: {colors['surface']};
-                border-bottom: 1px solid {colors['line']};
             }}
             """
         )

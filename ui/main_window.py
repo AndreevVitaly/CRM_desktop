@@ -842,7 +842,7 @@ class MainWindow(QMainWindow):
         palette.setColor(QPalette.ColorRole.HighlightedText, QColor(colors["text"]))
         app.setPalette(palette)
         for calendar in app.allWidgets():
-            if isinstance(calendar, QCalendarWidget) and not calendar.isVisible():
+            if isinstance(calendar, QCalendarWidget):
                 apply_pulsar_calendar_style(calendar)
         apply_native_theme_to_app(app)
 
