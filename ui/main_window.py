@@ -805,8 +805,9 @@ class MainWindow(QMainWindow):
             FONTS,
             scaled,
         )
-        from PyQt6.QtWidgets import QPushButton, QLabel, QApplication
+        from PyQt6.QtWidgets import QPushButton, QLabel, QApplication, QCalendarWidget
         from PyQt6.QtGui import QPalette, QColor
+        from ui.calendar_style import apply_pulsar_calendar_style
 
         new_theme = toggle_theme()
         self.current_theme_light = new_theme == "light"
@@ -840,6 +841,9 @@ class MainWindow(QMainWindow):
         palette.setColor(QPalette.ColorRole.Highlight, QColor(colors["accent"]))
         palette.setColor(QPalette.ColorRole.HighlightedText, QColor(colors["text"]))
         app.setPalette(palette)
+        for calendar in app.allWidgets():
+            if isinstance(calendar, QCalendarWidget) and not calendar.isVisible():
+                apply_pulsar_calendar_style(calendar)
         apply_native_theme_to_app(app)
 
         self.setStyleSheet(get_main_stylesheet())

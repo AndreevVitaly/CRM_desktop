@@ -17,6 +17,7 @@ from PyQt6.QtCore import Qt, QDate
 
 from models.db_models import User, Patient, TreatmentPlanItem
 from ui.styles import get_colors, FONTS, RADIUS
+from ui.calendar_style import configure_date_edit
 
 
 class PlanItemFormDialog(QDialog):
@@ -55,6 +56,7 @@ class PlanItemFormDialog(QDialog):
         # Срок исполнения
         self.due_date_input = QDateEdit()
         self.due_date_input.setCalendarPopup(True)
+        configure_date_edit(self.due_date_input)
         self.due_date_input.setDate(QDate.currentDate())
         self.due_date_input.setDisplayFormat("dd.MM.yyyy")
         form_layout.addRow("Срок исполнения", self.due_date_input)

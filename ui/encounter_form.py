@@ -29,6 +29,7 @@ from models.db_models import (
     db,
 )
 from ui.styles import RADIUS, get_colors
+from ui.calendar_style import configure_date_edit
 
 
 class EncounterFormDialog(QDialog):
@@ -70,6 +71,7 @@ class EncounterFormDialog(QDialog):
         self.started_at_input.setDateTime(QDateTime.currentDateTime())
         self.started_at_input.setDisplayFormat("dd.MM.yyyy HH:mm")
         self.started_at_input.setCalendarPopup(True)
+        configure_date_edit(self.started_at_input)
         self.started_at_input.setFont(compact_font)
         self.started_at_input.setMinimumHeight(34)
         form_layout.addRow("Дата и время начала*", self.started_at_input)

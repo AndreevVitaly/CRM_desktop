@@ -86,6 +86,29 @@ class ForeignKeyIntegrityTests(unittest.TestCase):
         ).fetchone()[0]
         self.assertEqual(repaired_id, user_id)
 
+    def test_repairs_encounter_doctor_with_existing_active_user(self):
+        connection = self.database.connect()
+        user_id, patient_id = self._seed_user_and_patient(connection)
+        connection.execute(
+            "UPDATE patients SET doctor_id = NULL WHERE id = ?", (patient_id,)
+        )
+        connection.commit()
+        connection.execute("PRAGMA foreign_keys = OFF")
+        encounter_id = connection.execute(
+            """
+            INSERT INTO encounters (patient_id, doctor_id, started_at)
+            VALUES (?, 0, '2026-01-01')
+            """,
+            (patient_id,),
+        ).lastrowid
+        connection.commit()
+
+        reopened = self._reopen()
+        repaired_id = reopened.execute(
+            "SELECT doctor_id FROM encounters WHERE id = ?", (encounter_id,)
+        ).fetchone()[0]
+        self.assertEqual(repaired_id, user_id)
+
     def test_stops_on_unresolvable_required_reference(self):
         connection = self.database.connect()
         _, patient_id = self._seed_user_and_patient(connection)
@@ -94,6 +117,7 @@ class ForeignKeyIntegrityTests(unittest.TestCase):
         )
         connection.commit()
         connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute("DELETE FROM users")
         connection.execute(
             """
             INSERT INTO encounters (patient_id, doctor_id, started_at)

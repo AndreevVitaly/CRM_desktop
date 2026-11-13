@@ -867,9 +867,24 @@ QCalendarWidget QWidget#qt_calendar_navigationbar {{
 
 QCalendarWidget QAbstractItemView {{
     background-color: {colors['surface']};
+    alternate-background-color: {colors['surface_muted']};
+    color: {colors['text']};
     selection-background-color: {colors['accent']};
     selection-color: white;
+    gridline-color: {colors['line_light']};
     border: none;
+    outline: none;
+    font-size: {FONTS['size_normal']}pt;
+}}
+
+QCalendarWidget QAbstractItemView::item:hover {{
+    background-color: {colors['accent_light']};
+    color: {colors['accent_strong']};
+}}
+
+QCalendarWidget QAbstractItemView::item:selected {{
+    background-color: {colors['accent']};
+    color: white;
 }}
 
 /* ============================================

@@ -24,6 +24,7 @@ from models.db_models import (
     TreatmentPlanItem,
 )
 from ui.styles import get_colors, FONTS, RADIUS
+from ui.calendar_style import configure_date_edit
 
 
 def get_dialog_button_style(colors) -> str:
@@ -281,6 +282,7 @@ class PlanItemEditDialog(QDialog):
         layout.addWidget(QLabel("Срок исполнения:"))
         self.due_date_input = QDateEdit()
         self.due_date_input.setCalendarPopup(True)
+        configure_date_edit(self.due_date_input)
         self.due_date_input.setDate(QDate.currentDate().addMonths(1))
         self.due_date_input.setDisplayFormat("dd.MM.yyyy")
         layout.addWidget(self.due_date_input)

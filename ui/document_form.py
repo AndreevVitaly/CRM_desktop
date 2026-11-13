@@ -33,6 +33,7 @@ from models.db_models import (
     db,
 )
 from ui.styles import get_colors, FONTS, RADIUS
+from ui.calendar_style import configure_date_edit
 
 
 class DocumentFormDialog(QDialog):
@@ -124,6 +125,7 @@ class DocumentFormDialog(QDialog):
         # Дата документа
         self.doc_date_input = QDateEdit()
         self.doc_date_input.setCalendarPopup(True)
+        configure_date_edit(self.doc_date_input)
         self.doc_date_input.setDate(QDate.currentDate())
         self.doc_date_input.setDisplayFormat("dd.MM.yyyy")
         self.doc_date_input.setFont(compact_font)

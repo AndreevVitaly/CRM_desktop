@@ -35,6 +35,7 @@ from models.db_models import (
     get_department_choices,
 )
 from ui.styles import get_colors, FONTS, RADIUS, scaled
+from ui.calendar_style import configure_date_edit
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -55,6 +56,7 @@ class PeriodCalendarWidget(QCalendarWidget):
         self.updateCells()
 
     def paintCell(self, painter, rect, qdate):
+        colors = get_colors()
         day = qdate.toPyDate()
         selected = self.reference_date
         week_start = selected - timedelta(days=selected.weekday())
@@ -66,24 +68,26 @@ class PeriodCalendarWidget(QCalendarWidget):
         )
 
         if is_selected_day:
-            bg = QColor("#93C5FD")
-            fg = QColor("#0F172A")
-            border = QColor("#2563EB")
+            bg = QColor(colors["accent"])
+            fg = QColor("#FFFFFF")
+            border = QColor(colors["accent_strong"])
             weight = QFont.Weight.Bold
         elif self.period_mode == "week" and in_selected_week:
-            bg = QColor("#DBEAFE")
-            fg = QColor("#0F172A")
-            border = QColor("#DBEAFE")
+            bg = QColor(colors["accent_light"])
+            fg = QColor(colors["accent_strong"])
+            border = QColor(colors["accent_soft"])
             weight = QFont.Weight.DemiBold
         elif is_visible_month:
-            bg = QColor("#FFFFFF")
-            fg = QColor("#111827")
-            border = QColor("#E5E7EB")
+            bg = QColor(colors["surface"])
+            fg = QColor(
+                colors["danger"] if day.weekday() >= 5 else colors["text"]
+            )
+            border = QColor(colors["line"])
             weight = QFont.Weight.Normal
         else:
-            bg = QColor("#F8FAFC")
-            fg = QColor("#64748B")
-            border = QColor("#EEF2F7")
+            bg = QColor(colors["surface_muted"])
+            fg = QColor(colors["text_secondary"])
+            border = QColor(colors["line_light"])
             weight = QFont.Weight.Normal
 
         painter.save()
@@ -348,6 +352,7 @@ class PlanningPage(QWidget):
         self.period_date_input.setCalendarPopup(True)
         self.period_calendar = PeriodCalendarWidget()
         self.period_date_input.setCalendarWidget(self.period_calendar)
+        configure_date_edit(self.period_date_input)
         self.period_date_input.setDate(QDate.currentDate())
         self.period_date_input.setDisplayFormat("dd.MM.yyyy")
         self.period_date_input.setFixedWidth(160)
@@ -379,12 +384,12 @@ class PlanningPage(QWidget):
                 padding: 4px;
             }}
             QCalendarWidget QMenu {{
-                background-color: #FFFFFF;
-                color: #111827;
+                background-color: {colors['surface']};
+                color: {colors['text']};
             }}
             QCalendarWidget QWidget#qt_calendar_navigationbar {{
-                background-color: #FFFFFF;
-                border-bottom: 1px solid #E5E7EB;
+                background-color: {colors['surface']};
+                border-bottom: 1px solid {colors['line']};
             }}
             """
         )

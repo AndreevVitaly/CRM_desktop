@@ -355,7 +355,7 @@ class Database:
 
     @staticmethod
     def _repair_required_foreign_keys(cursor) -> int:
-        """Восстанавливает обязательные ссылки только из однозначных источников."""
+        """Восстанавливает обязательные ссылки из связанных записей и пользователей."""
         repair_statements = (
             """
             UPDATE documents
@@ -402,6 +402,19 @@ class Database:
                     SELECT p.doctor_id FROM patients p
                     JOIN users u ON u.id = p.doctor_id
                     WHERE p.id = encounters.patient_id
+                ),
+                (
+                    SELECT u.id FROM users u
+                    ORDER BY
+                        CASE WHEN u.is_active = 1 THEN 0 ELSE 1 END,
+                        CASE u.role
+                            WHEN 'DOC' THEN 0
+                            WHEN 'LEAD' THEN 1
+                            WHEN 'ADMIN' THEN 2
+                            ELSE 3
+                        END,
+                        u.id
+                    LIMIT 1
                 )
             )
             WHERE (doctor_id = 0 OR NOT EXISTS (
@@ -417,6 +430,19 @@ class Database:
                     SELECT p.doctor_id FROM patients p
                     JOIN users u ON u.id = p.doctor_id
                     WHERE p.id = encounters.patient_id
+                ),
+                (
+                    SELECT u.id FROM users u
+                    ORDER BY
+                        CASE WHEN u.is_active = 1 THEN 0 ELSE 1 END,
+                        CASE u.role
+                            WHEN 'DOC' THEN 0
+                            WHEN 'LEAD' THEN 1
+                            WHEN 'ADMIN' THEN 2
+                            ELSE 3
+                        END,
+                        u.id
+                    LIMIT 1
                 )
               ) IS NOT NULL
             """,
