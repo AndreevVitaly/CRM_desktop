@@ -29,12 +29,19 @@ class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("PULSAR - Вход")
-        self.setFixedSize(420, 520)
+        self.setFixedSize(420, 590)
         # Убираем рамку для закруглённых углов
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setStyleSheet(self._get_login_style())
         self._init_ui()
+
+        self.close_button = QPushButton("×", self)
+        self.close_button.setObjectName("closeBtn")
+        self.close_button.setToolTip("Закрыть программу")
+        self.close_button.setFixedSize(34, 34)
+        self.close_button.move(self.width() - 50, 16)
+        self.close_button.clicked.connect(self._close_application)
 
     def _init_ui(self):
         """Инициализация интерфейса"""
@@ -85,6 +92,13 @@ class LoginWindow(QWidget):
         main_layout.addWidget(self.password_input)
 
         main_layout.addSpacing(10)
+
+        # Основное действие входа должно быть заметнее регистрации.
+        self.login_button = QPushButton("Войти")
+        self.login_button.setObjectName("loginBtn")
+        self.login_button.setFixedHeight(48)
+        self.login_button.clicked.connect(self._do_login)
+        main_layout.addWidget(self.login_button)
 
         # Кнопка регистрации
         self.register_button = QPushButton("Пройти регистрацию")
@@ -156,6 +170,41 @@ class LoginWindow(QWidget):
                 border: 2px solid {colors['line']};
                 color: {colors['text_muted']};
             }}
+            QPushButton#loginBtn {{
+                background-color: {colors['surface']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+                font-weight: 700;
+            }}
+            QPushButton#loginBtn:hover {{
+                background-color: {colors['accent_light']};
+                border: 2px solid {colors['accent']};
+                color: {colors['accent']};
+            }}
+            QPushButton#loginBtn:pressed {{
+                background-color: {colors['accent_strong']};
+                border: 2px solid {colors['accent_strong']};
+                color: #FFFFFF;
+            }}
+            QPushButton#closeBtn {{
+                background-color: transparent;
+                border: none;
+                border-radius: {RADIUS['sm']}px;
+                padding: 0;
+                color: {colors['text_muted']};
+                font-size: {FONTS['size_large']}pt;
+                font-weight: 600;
+            }}
+            QPushButton#closeBtn:hover {{
+                background-color: {colors['danger_bg']};
+                border: none;
+                color: {colors['danger']};
+            }}
+            QPushButton#closeBtn:pressed {{
+                background-color: {colors['danger']};
+                border: none;
+                color: #FFFFFF;
+            }}
             QPushButton#secondaryBtn {{
                 background-color: transparent;
                 border: 2px solid {colors['line']};
@@ -221,10 +270,19 @@ class LoginWindow(QWidget):
         # Возвращаем фокус на поле логина
         self.login_input.setFocus()
 
+    def _close_application(self):
+        """Закрытие приложения из окна входа."""
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
+        else:
+            self.close()
+
     def keyPressEvent(self, event):
         """Обработка нажатий клавиш"""
         if event.key() == Qt.Key.Key_Escape:
-            event.ignore()
+            self._close_application()
+            event.accept()
             return
         super().keyPressEvent(event)
 
