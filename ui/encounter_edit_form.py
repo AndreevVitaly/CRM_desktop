@@ -37,6 +37,7 @@ from models.db_models import (
     TreatmentPlanItem,
     KmRecord,
     Document,
+    db,
 )
 from ui.styles import get_colors, FONTS, RADIUS
 
@@ -1308,14 +1309,41 @@ class EncounterEditDialog(QDialog):
             self.general_measures_input.toPlainText().strip()
         )
 
-        # Сначала сохраняем встречу (чтобы получить id если его не было)
-        self.encounter.save()
+        encounter_id_before = self.encounter.id
+        informant_ids_before = [informant.id for informant in self.informants]
+        try:
+            with db.transaction():
+                # Сначала сохраняем встречу (чтобы получить id если его не было).
+                self.encounter.save()
 
-        # Теперь сохраняем всех информаторов с правильным encounter_id
-        self._save_informants()
+                # Затем сохраняем информаторов и синхронизируем записи КМ.
+                self._save_informants()
+                self._save_km_record()
+        except Exception as exc:
+            # INSERT успевает назначить ID объектам до возможной ошибки ниже.
+            # После отката возвращаем состояние объектов для повторной попытки.
+            self.encounter.id = encounter_id_before
+            for informant, informant_id in zip(
+                self.informants, informant_ids_before
+            ):
+                informant.id = informant_id
 
-        # Создание/обновление записи КМ
-        self._save_km_record()
+            message = QMessageBox(self)
+            message.setIcon(QMessageBox.Icon.Critical)
+            message.setWindowTitle("Ошибка сохранения")
+            message.setText(
+                "Встреча не сохранена. Все изменения встречи, информаторов "
+                "и записей КМ отменены."
+            )
+            message.setInformativeText(
+                "Проверьте введённые данные и повторите сохранение."
+            )
+            message.setDetailedText(f"{type(exc).__name__}: {exc}")
+            message.exec()
+            return
+
+        self.deleted_informant_ids.clear()
+        self.informants_modified = False
 
         QMessageBox.information(self, "Успешно", "Встреча сохранена")
         self.accept()
@@ -1330,9 +1358,6 @@ class EncounterEditDialog(QDialog):
         for informant in self.informants:
             informant.encounter_id = self.encounter.id
             informant.save()
-
-        self.deleted_informant_ids.clear()
-        self.informants_modified = False
 
     def _save_km_record(self):
         """Синхронизация записей в таблице КМ по текущим информаторам"""

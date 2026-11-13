@@ -7,6 +7,7 @@ import sqlite3
 import hashlib
 import os
 import uuid as uuid_lib
+from contextlib import contextmanager
 from datetime import datetime, date
 from typing import Optional, List, Any
 from dataclasses import dataclass
@@ -86,6 +87,8 @@ class Database:
             cls._instance = super().__new__(cls)
             cls._instance.db_path = db_path
             cls._instance.password = password
+            cls._instance._transaction_depth = 0
+            cls._instance._transaction_counter = 0
         elif cls._instance.db_path != db_path or cls._instance.password != password:
             if cls._connection is not None:
                 cls._connection.close()
@@ -93,6 +96,7 @@ class Database:
                 cls._last_cursor = None
             cls._instance.db_path = db_path
             cls._instance.password = password
+            cls._instance._transaction_depth = 0
         return cls._instance
 
     @staticmethod
@@ -122,8 +126,174 @@ class Database:
                     self.db_path, check_same_thread=False
                 )
                 self._connection.row_factory = sqlite3.Row
-            self._create_tables()
+            try:
+                self._create_tables()
+            except Exception:
+                self._connection.rollback()
+                self._connection.close()
+                self._connection = None
+                raise
         return self._connection
+
+    @staticmethod
+    def _table_columns(cursor, table_name: str) -> set[str]:
+        return {
+            row[1]
+            for row in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
+        }
+
+    def _migrate_legacy_patients(self, cursor):
+        """Атомарно переводит старую таблицу ФИО на структуру с позывным."""
+        columns = self._table_columns(cursor, "patients")
+        if "first_name" not in columns:
+            return
+
+        required_columns = {
+            "id",
+            "first_name",
+            "last_name",
+            "middle_name",
+            "birth_date",
+            "gender",
+            "patient_type",
+            "department",
+            "doctor_id",
+            "facility_id",
+            "phone",
+            "email",
+            "document_id",
+            "insurance_number",
+            "employer",
+            "address",
+            "emergency_contact",
+            "is_active",
+            "created_at",
+        }
+        missing_columns = sorted(required_columns - columns)
+        if missing_columns:
+            raise RuntimeError(
+                "Невозможно обновить старую таблицу patients: отсутствуют поля "
+                + ", ".join(missing_columns)
+            )
+
+        savepoint = "migrate_legacy_patients"
+        cursor.execute(f"SAVEPOINT {savepoint}")
+        try:
+            # Остаток неудачной попытки нельзя использовать: он может быть неполным.
+            cursor.execute("DROP TABLE IF EXISTS patients_new")
+            cursor.execute(
+                """
+                CREATE TABLE patients_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    uuid TEXT,
+                    callsign TEXT NOT NULL,
+                    personal_number TEXT,
+                    birth_date DATE NOT NULL,
+                    gender TEXT(1),
+                    patient_type TEXT DEFAULT 'adult',
+                    department TEXT,
+                    doctor_id INTEGER,
+                    facility_id INTEGER,
+                    phone TEXT,
+                    email TEXT,
+                    document_id TEXT,
+                    insurance_number TEXT,
+                    employer TEXT,
+                    address TEXT,
+                    emergency_contact TEXT,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (doctor_id) REFERENCES users(id),
+                    FOREIGN KEY (facility_id) REFERENCES facilities(id)
+                )
+                """
+            )
+            source_count = cursor.execute(
+                "SELECT COUNT(*) FROM patients"
+            ).fetchone()[0]
+            cursor.execute(
+                """
+                INSERT INTO patients_new
+                (id, callsign, personal_number, birth_date, gender, patient_type,
+                 department, doctor_id, facility_id, phone, email, document_id,
+                 insurance_number, employer, address, emergency_contact, is_active,
+                 created_at, updated_at)
+                SELECT
+                    id,
+                    COALESCE(
+                        NULLIF(TRIM(
+                            COALESCE(last_name, '') || ' ' ||
+                            COALESCE(first_name, '') || ' ' ||
+                            COALESCE(middle_name, '')
+                        ), ''),
+                        'Категория АА'
+                    ),
+                    NULL,
+                    birth_date, gender, patient_type, department, doctor_id,
+                    facility_id, phone, email, document_id, insurance_number,
+                    employer, address, emergency_contact, is_active, created_at,
+                    created_at
+                FROM patients
+                """
+            )
+            target_count = cursor.execute(
+                "SELECT COUNT(*) FROM patients_new"
+            ).fetchone()[0]
+            if target_count != source_count:
+                raise RuntimeError(
+                    "Проверка миграции patients не пройдена: "
+                    f"ожидалось {source_count} строк, скопировано {target_count}"
+                )
+
+            cursor.execute("DROP TABLE patients")
+            cursor.execute("ALTER TABLE patients_new RENAME TO patients")
+            cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
+        except Exception as exc:
+            cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
+            raise RuntimeError(
+                "Не удалось безопасно обновить таблицу patients. "
+                "Исходная таблица сохранена."
+            ) from exc
+
+    def _ensure_table_columns(self, cursor, table_name: str, column_definitions):
+        """Атомарно добавляет отсутствующие колонки и проверяет итоговую схему."""
+        columns = self._table_columns(cursor, table_name)
+        missing = [
+            (name, definition)
+            for name, definition in column_definitions
+            if name not in columns
+        ]
+        if not missing:
+            return
+
+        savepoint = f"migrate_{table_name}_columns"
+        cursor.execute(f"SAVEPOINT {savepoint}")
+        try:
+            for column_name, column_definition in missing:
+                cursor.execute(
+                    f"ALTER TABLE {table_name} "
+                    f"ADD COLUMN {column_name} {column_definition}"
+                )
+
+            migrated_columns = self._table_columns(cursor, table_name)
+            still_missing = [
+                name for name, _ in column_definitions if name not in migrated_columns
+            ]
+            if still_missing:
+                raise RuntimeError(
+                    f"После миграции {table_name} отсутствуют поля: "
+                    + ", ".join(still_missing)
+                )
+            cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
+        except Exception as exc:
+            cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
+            raise RuntimeError(
+                f"Не удалось безопасно обновить структуру таблицы {table_name}. "
+                "Изменения схемы отменены."
+            ) from exc
 
     def _create_tables(self):
         cursor = self._connection.cursor()
@@ -333,6 +503,7 @@ class Database:
 
         # Миграция: добавление новых полей для encounters
         encounter_new_columns = [
+            ("uuid", "TEXT"),
             ("document_id", "INTEGER"),
             ("group_id", "INTEGER"),
             ("meeting_result", "TEXT"),
@@ -347,14 +518,30 @@ class Database:
             ("patient_tasks", "TEXT"),
             ("patient_measures", "TEXT"),
             ("general_measures", "TEXT"),
+            ("updated_at", "TIMESTAMP"),
         ]
-        for col_name, col_type in encounter_new_columns:
-            try:
-                cursor.execute(
-                    f"ALTER TABLE encounters ADD COLUMN {col_name} {col_type}"
-                )
-            except Exception:
-                pass  # Колонка уже существует
+        self._ensure_table_columns(cursor, "encounters", encounter_new_columns)
+
+        required_encounter_columns = {
+            "id",
+            "uuid",
+            "patient_id",
+            "doctor_id",
+            "started_at",
+            "finished_at",
+            "reason",
+            "status",
+            "treatment_plan_item_id",
+            *(name for name, _ in encounter_new_columns),
+        }
+        missing_encounter_columns = sorted(
+            required_encounter_columns - self._table_columns(cursor, "encounters")
+        )
+        if missing_encounter_columns:
+            raise RuntimeError(
+                "Таблица encounters имеет несовместимую структуру. Отсутствуют поля: "
+                + ", ".join(missing_encounter_columns)
+            )
 
         # Таблица информаторов встречи (Encounter Informants)
         cursor.execute(
@@ -570,57 +757,8 @@ class Database:
         """
         )
 
-        # Миграция категорий АА: замена first_name/last_name/middle_name на callsign/personal_number
-        try:
-            cursor.execute("SELECT first_name FROM patients LIMIT 1")
-            # Создаём временную таблицу с новой структурой
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS patients_new (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    callsign TEXT NOT NULL DEFAULT '',
-                    personal_number TEXT,
-                    birth_date DATE NOT NULL,
-                    gender TEXT(1),
-                    patient_type TEXT DEFAULT 'adult',
-                    department TEXT,
-                    doctor_id INTEGER,
-                    facility_id INTEGER,
-                    phone TEXT,
-                    email TEXT,
-                    document_id TEXT,
-                    insurance_number TEXT,
-                    employer TEXT,
-                    address TEXT,
-                    emergency_contact TEXT,
-                    is_active BOOLEAN DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (doctor_id) REFERENCES users(id),
-                    FOREIGN KEY (facility_id) REFERENCES facilities(id)
-                )
-                """
-            )
-            # Копируем данные, объединяя ФИО в callsign
-            cursor.execute(
-                """
-                INSERT OR IGNORE INTO patients_new
-                (id, callsign, personal_number, birth_date, gender, patient_type,
-                 department, doctor_id, facility_id, phone, email, document_id,
-                 insurance_number, employer, address, emergency_contact, is_active, created_at)
-                SELECT
-                    id,
-                    COALESCE(NULLIF(last_name, '') || ' ' || NULLIF(first_name, '') || ' ' || COALESCE(NULLIF(middle_name, ''), ''), 'Категория АА') as callsign,
-                    NULL as personal_number,
-                    birth_date, gender, patient_type,
-                    department, doctor_id, facility_id, phone, email, document_id,
-                    insurance_number, employer, address, emergency_contact, is_active, created_at
-                FROM patients
-                """
-            )
-            cursor.execute("DROP TABLE patients")
-            cursor.execute("ALTER TABLE patients_new RENAME TO patients")
-        except Exception:
-            pass  # Миграция уже выполнена или таблица ещё пуста
+        # Миграция категорий АА: замена first_name/last_name/middle_name на callsign.
+        self._migrate_legacy_patients(cursor)
 
         # Миграция: добавление новых полей для документов категории АА
         new_columns = [
@@ -805,8 +943,27 @@ class Database:
         self._last_cursor = cursor  # Сохраняем курсор для lastrowid
         return cursor
 
+    @contextmanager
+    def transaction(self):
+        """Объединяет несколько модельных операций в одну атомарную транзакцию."""
+        connection = self.connect()
+        self._transaction_counter += 1
+        savepoint = f"pulsar_transaction_{self._transaction_counter}"
+        connection.execute(f"SAVEPOINT {savepoint}")
+        self._transaction_depth += 1
+        try:
+            yield connection
+        except Exception:
+            connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            connection.execute(f"RELEASE SAVEPOINT {savepoint}")
+            raise
+        else:
+            connection.execute(f"RELEASE SAVEPOINT {savepoint}")
+        finally:
+            self._transaction_depth -= 1
+
     def commit(self):
-        if self._connection:
+        if self._connection and self._transaction_depth == 0:
             self._connection.commit()
 
     def fetchone(self, query: str, params: tuple = ()) -> Optional[sqlite3.Row]:

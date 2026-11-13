@@ -26,6 +26,7 @@ from models.db_models import (
     PatientInteraction,
     Prescription,
     User,
+    db,
 )
 from ui.styles import RADIUS, get_colors
 
@@ -291,39 +292,57 @@ class EncounterFormDialog(QDialog):
         self.encounter.started_at = self.started_at_input.dateTime().toPyDateTime()
         self.encounter.reason = self.reason_input.toPlainText().strip()
         self.encounter.status = self.status_combo.currentData()
-        self.encounter.save()
+        encounter_id_before = self.encounter.id
+        try:
+            with db.transaction():
+                self.encounter.save()
 
-        note_text = self.note_input.toPlainText().strip()
-        if note_text:
-            note = Note(
-                encounter_id=self.encounter.id,
-                author_id=self.user.id,
-                text=note_text,
+                note_text = self.note_input.toPlainText().strip()
+                if note_text:
+                    Note(
+                        encounter_id=self.encounter.id,
+                        author_id=self.user.id,
+                        text=note_text,
+                    ).save()
+
+                if self.user.role in (
+                    User.ROLE_ADMIN,
+                    User.ROLE_LEAD,
+                    User.ROLE_DOCTOR,
+                ):
+                    if (
+                        hasattr(self, "medication_input")
+                        and self.medication_input.text().strip()
+                    ):
+                        Prescription(
+                            encounter_id=self.encounter.id,
+                            medication=self.medication_input.text().strip(),
+                            dosage=self.dosage_input.text().strip(),
+                            frequency=self.frequency_input.text().strip(),
+                            duration_days=self.duration_input.value(),
+                            notes="",
+                        ).save()
+
+                PatientInteraction(
+                    patient_id=self.patient.id,
+                    user_id=self.user.id,
+                    action="visit_created",
+                    description="Создана новая встреча",
+                ).save()
+        except Exception as exc:
+            self.encounter.id = encounter_id_before
+            message = QMessageBox(self)
+            message.setIcon(QMessageBox.Icon.Critical)
+            message.setWindowTitle("Ошибка сохранения")
+            message.setText(
+                "Встреча не сохранена. Все связанные изменения отменены."
             )
-            note.save()
-
-        if self.user.role in (User.ROLE_ADMIN, User.ROLE_LEAD, User.ROLE_DOCTOR):
-            if (
-                hasattr(self, "medication_input")
-                and self.medication_input.text().strip()
-            ):
-                rx = Prescription(
-                    encounter_id=self.encounter.id,
-                    medication=self.medication_input.text().strip(),
-                    dosage=self.dosage_input.text().strip(),
-                    frequency=self.frequency_input.text().strip(),
-                    duration_days=self.duration_input.value(),
-                    notes="",
-                )
-                rx.save()
-
-        interaction = PatientInteraction(
-            patient_id=self.patient.id,
-            user_id=self.user.id,
-            action="visit_created",
-            description="Создана новая встреча",
-        )
-        interaction.save()
+            message.setInformativeText(
+                "Проверьте введённые данные и повторите сохранение."
+            )
+            message.setDetailedText(f"{type(exc).__name__}: {exc}")
+            message.exec()
+            return
 
         QMessageBox.information(self, "Успешно", "Встреча сохранена")
         self.accept()

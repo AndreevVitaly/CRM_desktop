@@ -25,10 +25,12 @@ from models.db_models import (
     User,
     Patient,
     Document,
+    Encounter,
     EncounterGroup,
     DOCUMENT_CLASSIFICATION_CHOICES,
     DOCUMENT_TYPE_PLAN,
     DOCUMENT_TYPE_MEETING,
+    db,
 )
 from ui.styles import get_colors, FONTS, RADIUS
 
@@ -396,6 +398,14 @@ class DocumentFormDialog(QDialog):
             )
 
         self.patient = selected_patient
+        if doc_type == DOCUMENT_TYPE_MEETING and selected_patient is None:
+            QMessageBox.warning(
+                self,
+                "Ошибка",
+                "Для документа «Встреча» выберите категорию АА.",
+            )
+            return
+
         self.document.patient_id = selected_patient.id if selected_patient else 0
         self.document.group_id = self.group_combo.currentData()
         self.document.classification = self.classification_combo.currentData()
@@ -415,7 +425,42 @@ class DocumentFormDialog(QDialog):
         if not self.is_edit:
             self.document.encounter_id = None
 
-        self.document.save()
+        document_id_before = self.document.id
+        encounter_id_before = self.document.encounter_id
+        try:
+            with db.transaction():
+                self.document.save()
 
-        QMessageBox.information(self, "Успешно", f"Документ сохранён")
+                if (
+                    self.document.doc_type == DOCUMENT_TYPE_MEETING
+                    and not self.document.encounter_id
+                ):
+                    encounter = Encounter(
+                        patient_id=self.document.patient_id,
+                        doctor_id=self.user.id,
+                        started_at=self.document.doc_date,
+                        reason=self.document.summary or "",
+                        status=Encounter.STATUS_FINISHED,
+                        document_id=self.document.id,
+                    )
+                    encounter.save()
+                    self.document.encounter_id = encounter.id
+                    self.document.save()
+        except Exception as exc:
+            self.document.id = document_id_before
+            self.document.encounter_id = encounter_id_before
+            message = QMessageBox(self)
+            message.setIcon(QMessageBox.Icon.Critical)
+            message.setWindowTitle("Ошибка сохранения")
+            message.setText(
+                "Документ и встреча не сохранены. Все изменения отменены."
+            )
+            message.setInformativeText(
+                "Проверьте введённые данные и повторите сохранение."
+            )
+            message.setDetailedText(f"{type(exc).__name__}: {exc}")
+            message.exec()
+            return
+
+        QMessageBox.information(self, "Успешно", "Документ сохранён")
         self.accept()

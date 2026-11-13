@@ -1956,21 +1956,18 @@ class PatientDetailDialog(QDialog):
         if dialog.exec():
             doc = dialog.document
             if doc and doc.doc_type == DOCUMENT_TYPE_MEETING:
-                # Автоматически создаём запись Encounter
-                encounter = Encounter()
-                encounter.patient_id = self.patient.id
-                encounter.doctor_id = (
-                    self.user.id if self.user.role == User.ROLE_DOCTOR else 0
+                # DocumentFormDialog атомарно создаёт и связывает встречу.
+                encounter = (
+                    Encounter.get_by_id(doc.encounter_id) if doc.encounter_id else None
                 )
-                encounter.started_at = doc.doc_date
-                encounter.reason = doc.summary or ""
-                encounter.status = Encounter.STATUS_FINISHED
-                encounter.document_id = doc.id
-                encounter.save()
-
-                # Связываем документ с встречей
-                doc.encounter_id = encounter.id
-                doc.save()
+                if not encounter:
+                    QMessageBox.critical(
+                        self,
+                        "Ошибка встречи",
+                        "Документ сохранён без связанной встречи. Обновите список и "
+                        "повторите создание встречи.",
+                    )
+                    return
 
                 self._load_encounters()
                 self._load_documents()
