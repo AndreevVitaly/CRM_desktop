@@ -2963,7 +2963,17 @@ class Document:
     @property
     def encounter(self) -> Optional[Encounter]:
         if self.encounter_id:
-            return Encounter.get_by_id(self.encounter_id)
+            encounter = Encounter.get_by_id(self.encounter_id)
+            if encounter and encounter.document_id in (None, self.id):
+                return encounter
+        # Older/imported records may only have the encounter -> document link.
+        if self.id:
+            row = db.fetchone(
+                "SELECT * FROM encounters WHERE document_id = ? "
+                "ORDER BY updated_at DESC, id DESC LIMIT 1", (self.id,)
+            )
+            if row:
+                return Encounter._from_row(row)
         return None
 
     @property

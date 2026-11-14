@@ -1005,9 +1005,7 @@ class PatientDetailDialog(QDialog):
         if hasattr(self, "encounter_status_filter"):
             selected_status = self.encounter_status_filter.currentData() or ""
         for doc in encounter_docs:
-            encounter = None
-            if doc.encounter_id:
-                encounter = Encounter.get_by_id(doc.encounter_id)
+            encounter = doc.encounter
             status = (
                 encounter.status
                 if encounter and encounter.status
@@ -2018,9 +2016,7 @@ class PatientDetailDialog(QDialog):
             return
 
         # Получаем или создаём запись Encounter
-        encounter = None
-        if doc.encounter_id:
-            encounter = Encounter.get_by_id(doc.encounter_id)
+        encounter = doc.encounter
 
         if not encounter:
             # Создаём запись Encounter, если её нет

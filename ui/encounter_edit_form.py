@@ -180,7 +180,7 @@ class EncounterEditDialog(QDialog):
         self.informants_modified = False
 
         self.setWindowTitle(self._get_window_title())
-        self.setMinimumSize(1180, 680)
+        self.setMinimumSize(1100, 600)
         self.resize(1280, 760)
         self._init_ui()
         self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
@@ -212,18 +212,29 @@ class EncounterEditDialog(QDialog):
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setStyleSheet("border: none; background-color: transparent;")
 
-        # Две колонки внутри прокручиваемой области.
+        identity_row = QHBoxLayout()
+        self.callsign_label = QLabel(f"Позывной: {self.patient.callsign}")
+        self.personal_number_label = QLabel(
+            f"Личный номер: {self.patient.personal_number or 'Не присвоен'}"
+        )
+        for label in (self.callsign_label, self.personal_number_label):
+            label.setTextFormat(Qt.TextFormat.PlainText)
+            label.setStyleSheet("background-color: transparent; font-weight: 600;")
+            identity_row.addWidget(label)
+        identity_row.setSpacing(24)
+        identity_row.addStretch()
+        main_layout.addLayout(identity_row)
+
+        # Независимые колонки не растягивают соседние блоки по высоте.
         content_widget = QWidget()
-        layout = QGridLayout()
-        layout.setHorizontalSpacing(14)
-        layout.setVerticalSpacing(8)
+        layout = QHBoxLayout()
+        layout.setSpacing(12)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setColumnStretch(0, 1)
-        layout.setColumnStretch(1, 1)
-        layout.setRowStretch(0, 0)
-        layout.setRowStretch(1, 0)
-        layout.setRowStretch(2, 0)
-        layout.setRowStretch(3, 1)
+        left_column = QVBoxLayout()
+        right_column = QVBoxLayout()
+        for column in (left_column, right_column):
+            column.setSpacing(6)
+            layout.addLayout(column, 1)
 
         # Группа 1: Результат встречи
         result_group = QGroupBox("Результат встречи")
@@ -279,7 +290,7 @@ class EncounterEditDialog(QDialog):
 
         new_group_btn = QPushButton("Новый")
         new_group_btn.setObjectName("secondaryBtn")
-        new_group_btn.setFixedHeight(38)
+        new_group_btn.setFixedHeight(30)
         new_group_btn.setFixedWidth(86)
         new_group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         new_group_btn.clicked.connect(self._create_encounter_group)
@@ -288,7 +299,7 @@ class EncounterEditDialog(QDialog):
 
         clear_group_btn = QPushButton("Очистить")
         clear_group_btn.setObjectName("secondaryBtn")
-        clear_group_btn.setFixedHeight(38)
+        clear_group_btn.setFixedHeight(30)
         clear_group_btn.setFixedWidth(96)
         clear_group_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_group_btn.clicked.connect(lambda: self.group_combo.setCurrentIndex(0))
@@ -296,19 +307,8 @@ class EncounterEditDialog(QDialog):
         group_row.addWidget(clear_group_btn)
         result_layout.addRow("Признак встречи", group_row)
 
-        # Позывной и личный номер (автозаполнение из категории АА)
-        callsign_label = QLabel(f"Позывной: {self.patient.callsign}")
-        callsign_label.setStyleSheet("background-color: transparent;")
-        result_layout.addRow("", callsign_label)
-
-        personal_number_label = QLabel(
-            f"Личный номер: {self.patient.personal_number or 'Не присвоен'}"
-        )
-        personal_number_label.setStyleSheet("background-color: transparent;")
-        result_layout.addRow("", personal_number_label)
-
         result_group.setLayout(result_layout)
-        layout.addWidget(result_group, 0, 0)
+        left_column.addWidget(result_group)
 
         # Группа 2: Информация от категории АА
         patient_info_group = QGroupBox("Информация от категории АА")
@@ -333,12 +333,11 @@ class EncounterEditDialog(QDialog):
 
         self.patient_info_input = QTextEdit()
         self.patient_info_input.setPlaceholderText("Введите информацию от категории АА")
-        self.patient_info_input.setMinimumHeight(96)
-        self.patient_info_input.setMaximumHeight(120)
+        self.patient_info_input.setFixedHeight(84)
         patient_info_layout.addWidget(self.patient_info_input)
 
         patient_info_group.setLayout(patient_info_layout)
-        layout.addWidget(patient_info_group, 1, 0)
+        left_column.addWidget(patient_info_group)
 
         # Группа 3: Описание встречи
         description_group = QGroupBox("Описание встречи")
@@ -363,62 +362,62 @@ class EncounterEditDialog(QDialog):
 
         self.meeting_description_input = QTextEdit()
         self.meeting_description_input.setPlaceholderText("Введите описание встречи")
-        self.meeting_description_input.setMinimumHeight(96)
-        self.meeting_description_input.setMaximumHeight(120)
+        self.meeting_description_input.setFixedHeight(84)
         description_layout.addWidget(self.meeting_description_input)
 
-        information_quality_layout = QFormLayout()
-        self._configure_form_layout(information_quality_layout)
+        information_quality_layout = QGridLayout()
+        information_quality_layout.setHorizontalSpacing(8)
+        information_quality_layout.setVerticalSpacing(5)
 
         self.information_relevance_input = QLineEdit()
         self._set_row_control_size(self.information_relevance_input)
         self.information_relevance_input.setPlaceholderText(
             "Введите относимость информации"
         )
-        information_quality_layout.addRow(
-            "Относимость информации", self.information_relevance_input
-        )
+        information_quality_layout.addWidget(QLabel("Относимость"), 0, 0)
+        self.information_relevance_input.setMinimumWidth(100)
+        information_quality_layout.addWidget(self.information_relevance_input, 0, 1)
 
         self.information_importance_input = QLineEdit()
         self._set_row_control_size(self.information_importance_input)
         self.information_importance_input.setPlaceholderText(
             "Введите важность информации"
         )
-        information_quality_layout.addRow(
-            "Важность информации", self.information_importance_input
-        )
+        information_quality_layout.addWidget(QLabel("Важность"), 0, 2)
+        self.information_importance_input.setMinimumWidth(100)
+        information_quality_layout.addWidget(self.information_importance_input, 0, 3)
 
         self.information_timeliness_combo = self._create_information_combo(
             Encounter.INFORMATION_TIMELINESS_CHOICES
         )
-        information_quality_layout.addRow(
-            "Своевременность информации", self.information_timeliness_combo
-        )
+        information_quality_layout.addWidget(QLabel("Своевременность"), 1, 0)
+        self.information_timeliness_combo.setMinimumWidth(100)
+        information_quality_layout.addWidget(self.information_timeliness_combo, 1, 1)
 
         self.information_completeness_combo = self._create_information_combo(
             Encounter.INFORMATION_COMPLETENESS_CHOICES
         )
-        information_quality_layout.addRow(
-            "Полнота информации", self.information_completeness_combo
-        )
+        information_quality_layout.addWidget(QLabel("Полнота"), 1, 2)
+        self.information_completeness_combo.setMinimumWidth(100)
+        information_quality_layout.addWidget(self.information_completeness_combo, 1, 3)
 
         self.information_novelty_combo = self._create_information_combo(
             Encounter.INFORMATION_NOVELTY_CHOICES
         )
-        information_quality_layout.addRow(
-            "Новизна информации", self.information_novelty_combo
-        )
+        information_quality_layout.addWidget(QLabel("Новизна"), 2, 0)
+        self.information_novelty_combo.setMinimumWidth(100)
+        information_quality_layout.addWidget(self.information_novelty_combo, 2, 1)
 
         self.information_reliability_combo = self._create_information_combo(
             Encounter.INFORMATION_RELIABILITY_CHOICES
         )
-        information_quality_layout.addRow(
-            "Достоверность информации", self.information_reliability_combo
-        )
+        information_quality_layout.addWidget(QLabel("Достоверность"), 2, 2)
+        self.information_reliability_combo.setMinimumWidth(100)
+        information_quality_layout.addWidget(self.information_reliability_combo, 2, 3)
         description_layout.addLayout(information_quality_layout)
 
         description_group.setLayout(description_layout)
-        layout.addWidget(description_group, 2, 0)
+        left_column.addWidget(description_group)
 
         # Группа 4: Мероприятия для исполнения категорией АА
         patient_tasks_group = QGroupBox("Мероприятия для исполнения категорией АА")
@@ -438,19 +437,15 @@ class EncounterEditDialog(QDialog):
             }}
         """
         )
-        patient_tasks_layout = QFormLayout()
-        self._configure_form_layout(patient_tasks_layout)
+        patient_tasks_layout = QVBoxLayout()
 
         self.patient_tasks_input = QTextEdit()
         self.patient_tasks_input.setPlaceholderText("Мероприятия и способ исполнения")
-        self.patient_tasks_input.setMinimumHeight(96)
-        self.patient_tasks_input.setMaximumHeight(120)
-        patient_tasks_layout.addRow(
-            "Мероприятия и способ исполнения", self.patient_tasks_input
-        )
+        self.patient_tasks_input.setFixedHeight(84)
+        patient_tasks_layout.addWidget(self.patient_tasks_input)
 
         patient_tasks_group.setLayout(patient_tasks_layout)
-        layout.addWidget(patient_tasks_group, 0, 1)
+        right_column.addWidget(patient_tasks_group)
 
         # Группа 5: Мероприятия в отношении категории АА (из плана)
         patient_measures_group = QGroupBox(
@@ -530,10 +525,9 @@ class EncounterEditDialog(QDialog):
         self.plan_items_table.verticalHeader().setVisible(False)
         self.plan_items_table.verticalHeader().setDefaultSectionSize(34)
         self.plan_items_table.verticalHeader().setMinimumSectionSize(34)
-        self.plan_items_table.setMinimumHeight(220)
-        self.plan_items_table.setMaximumHeight(260)
+        self.plan_items_table.setFixedHeight(100)
         plan_header = self.plan_items_table.horizontalHeader()
-        plan_header.setFixedHeight(36)
+        plan_header.setFixedHeight(28)
         plan_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         plan_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         plan_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -571,7 +565,7 @@ class EncounterEditDialog(QDialog):
         self._load_encounter_groups()
 
         patient_measures_group.setLayout(patient_measures_layout)
-        layout.addWidget(patient_measures_group, 1, 1)
+        right_column.addWidget(patient_measures_group)
 
         # Группа 6: Мероприятия общего формата
         general_measures_group = QGroupBox("Мероприятия общего формата")
@@ -598,12 +592,11 @@ class EncounterEditDialog(QDialog):
         self.general_measures_input.setPlaceholderText(
             "Введите мероприятия общего формата"
         )
-        self.general_measures_input.setMinimumHeight(96)
-        self.general_measures_input.setMaximumHeight(120)
+        self.general_measures_input.setFixedHeight(84)
         general_measures_layout.addWidget(self.general_measures_input)
 
         general_measures_group.setLayout(general_measures_layout)
-        layout.addWidget(general_measures_group, 2, 1)
+        right_column.addWidget(general_measures_group)
 
         # Группа 7: О ком сообщила категория АА (Информаторы)
         informants_group = QGroupBox("О ком сообщила категория АА")
@@ -647,10 +640,9 @@ class EncounterEditDialog(QDialog):
         self.informants_table.verticalHeader().setVisible(False)
         self.informants_table.verticalHeader().setDefaultSectionSize(34)
         self.informants_table.verticalHeader().setMinimumSectionSize(34)
-        self.informants_table.setMinimumHeight(220)
-        self.informants_table.setMaximumHeight(260)
+        self.informants_table.setFixedHeight(88)
         informants_header = self.informants_table.horizontalHeader()
-        informants_header.setFixedHeight(36)
+        informants_header.setFixedHeight(28)
         informants_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         informants_header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         informants_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -660,7 +652,7 @@ class EncounterEditDialog(QDialog):
 
         # Кнопки управления информаторами
         informants_buttons = QHBoxLayout()
-        informants_buttons.setContentsMargins(0, 6, 0, 2)
+        informants_buttons.setContentsMargins(0, 0, 0, 0)
         informants_buttons.setSpacing(8)
         informants_button_style = f"""
             QPushButton {{
@@ -740,7 +732,16 @@ class EncounterEditDialog(QDialog):
         self._load_informants()
 
         informants_group.setLayout(informants_layout)
-        layout.addWidget(informants_group, 3, 0, 1, 2)
+        right_column.addWidget(informants_group)
+
+        for group in (result_group, patient_info_group, description_group,
+                      patient_tasks_group, patient_measures_group,
+                      general_measures_group, informants_group):
+            group.layout().setContentsMargins(8, 18, 8, 8)
+            group.layout().setSpacing(6)
+            group.setStyleSheet(group.styleSheet().replace("padding-top: 16px;", "padding-top: 0px;"))
+        left_column.addStretch()
+        right_column.addStretch()
 
         content_widget.setLayout(layout)
         scroll.setWidget(content_widget)
@@ -766,7 +767,9 @@ class EncounterEditDialog(QDialog):
         self.setLayout(main_layout)
         self._polish_controls(colors)
         self.setStyleSheet(
-            f"background-color: {colors['bg']}; color: {colors['text']}; QGroupBox {{ color: {colors['text']}; }}"
+            f"QDialog {{ background-color: {colors['bg']}; color: {colors['text']}; }} "
+            f"QGroupBox {{ color: {colors['text']}; }} "
+            "QPushButton { min-height: 0px; padding: 4px 10px; }"
         )
 
         # Заполнение при редактировании
@@ -796,8 +799,8 @@ class EncounterEditDialog(QDialog):
 
     @staticmethod
     def _set_row_control_size(widget):
-        widget.setMinimumHeight(38)
-        widget.setMaximumHeight(38)
+        widget.setMinimumHeight(30)
+        widget.setMaximumHeight(30)
         widget.setMinimumWidth(260)
         widget.setMaximumWidth(16777215)
 
@@ -821,7 +824,7 @@ class EncounterEditDialog(QDialog):
             color: {colors['text']};
             border: 1px solid {colors['line']};
             border-radius: {RADIUS['md']}px;
-            padding: 6px 10px;
+            padding: 4px 8px;
             selection-background-color: {colors['accent']};
             selection-color: {colors['surface']};
         """
@@ -845,7 +848,7 @@ class EncounterEditDialog(QDialog):
             color: {colors['text']};
             border: 1px solid {colors['line']};
             border-radius: {RADIUS['md']}px;
-            padding: 8px 10px;
+            padding: 5px 8px;
             selection-background-color: {colors['accent']};
             selection-color: {colors['surface']};
         """
@@ -1317,6 +1320,15 @@ class EncounterEditDialog(QDialog):
             with db.transaction():
                 # Сначала сохраняем встречу (чтобы получить id если его не было).
                 self.encounter.save()
+
+                # Keep both links in the same transaction, including when editing
+                # an older document that only has the reverse link to a meeting.
+                if self.encounter.document_id:
+                    db.execute(
+                        "UPDATE documents SET encounter_id = ?, updated_at = ? WHERE id = ?",
+                        (self.encounter.id, self.encounter.updated_at.isoformat(),
+                         self.encounter.document_id),
+                    )
 
                 # Затем сохраняем информаторов и синхронизируем записи КМ.
                 self._save_informants()

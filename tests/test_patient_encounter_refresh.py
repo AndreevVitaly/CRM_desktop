@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QApplication, QDialog, QTableWidget
 
 from models import db_models as models
 from ui.document_form import DocumentFormDialog
+from ui.encounter_edit_form import EncounterEditDialog
 from ui.patient_detail import PatientDetailDialog
 
 
@@ -73,6 +74,62 @@ class PatientEncounterRefreshTests(unittest.TestCase):
             PatientDetailDialog._add_document(self.card)
         self.card._load_plans.assert_not_called()
         self.assertEqual(self.card.encounters_table.rowCount(), 0)
+
+    def test_edit_meeting_twice_and_reopen_from_database(self):
+        self._edit_meeting_twice(link_document=True)
+
+    def test_edit_meeting_with_missing_document_backlink(self):
+        self._edit_meeting_twice(link_document=False)
+
+    def _edit_meeting_twice(self, link_document):
+        document = models.Document(patient_id=self.patient.id, author_id=self.user.id,
+                                   doc_type=models.DOCUMENT_TYPE_MEETING)
+        document.save()
+        encounter = models.Encounter(patient_id=self.patient.id, doctor_id=self.user.id,
+                                     document_id=document.id)
+        encounter.save()
+        if link_document:
+            document.encounter_id = encounter.id
+            document.save()
+        for text in ('first edit', 'second edit'):
+            current = models.Document.get_by_id(document.id).encounter
+            dialog = EncounterEditDialog(self.user, self.patient, current)
+            dialog.meeting_result_combo.setCurrentIndex(1)
+            dialog.status_combo.setCurrentIndex(1)
+            dialog.patient_info_input.setPlainText(text)
+            dialog.meeting_description_input.setPlainText(text)
+            dialog.patient_tasks_input.setPlainText(text)
+            dialog.general_measures_input.setPlainText(text)
+            dialog.information_relevance_input.setText(text)
+            dialog.information_importance_input.setText(text)
+            for name in ('timeliness', 'completeness', 'novelty', 'reliability'):
+                getattr(dialog, f'information_{name}_combo').setCurrentIndex(1)
+            dialog.informants = [models.EncounterInformant(full_name=text)]
+            expected_result = dialog.meeting_result_combo.currentData()
+            expected_status = dialog.status_combo.currentData()
+            with patch('ui.encounter_edit_form.QMessageBox.information'), patch(
+                'ui.encounter_edit_form.QMessageBox.exec', return_value=0
+            ) as error:
+                dialog._save()
+            error.assert_not_called()
+            self.assertEqual(dialog.result(), QDialog.DialogCode.Accepted)
+            models.db._connection.close()
+            models.db._connection = None
+            saved_document = models.Document.get_by_id(document.id)
+            self.assertEqual(saved_document.encounter_id, encounter.id)
+            saved = saved_document.encounter
+            self.assertEqual(saved.meeting_result, expected_result)
+            self.assertEqual(saved.status, expected_status)
+            for field in ('patient_info', 'meeting_description', 'patient_tasks',
+                          'general_measures', 'information_relevance', 'information_importance'):
+                self.assertEqual(getattr(saved, field), text, field)
+            for name in ('timeliness', 'completeness', 'novelty', 'reliability'):
+                self.assertEqual(getattr(saved, f'information_{name}'),
+                                 getattr(dialog, f'information_{name}_combo').currentData())
+            self.assertIn(text, [i.full_name for i in models.EncounterInformant.get_by_encounter(saved.id)])
+            self.card._load_encounters()
+            self.assertEqual(self.card.encounters_table.item(0, 6).text(), text)
+            self.assertEqual(len(models.Encounter.get_by_patient(self.patient.id)), 1)
 
 
 if __name__ == '__main__':
