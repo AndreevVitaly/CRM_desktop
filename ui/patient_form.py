@@ -198,9 +198,6 @@ class PatientFormDialog(QDialog):
         self.phone_input.setPlaceholderText("+7 (___) ___-__-__")
         layout.addRow("Телефон", self.phone_input)
 
-        self.email_input = QLineEdit()
-        self.email_input.setPlaceholderText("email@example.com")
-        layout.addRow("Email", self.email_input)
 
         self.address_input = QLineEdit()
         self.address_input.setPlaceholderText("Адрес проживания")
@@ -416,7 +413,6 @@ class PatientFormDialog(QDialog):
 
         # Контакты
         self.phone_input.setText(self.patient.phone or "")
-        self.email_input.setText(self.patient.email or "")
         self.address_input.setText(self.patient.address or "")
         self.emergency_input.setText(self.patient.emergency_contact or "")
 
@@ -516,7 +512,6 @@ class PatientFormDialog(QDialog):
         self.patient.department = self.dept_combo.currentData()
 
         self.patient.phone = self.phone_input.text().strip()
-        self.patient.email = self.email_input.text().strip()
         self.patient.address = self.address_input.text().strip()
         self.patient.emergency_contact = self.emergency_input.text().strip()
 

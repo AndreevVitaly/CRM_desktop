@@ -161,7 +161,6 @@ class Database:
             "doctor_id",
             "facility_id",
             "phone",
-            "email",
             "document_id",
             "insurance_number",
             "employer",
@@ -196,7 +195,6 @@ class Database:
                     doctor_id INTEGER,
                     facility_id INTEGER,
                     phone TEXT,
-                    email TEXT,
                     document_id TEXT,
                     insurance_number TEXT,
                     employer TEXT,
@@ -217,7 +215,7 @@ class Database:
                 """
                 INSERT INTO patients_new
                 (id, callsign, personal_number, birth_date, gender, patient_type,
-                 department, doctor_id, facility_id, phone, email, document_id,
+                 department, doctor_id, facility_id, phone, document_id,
                  insurance_number, employer, address, emergency_contact, is_active,
                  created_at, updated_at)
                 SELECT
@@ -232,7 +230,7 @@ class Database:
                     ),
                     NULL,
                     birth_date, gender, patient_type, department, doctor_id,
-                    facility_id, phone, email, document_id, insurance_number,
+                    facility_id, phone, document_id, insurance_number,
                     employer, address, emergency_contact, is_active, created_at,
                     created_at
                 FROM patients
@@ -597,7 +595,6 @@ class Database:
                 first_name TEXT,
                 last_name TEXT,
                 middle_name TEXT DEFAULT '',
-                email TEXT,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL DEFAULT 'REG',
                 department TEXT,
@@ -662,7 +659,6 @@ class Database:
                 doctor_id INTEGER,
                 facility_id INTEGER,
                 phone TEXT,
-                email TEXT,
                 document_id TEXT,
                 insurance_number TEXT,
                 employer TEXT,
@@ -1190,7 +1186,28 @@ class Database:
         """
         )
 
+        self._remove_email_columns(cursor)
         self._connection.commit()
+
+    def _remove_email_columns(self, cursor):
+        """Удаляет устаревшие столбцы email из существующей базы атомарно."""
+        tables = [row[0] for row in cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()]
+        cursor.execute("SAVEPOINT remove_email_columns")
+        try:
+            for table in tables:
+                table_sql = self._quote_identifier(table)
+                columns = cursor.execute(f"PRAGMA table_info({table_sql})").fetchall()
+                for column in columns:
+                    if column[1].lower() == "email":
+                        column_sql = self._quote_identifier(column[1])
+                        cursor.execute(f"ALTER TABLE {table_sql} DROP COLUMN {column_sql}")
+            cursor.execute("RELEASE SAVEPOINT remove_email_columns")
+        except Exception:
+            cursor.execute("ROLLBACK TO SAVEPOINT remove_email_columns")
+            cursor.execute("RELEASE SAVEPOINT remove_email_columns")
+            raise
 
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         conn = self.connect()
@@ -1292,7 +1309,6 @@ class User:
     first_name: str = ""
     last_name: str = ""
     middle_name: str = ""
-    email: str = ""
     password_hash: str = ""
     role: str = "REG"
     department: Optional[str] = None
@@ -1340,8 +1356,8 @@ class User:
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO users
-            (id, username, first_name, last_name, middle_name, email, password_hash, role, department, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, username, first_name, last_name, middle_name, password_hash, role, department, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -1349,7 +1365,6 @@ class User:
                 self.first_name,
                 self.last_name,
                 self.middle_name,
-                self.email,
                 self.password_hash,
                 self.role,
                 self.department,
@@ -1530,7 +1545,6 @@ class Patient:
     doctor_id: Optional[int] = None
     facility_id: Optional[int] = None
     phone: str = ""
-    email: str = ""
     document_id: str = ""
     insurance_number: str = ""
     employer: str = ""
@@ -1596,13 +1610,13 @@ class Patient:
             """
             INSERT OR REPLACE INTO patients
             (id, uuid, callsign, personal_number, birth_date, gender, patient_type,
-             department, doctor_id, facility_id, phone, email, document_id, insurance_number,
+             department, doctor_id, facility_id, phone, document_id, insurance_number,
              employer, address, emergency_contact,
              study_case_number, study_sheet_numbers,
              admission_report_number, admission_report_date, admission_sanction_date,
              arrival_report_number, arrival_report_date, arrival_sanction_date,
              is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
@@ -1616,7 +1630,6 @@ class Patient:
                 self.doctor_id,
                 self.facility_id,
                 self.phone,
-                self.email,
                 self.document_id,
                 self.insurance_number,
                 self.employer,
@@ -3927,7 +3940,6 @@ def create_test_data():
             "admin",
             "Админ",
             "Админов",
-            "admin@hospital.ru",
             User.ROLE_ADMIN,
             None,
             "admin123",
@@ -3936,7 +3948,6 @@ def create_test_data():
             "reg1",
             "Регистратор",
             "Регистраторов",
-            "reg@hospital.ru",
             User.ROLE_REGISTRAR,
             None,
             "reg123",
@@ -3945,7 +3956,6 @@ def create_test_data():
             "lead1",
             "Начальник",
             "Отделенков",
-            "lead@hospital.ru",
             User.ROLE_LEAD,
             "cardiology",
             "lead123",
@@ -3954,7 +3964,6 @@ def create_test_data():
             "doc1",
             "Доктор",
             "Врачев",
-            "doc@hospital.ru",
             User.ROLE_DOCTOR,
             "cardiology",
             "doc123",
@@ -3963,7 +3972,6 @@ def create_test_data():
             "doc2",
             "Иван",
             "Петров",
-            "doc2@hospital.ru",
             User.ROLE_DOCTOR,
             "therapy",
             "doc123",
@@ -3972,7 +3980,6 @@ def create_test_data():
             "nur1",
             "Делопроизводитель",
             "Сестринкина",
-            "nur@hospital.ru",
             User.ROLE_NURSE,
             "cardiology",
             "nur123",
@@ -3981,19 +3988,17 @@ def create_test_data():
             "nur2",
             "Анна",
             "Иванова",
-            "nur2@hospital.ru",
             User.ROLE_NURSE,
             "therapy",
             "nur123",
         ),
     ]
 
-    for username, first_name, last_name, email, role, dept, password in users_data:
+    for username, first_name, last_name, role, dept, password in users_data:
         user = User(
             username=username,
             first_name=first_name,
             last_name=last_name,
-            email=email,
             role=role,
             department=dept,
             password_hash=hash_password(password),

@@ -172,9 +172,9 @@ class UsersPage(QWidget):
         colors = get_colors()
 
         table = QTableWidget()
-        table.setColumnCount(6)
+        table.setColumnCount(5)
         table.setHorizontalHeaderLabels(
-            ["ФИО", "Логин", "Роль", "Отделение", "Email", "Статус"]
+            ["ФИО", "Логин", "Роль", "Отделение", "Статус"]
         )
 
         header = table.horizontalHeader()
@@ -183,7 +183,6 @@ class UsersPage(QWidget):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
 
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -310,20 +309,13 @@ class UsersPage(QWidget):
             )
             self.table.setItem(row, 3, dept_item)
 
-            # Email
-            email_item = QTableWidgetItem(u.email or "—")
-            email_item.setForeground(
-                QColor(active_text_color if u.is_active else inactive_color)
-            )
-            self.table.setItem(row, 4, email_item)
-
             # Статус
             status = "✅ Активен" if u.is_active else "⏸️ Заблокирован"
             status_item = QTableWidgetItem(status)
             status_item.setForeground(
                 QColor(active_text_color if u.is_active else inactive_color)
             )
-            self.table.setItem(row, 5, status_item)
+            self.table.setItem(row, 4, status_item)
 
         self.count_label.setText(f"Найдено: {len(filtered)}")
 

@@ -74,6 +74,7 @@ class DatabaseMigrationTests(unittest.TestCase):
         }
 
         self.assertNotIn("first_name", columns)
+        self.assertNotIn("email", columns)
         self.assertTrue({"uuid", "callsign", "personal_number", "updated_at"} <= columns)
         row = migrated.execute(
             "SELECT callsign, birth_date, updated_at FROM patients"
@@ -180,6 +181,67 @@ class DatabaseMigrationTests(unittest.TestCase):
             "updated_at",
         }
         self.assertTrue(required <= columns)
+
+    def test_removes_email_from_existing_plain_and_encrypted_databases(self):
+        from utils.sync_exchange import _apply_users
+
+        for password in ('', 'migration-test-password'):
+            with self.subTest(encrypted=bool(password)):
+                database = Database(str(self.db_path), password)
+                connection = database.connect()
+                connection.execute('ALTER TABLE users ADD COLUMN email TEXT')
+                connection.execute('ALTER TABLE patients ADD COLUMN email TEXT')
+                user_id = connection.execute(
+                    "INSERT INTO users (username, password_hash, role, email) "
+                    "VALUES ('test', 'saved-hash', 'DOCTOR', 'old@example.com')"
+                ).lastrowid
+                patient_id = connection.execute(
+                    "INSERT INTO patients (callsign, birth_date, doctor_id, phone, email) "
+                    "VALUES ('TEST', '1980-01-01', ?, '12345', 'patient@example.com')",
+                    (user_id,),
+                ).lastrowid
+                connection.commit()
+                connection.close()
+                database._connection = None
+
+                migrated = database.connect()
+                for table in ('users', 'patients'):
+                    columns = {r[1] for r in migrated.execute(f'PRAGMA table_info({table})')}
+                    self.assertNotIn('email', columns)
+                self.assertEqual(tuple(migrated.execute(
+                    'SELECT username, password_hash FROM users WHERE id = ?', (user_id,)
+                ).fetchone()), ('test', 'saved-hash'))
+                self.assertEqual(tuple(migrated.execute(
+                    'SELECT callsign, doctor_id, phone FROM patients WHERE id = ?', (patient_id,)
+                ).fetchone()), ('TEST', user_id, '12345'))
+                summary = _apply_users([{'username': 'old-package', 'email': 'ignored@example.com'}])
+                self.assertEqual(summary['new'], 1)
+                database.commit()
+                database._create_tables()  # Migration may safely run again.
+                self.assertEqual(migrated.execute('PRAGMA foreign_key_check').fetchall(), [])
+                migrated.close()
+                database._connection = None
+                self.db_path.unlink()
+
+    def test_email_migration_rolls_back_all_tables_on_failure(self):
+        connection = sqlite3.connect(self.db_path)
+        connection.execute('CREATE TABLE first_table (id INTEGER PRIMARY KEY, email TEXT)')
+        connection.execute('CREATE TABLE second_table (id INTEGER PRIMARY KEY, email TEXT)')
+        connection.execute("INSERT INTO first_table VALUES (1, 'preserved@example.com')")
+        connection.commit()
+
+        class FailingCursor:
+            def execute(self, statement, parameters=()):
+                if statement.startswith('ALTER TABLE "second_table"'):
+                    raise sqlite3.OperationalError('simulated migration failure')
+                return connection.execute(statement, parameters)
+
+        database = Database(str(self.db_path), '')
+        with self.assertRaisesRegex(sqlite3.OperationalError, 'simulated migration failure'):
+            database._remove_email_columns(FailingCursor())
+        self.assertEqual(connection.execute('SELECT email FROM first_table').fetchone()[0],
+                         'preserved@example.com')
+        connection.close()
 
     def test_column_migration_surfaces_real_sqlite_error_and_rolls_back(self):
         connection = sqlite3.connect(self.db_path)

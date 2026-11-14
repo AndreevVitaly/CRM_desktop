@@ -5,6 +5,7 @@ PULSAR - Десктопная CRM для работы с отделениями
 
 import sys
 import traceback
+from utils.app_version import get_app_version
 from PyQt6.QtWidgets import QApplication, QMessageBox, QInputDialog, QLineEdit
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -80,6 +81,7 @@ def main():
     # Создание приложения
     app = QApplication(sys.argv)
     app.setApplicationName("PULSAR")
+    app.setApplicationVersion(get_app_version())
     app.setOrganizationName("PULSAR")
     configure_ui_scale(app.primaryScreen())
 

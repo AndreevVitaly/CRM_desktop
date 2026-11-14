@@ -35,6 +35,7 @@ from ui.brand_title import BrandTitleLabel
 from ui.native_window_theme import apply_native_theme_to_app, apply_native_window_theme
 from ui.styles import FONTS, RADIUS, get_colors, get_main_stylesheet, scaled
 from utils.app_paths import get_resource_path
+from utils.app_version import get_app_version
 
 
 class ThemeSwitch(QWidget):
@@ -482,6 +483,10 @@ class MainWindow(QMainWindow):
             f"font-size: {FONTS['size_xs']}pt; color: {colors['text_muted']};"
         )
         title_layout.addWidget(subtitle_label)
+        self.version_label = QLabel(f"Версия - {get_app_version()}")
+        self.version_label.setObjectName("muted")
+        self.version_label.setStyleSheet(subtitle_label.styleSheet())
+        title_layout.addWidget(self.version_label)
         title_layout.addStretch()
 
         logo_layout.addLayout(title_layout)

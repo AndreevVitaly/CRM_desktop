@@ -705,15 +705,14 @@ def _apply_users(package_users: list[dict[str, Any]]) -> dict[str, int]:
         db.execute(
             """
             INSERT INTO users
-            (username, first_name, last_name, middle_name, email, password_hash, role, department, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+            (username, first_name, last_name, middle_name, password_hash, role, department, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
             """,
             (
                 username,
                 package_user.get("first_name", ""),
                 package_user.get("last_name", ""),
                 package_user.get("middle_name", ""),
-                package_user.get("email", ""),
                 hash_password(str(uuid_lib.uuid4())),
                 package_user.get("role", User.ROLE_DOCTOR),
                 package_user.get("department"),

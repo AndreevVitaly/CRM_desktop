@@ -76,11 +76,6 @@ class RegistrationDialog(QDialog):
         self.middle_name_input.setFixedHeight(44)
         form_layout.addRow("Отчество", self.middle_name_input)
 
-        # Email
-        self.email_input = QLineEdit()
-        self.email_input.setPlaceholderText("user@example.com")
-        self.email_input.setFixedHeight(44)
-        form_layout.addRow("Email", self.email_input)
 
         # Логин
         self.username_input = QLineEdit()
@@ -161,7 +156,6 @@ class RegistrationDialog(QDialog):
         first_name = self.first_name_input.text().strip()
         last_name = self.last_name_input.text().strip()
         middle_name = self.middle_name_input.text().strip()
-        email = self.email_input.text().strip()
         username = self.username_input.text().strip()
         password = self.password_input.text()
         password_confirm = self.password_confirm_input.text()
@@ -203,7 +197,6 @@ class RegistrationDialog(QDialog):
                 first_name=first_name,
                 last_name=last_name,
                 middle_name=middle_name,
-                email=email,
                 role=role,
                 department=department,
                 password_hash=hash_password(password),

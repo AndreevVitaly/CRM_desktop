@@ -102,12 +102,6 @@ class UserFormDialog(QDialog):
         self.last_name_input.setMinimumHeight(34)
         main_layout.addRow("Фамилия*", self.last_name_input)
 
-        self.email_input = QLineEdit()
-        self.email_input.setFrame(False)
-        self.email_input.setFont(compact_font)
-        self.email_input.setPlaceholderText("email@example.com")
-        self.email_input.setMinimumHeight(34)
-        main_layout.addRow("Email", self.email_input)
 
         main_group.setLayout(main_layout)
         content_layout.addWidget(main_group)
@@ -235,7 +229,6 @@ class UserFormDialog(QDialog):
             self.password_input,
             self.first_name_input,
             self.last_name_input,
-            self.email_input,
             self.role_combo,
             self.dept_combo,
         ):
@@ -264,7 +257,6 @@ class UserFormDialog(QDialog):
         self.username_input.setText(self.user.username)
         self.first_name_input.setText(self.user.first_name)
         self.last_name_input.setText(self.user.last_name)
-        self.email_input.setText(self.user.email or "")
 
         index = self.role_combo.findData(self.user.role)
         if index >= 0:
@@ -301,7 +293,6 @@ class UserFormDialog(QDialog):
         self.user.username = self.username_input.text().strip()
         self.user.first_name = self.first_name_input.text().strip()
         self.user.last_name = self.last_name_input.text().strip()
-        self.user.email = self.email_input.text().strip()
         self.user.role = self.role_combo.currentData()
         self.user.department = self.dept_combo.currentData() or None
         self.user.is_active = self.active_check.isChecked()

@@ -626,7 +626,6 @@ class PatientDetailDialog(QDialog):
         col = 2
         contact_fields = [
             ("Телефон:", self.patient.phone or "—"),
-            ("Email:", self.patient.email or "—"),
             ("Адрес:", self.patient.address or "—"),
             ("Контакт для связи:", self.patient.emergency_contact or "—"),
         ]
