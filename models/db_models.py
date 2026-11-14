@@ -71,6 +71,21 @@ DOCUMENT_CLASSIFICATION_CHOICES = [
 DOCUMENT_TYPE_PLAN = "plan_work"  # План работы с категорией АА
 DOCUMENT_TYPE_MEETING = "meeting"  # Встреча
 
+PLAN_TYPE_CHOICES = [
+    ("INDIVIDUAL", "Индивидуальный план"),
+    ("ANNUAL", "Годовой план"),
+    ("QUARTERLY", "Квартальный план"),
+    ("MONTHLY", "Месячный план"),
+    ("GENERAL", "Общий план мероприятий"),
+]
+PLAN_STATUS_CHOICES = [
+    ("DRAFT", "Черновик"),
+    ("ACTIVE", "Действует"),
+    ("COMPLETED", "Завершён"),
+    ("ARCHIVED", "Архив"),
+    ("CANCELLED", "Отменён"),
+]
+
 
 # ============================================================================
 # БАЗА ДАННЫХ
@@ -1082,6 +1097,33 @@ class Database:
             ("group_id", "INTEGER"),
         ]
         self._ensure_table_columns(cursor, "documents", doc_new_columns)
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS plans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT UNIQUE NOT NULL,
+                patient_id INTEGER NOT NULL,
+                author_id INTEGER NOT NULL,
+                plan_type TEXT NOT NULL DEFAULT 'INDIVIDUAL',
+                title TEXT NOT NULL,
+                description TEXT,
+                period_type TEXT NOT NULL DEFAULT 'YEAR',
+                period_year INTEGER,
+                period_start DATE,
+                period_end DATE,
+                status TEXT NOT NULL DEFAULT 'DRAFT',
+                approved_by_id INTEGER,
+                approved_at TIMESTAMP,
+                document_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (patient_id) REFERENCES patients(id),
+                FOREIGN KEY (author_id) REFERENCES users(id),
+                FOREIGN KEY (approved_by_id) REFERENCES users(id),
+                FOREIGN KEY (document_id) REFERENCES documents(id)
+            )
+            """
+        )
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS event_report_positions (
@@ -2737,6 +2779,94 @@ class Attachment:
     def delete(self):
         if self.id:
             db.execute("DELETE FROM attachments WHERE id = ?", (self.id,))
+            db.commit()
+
+
+@dataclass
+class Plan:
+    """План работы; пункты плана хранятся в TreatmentPlanItem."""
+
+    id: Optional[int] = None
+    uuid: str = ""
+    patient_id: int = 0
+    author_id: int = 0
+    plan_type: str = "INDIVIDUAL"
+    title: str = ""
+    description: str = ""
+    period_type: str = "YEAR"
+    period_year: Optional[int] = None
+    period_start: Optional[date] = None
+    period_end: Optional[date] = None
+    status: str = "DRAFT"
+    approved_by_id: Optional[int] = None
+    approved_at: Optional[datetime] = None
+    document_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        if not self.uuid:
+            self.uuid = str(uuid_lib.uuid4())
+        now = datetime.now()
+        if self.created_at is None:
+            self.created_at = now
+        if self.updated_at is None:
+            self.updated_at = now
+
+    def save(self):
+        self.updated_at = datetime.now()
+        db.execute(
+            """
+            INSERT OR REPLACE INTO plans
+            (id, uuid, patient_id, author_id, plan_type, title, description,
+             period_type, period_year, period_start, period_end, status,
+             approved_by_id, approved_at, document_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                self.id, self.uuid, self.patient_id, self.author_id,
+                self.plan_type, self.title, self.description, self.period_type,
+                self.period_year,
+                self.period_start.isoformat() if self.period_start else None,
+                self.period_end.isoformat() if self.period_end else None,
+                self.status, self.approved_by_id,
+                self.approved_at.isoformat() if self.approved_at else None,
+                self.document_id,
+                self.created_at.isoformat() if self.created_at else None,
+                self.updated_at.isoformat() if self.updated_at else None,
+            ),
+        )
+        db.commit()
+        if self.id is None:
+            self.id = db.lastrowid()
+
+    @classmethod
+    def _from_row(cls, row: dict) -> "Plan":
+        data = dict(row)
+        for field in ("period_start", "period_end"):
+            if data.get(field) and isinstance(data[field], str):
+                data[field] = date.fromisoformat(data[field][:10])
+        for field in ("approved_at", "created_at", "updated_at"):
+            if data.get(field) and isinstance(data[field], str):
+                data[field] = datetime.fromisoformat(data[field])
+        return cls(**data)
+
+    @classmethod
+    def get_by_id(cls, plan_id: int) -> Optional["Plan"]:
+        row = db.fetchone("SELECT * FROM plans WHERE id = ?", (plan_id,))
+        return cls._from_row(row) if row else None
+
+    @classmethod
+    def get_by_patient(cls, patient_id: int) -> List["Plan"]:
+        rows = db.fetchall(
+            "SELECT * FROM plans WHERE patient_id = ? ORDER BY period_start, created_at",
+            (patient_id,),
+        )
+        return [cls._from_row(row) for row in rows]
+
+    def delete(self):
+        if self.id:
+            db.execute("DELETE FROM plans WHERE id = ?", (self.id,))
             db.commit()
 
 
