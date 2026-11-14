@@ -160,7 +160,7 @@ class DashboardPage(QWidget):
 
         # KPI карточки
         stats_list = self._create_stats_list(self._get_kpi_data())
-        layout.addWidget(stats_list)
+        layout.addWidget(stats_list, 0, Qt.AlignmentFlag.AlignLeft)
 
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(12)
@@ -280,21 +280,14 @@ class DashboardPage(QWidget):
 
         container = QWidget()
         container.setObjectName("statsList")
-        container.setMaximumWidth(520)
         container.setStyleSheet("background-color: transparent;")
 
-        layout = QVBoxLayout(container)
+        layout = QGridLayout(container)
         layout.setContentsMargins(0, 6, 0, 6)
-        layout.setSpacing(0)
+        layout.setHorizontalSpacing(16)
+        layout.setVerticalSpacing(14)
 
-        for title, value, subtitle in items:
-            row = QWidget()
-            row.setObjectName("statsRow")
-            row.setStyleSheet("background-color: transparent;")
-            row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(0, 7, 0, 7)
-            row_layout.setSpacing(18)
-
+        for row, (title, value, subtitle) in enumerate(items):
             label_text = f"{title} {str(subtitle).lower()}" if subtitle else title
             title_label = QLabel(label_text)
             title_label.setObjectName("statsLabel")
@@ -305,16 +298,14 @@ class DashboardPage(QWidget):
             value_label = QLabel(value)
             value_label.setObjectName("statsValue")
             value_label.setAlignment(
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             )
-            value_label.setMinimumWidth(70)
             value_label.setStyleSheet(
                 f"font-size: {FONTS['size_large']}pt; font-weight: 700; color: {colors['accent']}; background-color: transparent;"
             )
 
-            row_layout.addWidget(title_label, 1)
-            row_layout.addWidget(value_label)
-            layout.addWidget(row)
+            layout.addWidget(title_label, row, 0)
+            layout.addWidget(value_label, row, 1)
 
         return container
 
