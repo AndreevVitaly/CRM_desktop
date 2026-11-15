@@ -205,7 +205,9 @@ class _SafeCalendarMixin:
     """Заменяет нестабильный Windows popup на обычный модальный диалог."""
 
     def _init_safe_calendar(self):
-        self._pulsar_calendar = QCalendarWidget(self)
+        # Календарь не должен быть дочерним элементом QDateEdit: иначе его
+        # sizeHint растягивает поле и подменяет отображение даты.
+        self._pulsar_calendar = QCalendarWidget()
         self._pulsar_calendar_dialog = None
         super().setCalendarPopup(False)
 
@@ -217,7 +219,7 @@ class _SafeCalendarMixin:
         if self._pulsar_calendar_dialog is not None:
             raise RuntimeError("Календарь нельзя заменять после первого открытия")
         self._pulsar_calendar = calendar
-        calendar.setParent(self)
+        calendar.setParent(None)
 
     def calendarWidget(self) -> QCalendarWidget:
         return self._pulsar_calendar

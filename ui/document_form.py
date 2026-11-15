@@ -120,7 +120,7 @@ class DocumentFormDialog(QDialog):
         self.classification_combo.setMinimumHeight(34)
         for value, label in DOCUMENT_CLASSIFICATION_CHOICES:
             self.classification_combo.addItem(label, value)
-        form_layout.addRow("Гриф секретности*", self.classification_combo)
+        self.classification_combo.setFixedWidth(180)
 
         # Дата документа
         self.doc_date_input = PulsarDateEdit()
@@ -130,7 +130,27 @@ class DocumentFormDialog(QDialog):
         self.doc_date_input.setDisplayFormat("dd.MM.yyyy")
         self.doc_date_input.setFont(compact_font)
         self.doc_date_input.setMinimumHeight(34)
-        form_layout.addRow("Дата*", self.doc_date_input)
+        self.doc_date_input.setFixedWidth(170)
+
+        # Компактная строка: гриф секретности и дата рядом.
+        classification_date_row = QWidget()
+        classification_date_layout = QHBoxLayout(classification_date_row)
+        classification_date_layout.setContentsMargins(0, 0, 0, 0)
+        classification_date_layout.setSpacing(8)
+        classification_label = QLabel("Гриф секретности*")
+        classification_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        classification_date_layout.addWidget(classification_label)
+        classification_date_layout.addWidget(self.classification_combo)
+        classification_date_layout.addStretch(1)
+        date_label = QLabel("Дата*")
+        date_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        classification_date_layout.addWidget(date_label)
+        classification_date_layout.addWidget(self.doc_date_input)
+        form_layout.addRow(classification_date_row)
 
         # Номер документа
         self.doc_number_input = QLineEdit()
