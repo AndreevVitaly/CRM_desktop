@@ -29,7 +29,7 @@ from models.db_models import (
     db,
 )
 from ui.styles import RADIUS, get_colors
-from ui.calendar_style import configure_date_edit
+from ui.calendar_style import PulsarDateTimeEdit, configure_date_edit
 
 
 class EncounterFormDialog(QDialog):
@@ -67,7 +67,7 @@ class EncounterFormDialog(QDialog):
             QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
         )
 
-        self.started_at_input = QDateTimeEdit()
+        self.started_at_input = PulsarDateTimeEdit()
         self.started_at_input.setDateTime(QDateTime.currentDateTime())
         self.started_at_input.setDisplayFormat("dd.MM.yyyy HH:mm")
         self.started_at_input.setCalendarPopup(True)

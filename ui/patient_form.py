@@ -29,7 +29,7 @@ from models.db_models import (
     PATIENT_TYPE_CHOICES,
 )
 from ui.styles import get_colors, FONTS, RADIUS
-from ui.calendar_style import configure_date_edit
+from ui.calendar_style import PulsarDateEdit, configure_date_edit
 
 
 class PatientFormDialog(QDialog):
@@ -146,7 +146,7 @@ class PatientFormDialog(QDialog):
         layout.addRow("Личный номер*", self.personal_number_input)
 
         # Дата рождения
-        self.birth_date_input = QDateEdit()
+        self.birth_date_input = PulsarDateEdit()
         self.birth_date_input.setCalendarPopup(True)
         configure_date_edit(self.birth_date_input)
         self.birth_date_input.setDate(QDate.currentDate().addYears(-18))
@@ -273,14 +273,14 @@ class PatientFormDialog(QDialog):
         self.admission_number_input.setPlaceholderText("Номер документа")
         layout.addRow("Номер документа", self.admission_number_input)
 
-        self.admission_date_input = QDateEdit()
+        self.admission_date_input = PulsarDateEdit()
         self.admission_date_input.setCalendarPopup(True)
         configure_date_edit(self.admission_date_input)
         self.admission_date_input.setDate(QDate.currentDate())
         self.admission_date_input.setDisplayFormat("dd.MM.yyyy")
         layout.addRow("Дата документа", self.admission_date_input)
 
-        self.admission_sanction_date_input = QDateEdit()
+        self.admission_sanction_date_input = PulsarDateEdit()
         self.admission_sanction_date_input.setCalendarPopup(True)
         configure_date_edit(self.admission_sanction_date_input)
         self.admission_sanction_date_input.setDate(QDate.currentDate())
@@ -305,14 +305,14 @@ class PatientFormDialog(QDialog):
         self.arrival_number_input.setPlaceholderText("Номер документа")
         layout.addRow("Номер документа", self.arrival_number_input)
 
-        self.arrival_date_input = QDateEdit()
+        self.arrival_date_input = PulsarDateEdit()
         self.arrival_date_input.setCalendarPopup(True)
         configure_date_edit(self.arrival_date_input)
         self.arrival_date_input.setDate(QDate.currentDate())
         self.arrival_date_input.setDisplayFormat("dd.MM.yyyy")
         layout.addRow("Дата документа", self.arrival_date_input)
 
-        self.arrival_sanction_date_input = QDateEdit()
+        self.arrival_sanction_date_input = PulsarDateEdit()
         self.arrival_sanction_date_input.setCalendarPopup(True)
         configure_date_edit(self.arrival_sanction_date_input)
         self.arrival_sanction_date_input.setDate(QDate.currentDate())

@@ -35,7 +35,7 @@ from models.db_models import (
     get_department_choices,
 )
 from ui.styles import get_colors, FONTS, RADIUS, scaled
-from ui.calendar_style import configure_date_edit, get_calendar_colors
+from ui.calendar_style import PulsarDateEdit, configure_date_edit, get_calendar_colors
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -348,7 +348,7 @@ class PlanningPage(QWidget):
         self.month_combo.currentIndexChanged.connect(self._load_events)
         layout.addWidget(self.month_combo)
 
-        self.period_date_input = QDateEdit()
+        self.period_date_input = PulsarDateEdit()
         self.period_date_input.setCalendarPopup(True)
         self.period_calendar = PeriodCalendarWidget()
         self.period_date_input.setCalendarWidget(self.period_calendar)

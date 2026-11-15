@@ -21,7 +21,7 @@ from datetime import datetime, time
 
 from models.db_models import User, Event, EVENT_TYPES, get_department_choices
 from ui.styles import get_colors, FONTS, RADIUS
-from ui.calendar_style import configure_date_edit
+from ui.calendar_style import PulsarDateEdit, configure_date_edit
 
 
 class EventFormDialog(QDialog):
@@ -87,7 +87,7 @@ class EventFormDialog(QDialog):
             self.setWindowTitle(f"{self.windowTitle()} ({self.default_year})")
 
         # Дата
-        self.date_input = QDateEdit()
+        self.date_input = PulsarDateEdit()
         self.date_input.setCalendarPopup(True)
         configure_date_edit(self.date_input)
         self.date_input.setDate(QDate.currentDate())

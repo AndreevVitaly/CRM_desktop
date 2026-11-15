@@ -21,7 +21,7 @@ from PyQt6.QtCore import Qt, QDate
 
 from models.db_models import User, Patient, Document, DOCUMENT_TYPE_PLAN
 from ui.styles import get_colors, RADIUS
-from ui.calendar_style import configure_date_edit
+from ui.calendar_style import PulsarDateEdit, configure_date_edit
 
 
 class PlanWorkFormDialog(QDialog):
@@ -66,7 +66,7 @@ class PlanWorkFormDialog(QDialog):
             QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
         )
 
-        self.doc_date_input = QDateEdit()
+        self.doc_date_input = PulsarDateEdit()
         self.doc_date_input.setCalendarPopup(True)
         configure_date_edit(self.doc_date_input)
         self.doc_date_input.setDate(QDate.currentDate())

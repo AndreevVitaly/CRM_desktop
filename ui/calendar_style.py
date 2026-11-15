@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QLocale, Qt
 from PyQt6.QtGui import QColor, QFont, QIcon, QPalette, QTextCharFormat
-from PyQt6.QtWidgets import QCalendarWidget, QToolButton
+from PyQt6.QtWidgets import (
+    QCalendarWidget,
+    QDateEdit,
+    QDateTimeEdit,
+    QDialog,
+    QHBoxLayout,
+    QPushButton,
+    QToolButton,
+    QVBoxLayout,
+)
 
 from ui.styles import FONTS, RADIUS, get_colors, scaled
 
@@ -190,3 +199,90 @@ def configure_date_edit(date_edit):
         calendar = PulsarCalendarWidget(date_edit)
         date_edit.setCalendarWidget(calendar)
     apply_pulsar_calendar_style(calendar)
+
+
+class _SafeCalendarMixin:
+    """Заменяет нестабильный Windows popup на обычный модальный диалог."""
+
+    def _init_safe_calendar(self):
+        self._pulsar_calendar = QCalendarWidget(self)
+        self._pulsar_calendar_dialog = None
+        super().setCalendarPopup(False)
+
+    def setCalendarPopup(self, enabled: bool):
+        # Qt 6.7 на Windows может падать при уничтожении активного popup.
+        super().setCalendarPopup(False)
+
+    def setCalendarWidget(self, calendar: QCalendarWidget):
+        if self._pulsar_calendar_dialog is not None:
+            raise RuntimeError("Календарь нельзя заменять после первого открытия")
+        self._pulsar_calendar = calendar
+        calendar.setParent(self)
+
+    def calendarWidget(self) -> QCalendarWidget:
+        return self._pulsar_calendar
+
+    def _ensure_calendar_dialog(self) -> QDialog:
+        if self._pulsar_calendar_dialog is not None:
+            return self._pulsar_calendar_dialog
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Выбор даты")
+        dialog.setModal(True)
+        dialog.setMinimumSize(scaled(390), scaled(370))
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(scaled(14), scaled(14), scaled(14), scaled(14))
+        layout.setSpacing(scaled(12))
+        layout.addWidget(self._pulsar_calendar)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch()
+        cancel_button = QPushButton("Отмена")
+        select_button = QPushButton("Выбрать")
+        select_button.setObjectName("primaryBtn")
+        cancel_button.clicked.connect(dialog.reject)
+        select_button.clicked.connect(dialog.accept)
+        buttons.addWidget(cancel_button)
+        buttons.addWidget(select_button)
+        layout.addLayout(buttons)
+
+        self._pulsar_calendar.activated.connect(dialog.accept)
+        self._pulsar_calendar_dialog = dialog
+        return dialog
+
+    def showCalendarDialog(self):
+        dialog = self._ensure_calendar_dialog()
+        apply_pulsar_calendar_style(self._pulsar_calendar)
+        self._pulsar_calendar.setSelectedDate(self.date())
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.setDate(self._pulsar_calendar.selectedDate())
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and event.position().x() >= self.width() - scaled(42):
+            event.accept()
+            self.showCalendarDialog()
+            return
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_F4, Qt.Key.Key_Down) and (
+            event.key() == Qt.Key.Key_F4
+            or event.modifiers() & Qt.KeyboardModifier.AltModifier
+        ):
+            event.accept()
+            self.showCalendarDialog()
+            return
+        super().keyPressEvent(event)
+
+
+class PulsarDateEdit(_SafeCalendarMixin, QDateEdit):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._init_safe_calendar()
+
+
+class PulsarDateTimeEdit(_SafeCalendarMixin, QDateTimeEdit):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._init_safe_calendar()

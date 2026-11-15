@@ -40,7 +40,7 @@ from models.db_models import (
     db,
 )
 from ui.styles import get_colors, FONTS, RADIUS
-from ui.calendar_style import configure_date_edit
+from ui.calendar_style import PulsarDateEdit, configure_date_edit
 
 
 class EncounterInformantDialog(QDialog):
@@ -73,7 +73,7 @@ class EncounterInformantDialog(QDialog):
         form_layout.addRow("ФИО", self.full_name_input)
 
         # Дата рождения
-        self.birth_date_input = QDateEdit()
+        self.birth_date_input = PulsarDateEdit()
         self.birth_date_input.setCalendarPopup(True)
         configure_date_edit(self.birth_date_input)
         self.birth_date_input.setDate(QDate.currentDate())
