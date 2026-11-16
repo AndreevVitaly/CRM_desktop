@@ -138,6 +138,10 @@ class DocumentFormDialog(QDialog):
         classification_date_layout.setContentsMargins(0, 0, 0, 0)
         classification_date_layout.setSpacing(8)
         classification_label = QLabel("Гриф секретности*")
+        # Выравниваем поле с остальными строками формы: у QFormLayout
+        # ширина колонки подписей фиксирована, а в составной строке она
+        # должна быть такой же, иначе комбобокс визуально выступает влево.
+        classification_label.setFixedWidth(113)
         classification_label.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
@@ -145,6 +149,7 @@ class DocumentFormDialog(QDialog):
         classification_date_layout.addWidget(self.classification_combo)
         classification_date_layout.addStretch(1)
         date_label = QLabel("Дата*")
+        date_label.setFixedWidth(42)
         date_label.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
