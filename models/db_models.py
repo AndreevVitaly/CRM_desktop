@@ -962,7 +962,7 @@ class Database:
 
         # Миграция: добавление колонки plan_document_id
         self._ensure_table_columns(
-            cursor, "treatment_plan_items", [("plan_document_id", "INTEGER")]
+            cursor, "treatment_plan_items", [("plan_document_id", "INTEGER"), ("plan_id", "INTEGER")]
         )
 
         # Таблица взаимодействий
@@ -1124,6 +1124,7 @@ class Database:
             )
             """
         )
+        self._migrate_plans_from_documents(cursor)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS event_report_positions (
@@ -1230,6 +1231,38 @@ class Database:
 
         self._remove_email_columns(cursor)
         self._connection.commit()
+
+    def _migrate_plans_from_documents(self, cursor):
+        """Переносит существующие документы-планы в единую таблицу plans."""
+        cursor.execute(
+            """
+            INSERT INTO plans (
+                uuid, patient_id, author_id, plan_type, title, description,
+                period_type, period_year, period_start, status, document_id,
+                created_at, updated_at
+            )
+            SELECT
+                d.uuid, d.patient_id, d.author_id, 'INDIVIDUAL',
+                COALESCE(NULLIF(d.summary, ''), 'План работы'), d.location,
+                'YEAR', CAST(strftime('%Y', d.doc_date) AS INTEGER), d.doc_date,
+                'ACTIVE', d.id, d.created_at, d.updated_at
+            FROM documents d
+            WHERE d.doc_type = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM plans p WHERE p.document_id = d.id OR p.uuid = d.uuid
+              )
+            """,
+            (DOCUMENT_TYPE_PLAN,),
+        )
+        cursor.execute(
+            """
+            UPDATE treatment_plan_items
+            SET plan_id = (
+                SELECT p.id FROM plans p WHERE p.document_id = treatment_plan_items.plan_document_id
+            )
+            WHERE plan_id IS NULL AND plan_document_id IS NOT NULL
+            """
+        )
 
     def _remove_email_columns(self, cursor):
         """Удаляет устаревшие столбцы email из существующей базы атомарно."""
@@ -2841,6 +2874,24 @@ class Plan:
             self.id = db.lastrowid()
 
     @classmethod
+    def upsert_from_document(cls, document: "Document"):
+        """Синхронизирует старый документ-план с единой таблицей plans."""
+        row = db.fetchone("SELECT id FROM plans WHERE document_id = ?", (document.id,))
+        plan = cls.get_by_id(row["id"]) if row else cls(
+            patient_id=document.patient_id,
+            author_id=document.author_id,
+            document_id=document.id,
+        )
+        plan.patient_id = document.patient_id
+        plan.author_id = document.author_id
+        plan.document_id = document.id
+        plan.title = document.summary or "План работы"
+        plan.description = document.location or ""
+        plan.period_start = document.doc_date
+        plan.period_year = document.doc_date.year if document.doc_date else None
+        plan.save()
+
+    @classmethod
     def _from_row(cls, row: dict) -> "Plan":
         data = dict(row)
         for field in ("period_start", "period_end"):
@@ -2875,6 +2926,7 @@ class TreatmentPlanItem:
     id: Optional[int] = None
     uuid: str = ""
     patient_id: int = 0
+    plan_id: Optional[int] = None  # FK к единой таблице plans
     plan_document_id: Optional[int] = None  # FK к Document (план работы)
     order_num: int = 1
     event: str = ""
@@ -2898,16 +2950,24 @@ class TreatmentPlanItem:
 
     def save(self):
         self.updated_at = datetime.now()
+        if self.plan_id is None and self.plan_document_id is not None:
+            row = db.fetchone(
+                "SELECT id FROM plans WHERE document_id = ?",
+                (self.plan_document_id,),
+            )
+            if row:
+                self.plan_id = row["id"]
         cursor = db.execute(
             """
             INSERT OR REPLACE INTO treatment_plan_items
-            (id, uuid, patient_id, plan_document_id, order_num, event, due_date, is_completed, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, uuid, patient_id, plan_id, plan_document_id, order_num, event, due_date, is_completed, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 self.id,
                 self.uuid,
                 self.patient_id,
+                self.plan_id,
                 self.plan_document_id,
                 self.order_num,
                 self.event,
@@ -3159,6 +3219,8 @@ class Document:
         db.commit()
         if self.id is None:
             self.id = db.lastrowid()
+        if self.doc_type == DOCUMENT_TYPE_PLAN and self.id:
+            Plan.upsert_from_document(self)
 
     def delete(self):
         db.execute("DELETE FROM documents WHERE id = ?", (self.id,))
