@@ -1680,6 +1680,17 @@ class Patient:
         return None
 
     def save(self):
+        if self.doctor_id and self.department:
+            doctor = User.get_by_id(self.doctor_id)
+            if (
+                doctor
+                and doctor.role == User.ROLE_DOCTOR
+                and doctor.department
+                and doctor.department != self.department
+            ):
+                raise ValueError(
+                    "Лечащий работник и категория АА должны относиться к одному отделению"
+                )
         self.updated_at = datetime.now()
         cursor = db.execute(
             """
@@ -4286,6 +4297,11 @@ def create_test_data():
         ),
     ]
 
+    doctors_by_department = {
+        doctor.department: doctor.id
+        for doctor in User.get_by_role(User.ROLE_DOCTOR)
+        if doctor.department
+    }
     for fn, ln, mn, bd, gender, ptype, dept, doc_id, fac_id, phone in patients_data:
         callsign = " ".join(part for part in (ln, fn, mn) if part).strip()
         patient = Patient(
@@ -4294,7 +4310,9 @@ def create_test_data():
             gender=gender,
             patient_type=ptype,
             department=dept,
-            doctor_id=doc_id,
+            # Тестовые данные не должны зависеть от последовательности ID
+            # пользователей: назначаем врача по отделению.
+            doctor_id=doctors_by_department.get(dept) if doc_id is not None else None,
             facility_id=fac_id,
             phone=phone,
         )

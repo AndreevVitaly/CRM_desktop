@@ -22,6 +22,7 @@ from PyQt6.QtCore import Qt
 
 from models.db_models import User, Document, DOCUMENT_TYPE_PLAN, DOCUMENT_TYPE_MEETING
 from ui.styles import get_colors, RADIUS, FONTS, get_main_stylesheet
+from ui.category_visuals import CategoryUnderlineDelegate, mark_category_item
 
 
 class DocumentsPage(QWidget):
@@ -146,6 +147,7 @@ class DocumentsPage(QWidget):
 
     def _create_table(self) -> QTableWidget:
         table = QTableWidget()
+        table.setItemDelegateForColumn(1, CategoryUnderlineDelegate(table))
         table.setColumnCount(11)
         table.setHorizontalHeaderLabels(
             [
@@ -233,9 +235,9 @@ class DocumentsPage(QWidget):
             id_item = QTableWidgetItem(str(doc.id))
             id_item.setData(Qt.ItemDataRole.UserRole, doc.id)
             self.table.setItem(row, 0, id_item)
-            self.table.setItem(
-                row, 1, QTableWidgetItem(patient.callsign if patient else "—")
-            )
+            callsign_item = QTableWidgetItem(patient.callsign if patient else "—")
+            mark_category_item(callsign_item, patient.patient_type if patient else None)
+            self.table.setItem(row, 1, callsign_item)
             self.table.setItem(
                 row,
                 2,

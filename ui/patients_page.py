@@ -18,49 +18,13 @@ from PyQt6.QtWidgets import (
     QMenu,
     QFileDialog,
     QInputDialog,
-    QStyledItemDelegate,
-    QStyle,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QColor, QPainter
+from PyQt6.QtGui import QAction
 
 from models.db_models import User, Patient, Facility, get_department_choices
 from ui.styles import get_colors, FONTS, RADIUS, get_main_stylesheet
-
-
-class _CategoryUnderlineDelegate(QStyledItemDelegate):
-    """Рисует цветную линию, сохраняя нейтральный цвет текста."""
-
-    CATEGORY_ROLE = Qt.ItemDataRole.UserRole + 1
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        colors = get_colors()
-        self._colors = {
-            "adult": QColor(colors["danger"]),
-            "child": QColor(colors["info"]),
-            "undefined": QColor(colors["success"]),
-        }
-
-    def paint(self, painter: QPainter, option, index):
-        super().paint(painter, option, index)
-        category = index.data(self.CATEGORY_ROLE)
-        color = self._colors.get(category)
-        text = index.data(Qt.ItemDataRole.DisplayRole)
-        if not color or not text:
-            return
-        painter.save()
-        painter.setPen(color)
-        metrics = option.fontMetrics
-        text_rect = option.widget.style().subElementRect(
-            QStyle.SubElement.SE_ItemViewItemText, option, option.widget
-        ) if option.widget else option.rect
-        width = min(metrics.horizontalAdvance(str(text)), text_rect.width())
-        left = text_rect.left()
-        # Линия должна быть ниже глифа, а не пересекать буквы.
-        y = option.rect.bottom() - 4
-        painter.drawLine(left, y, left + width, y)
-        painter.restore()
+from ui.category_visuals import CategoryUnderlineDelegate, CATEGORY_ROLE, mark_category_item
 
 
 class PatientsPage(QWidget):
@@ -356,8 +320,8 @@ class PatientsPage(QWidget):
         table.setAlternatingRowColors(False)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
-        table.setItemDelegateForColumn(0, _CategoryUnderlineDelegate(table))
-        table.setItemDelegateForColumn(4, _CategoryUnderlineDelegate(table))
+        table.setItemDelegateForColumn(0, CategoryUnderlineDelegate(table))
+        table.setItemDelegateForColumn(4, CategoryUnderlineDelegate(table))
 
         # Контекстное меню
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -417,9 +381,7 @@ class PatientsPage(QWidget):
             # Позывной
             name_item = QTableWidgetItem(patient.callsign or "")
             name_item.setData(Qt.ItemDataRole.UserRole, patient.id)
-            name_item.setData(
-                _CategoryUnderlineDelegate.CATEGORY_ROLE, patient.patient_type
-            )
+            mark_category_item(name_item, patient.patient_type)
             self.table.setItem(row, 0, name_item)
 
             # Личный номер
@@ -445,9 +407,7 @@ class PatientsPage(QWidget):
             category_item = QTableWidgetItem(
                 type_dict.get(patient.patient_type, "")
             )
-            category_item.setData(
-                _CategoryUnderlineDelegate.CATEGORY_ROLE, patient.patient_type
-            )
+            mark_category_item(category_item, patient.patient_type)
             self.table.setItem(row, 4, category_item)
 
             # Отделение

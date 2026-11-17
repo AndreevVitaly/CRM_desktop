@@ -35,6 +35,7 @@ from models.db_models import (
     get_department_choices,
 )
 from ui.styles import get_colors, FONTS, RADIUS, scaled
+from ui.category_visuals import CategoryUnderlineDelegate, mark_category_item
 from ui.calendar_style import PulsarDateEdit, configure_date_edit, get_calendar_colors
 from datetime import date, timedelta
 from pathlib import Path
@@ -138,6 +139,7 @@ class MeetingDocumentPickerDialog(QDialog):
         layout.addWidget(self.search_input)
 
         self.table = QTableWidget()
+        self.table.setItemDelegateForColumn(1, CategoryUnderlineDelegate(self.table))
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(
             ["Дата", "Категория АА", "Личный номер", "Автор", "Документ"]
@@ -215,6 +217,8 @@ class MeetingDocumentPickerDialog(QDialog):
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
+                if column == 1:
+                    mark_category_item(item, patient.patient_type)
                 if column == 0:
                     item.setData(Qt.ItemDataRole.UserRole, document.id)
                 self.table.setItem(row, column, item)

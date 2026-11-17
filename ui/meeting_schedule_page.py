@@ -36,6 +36,7 @@ from models.db_models import (
     get_department_choices,
 )
 from ui.styles import FONTS, RADIUS, get_colors, get_main_stylesheet
+from ui.category_visuals import CategoryUnderlineDelegate, mark_category_item
 
 SCHEDULE_ROW_HEIGHT = 40
 SCHEDULE_STATUS_MARKER_WIDTH = 38
@@ -402,6 +403,7 @@ class MeetingSchedulePage(QWidget):
     def _create_patient_table(self) -> QTableWidget:
         table = QTableWidget()
         table.setColumnCount(1)
+        table.setItemDelegateForColumn(0, CategoryUnderlineDelegate(table))
         table.setHorizontalHeaderLabels(["Категории АА"])
         table.setMinimumWidth(170)
         table.setMaximumWidth(PATIENT_COLUMN_WIDTH)
@@ -520,7 +522,13 @@ class MeetingSchedulePage(QWidget):
         self._render_tables()
 
     def _doctor_activity_patient_ids(self) -> set[int]:
-        return {patient_id for patient_id, _ in self.schedule.keys()}
+        # Не добавляем пациентов только из-за чужих отметок в графике.
+        # В записи расписания хранится врач, которому принадлежит отметка.
+        return {
+            patient_id
+            for (patient_id, _), entry in self.schedule.items()
+            if entry.doctor_id == self.doctor_filter
+        }
 
     def _filter_patients_by_status(self, patients: list[Patient]) -> list[Patient]:
         result = []
@@ -570,6 +578,7 @@ class MeetingSchedulePage(QWidget):
 
             patient_item = QTableWidgetItem(patient.callsign or "")
             patient_item.setData(Qt.ItemDataRole.UserRole, patient.id)
+            mark_category_item(patient_item, patient.patient_type)
             patient_item.setToolTip(self._patient_tooltip(patient))
             self.patient_table.setItem(row, 0, patient_item)
 

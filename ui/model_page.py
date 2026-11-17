@@ -21,10 +21,11 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QWidget,
 )
-from PyQt6.QtGui import QColor, QCursor
+from PyQt6.QtGui import QCursor
 
 from models.db_models import ModelRecord, Patient, User
 from ui.styles import FONTS, RADIUS, get_colors, get_main_stylesheet
+from ui.category_visuals import CategoryUnderlineDelegate, mark_category_item
 
 
 class ModelRecordDialog(QDialog):
@@ -214,6 +215,8 @@ class ModelPage(QWidget):
         layout.addWidget(panel)
 
         self.table = QTableWidget()
+        for column in (3, 5, 7):
+            self.table.setItemDelegateForColumn(column, CategoryUnderlineDelegate(self.table))
         self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels(
             [
@@ -296,11 +299,8 @@ class ModelPage(QWidget):
                 callsigns = record.callsigns_by_type(patient_type)
                 callsign_item = QTableWidgetItem(", ".join(callsigns) if callsigns else "—")
                 callsign_item.setData(Qt.ItemDataRole.UserRole, patient_type)
+                mark_category_item(callsign_item, patient_type)
                 if callsigns:
-                    callsign_item.setForeground(QColor(get_colors()["accent"]))
-                    font = callsign_item.font()
-                    font.setUnderline(True)
-                    callsign_item.setFont(font)
                     callsign_item.setToolTip("Нажмите, чтобы открыть карточку категории АА")
                 self.table.setItem(row, callsign_column, callsign_item)
         self.count_label.setText(f"Записей: {len(records)}")

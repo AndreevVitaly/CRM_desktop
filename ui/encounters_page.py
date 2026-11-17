@@ -29,6 +29,7 @@ from models.db_models import (
     User,
 )
 from ui.styles import FONTS, RADIUS, get_colors, get_main_stylesheet
+from ui.category_visuals import CategoryUnderlineDelegate, mark_category_item
 from utils.office_export import (
     build_encounter_docx_filename,
     export_encounter_to_docx,
@@ -98,6 +99,7 @@ class EncountersPage(QWidget):
 
         self.table = QTableWidget()
         self.table.setColumnCount(11)
+        self.table.setItemDelegateForColumn(1, CategoryUnderlineDelegate(self.table))
         self.table.setHorizontalHeaderLabels(
             [
                 "Дата",
@@ -314,6 +316,8 @@ class EncountersPage(QWidget):
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
+                if column == 1:
+                    mark_category_item(item, data["patient"].patient_type)
                 if column == 0:
                     item.setData(
                         Qt.ItemDataRole.UserRole, data["document"].id

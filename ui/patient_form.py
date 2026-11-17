@@ -556,7 +556,11 @@ class PatientFormDialog(QDialog):
                 )
                 return
 
-        self.patient.save()
+        try:
+            self.patient.save()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Ошибка", str(exc))
+            return
 
         QMessageBox.information(
             self, "Успешно", f"Категория АА {self.patient.full_name} сохранена"
