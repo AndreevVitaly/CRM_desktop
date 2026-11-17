@@ -141,7 +141,9 @@ class DocumentFormDialog(QDialog):
         # Выравниваем поле с остальными строками формы: у QFormLayout
         # ширина колонки подписей фиксирована, а в составной строке она
         # должна быть такой же, иначе комбобокс визуально выступает влево.
-        classification_label.setFixedWidth(113)
+        # Совпадает с шириной колонки подписей QFormLayout: поле начинается
+        # на одной вертикали с остальными полями формы.
+        classification_label.setFixedWidth(128)
         classification_label.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
