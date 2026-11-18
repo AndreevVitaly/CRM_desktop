@@ -143,11 +143,9 @@ class DocumentFormDialog(QDialog):
         # должна быть такой же, иначе комбобокс визуально выступает влево.
         # Совпадает с шириной колонки подписей QFormLayout: поле начинается
         # на одной вертикали с остальными полями формы.
-        classification_label.setFixedWidth(128)
         classification_label.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
-        classification_date_layout.addWidget(classification_label)
         classification_date_layout.addWidget(self.classification_combo)
         classification_date_layout.addStretch(1)
         date_label = QLabel("Дата*")
@@ -157,7 +155,7 @@ class DocumentFormDialog(QDialog):
         )
         classification_date_layout.addWidget(date_label)
         classification_date_layout.addWidget(self.doc_date_input)
-        form_layout.addRow(classification_date_row)
+        form_layout.addRow(classification_label, classification_date_row)
 
         # Номер документа
         self.doc_number_input = QLineEdit()
